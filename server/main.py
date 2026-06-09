@@ -22,6 +22,13 @@ from field_extractor import (
     compute_confidence,
 )
 
+# Import gemini_extractor from the root directory
+import sys
+from typing import Literal
+from fastapi import Query
+sys.path.append(str(Path(__file__).parent.parent))
+from gemini_extractor import extract_with_gemini, GeminiExtractionError, load_gemini_api_key
+
 logging.basicConfig(
     level=os.getenv("HOTIX_LOG_LEVEL", "INFO"),
     format="%(asctime)s %(levelname)s %(name)s %(message)s",
@@ -60,39 +67,101 @@ async def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
+@app.get("/engine-status")
+async def engine_status() -> dict[str, bool]:
+    """Check availability of extraction engines."""
+    key = load_gemini_api_key()
+    gemini_key_configured = bool(key)
+    
+    gemini_available = False
+    if gemini_key_configured:
+        try:
+            # Test ping for Gemini (simple generation with small prompt)
+            import google.generativeai as genai
+            genai.configure(api_key=key)
+            model = genai.GenerativeModel("gemini-1.5-flash")
+            # Minimal prompt to verify key and quota
+            model.generate_content("ping", request_options={"timeout": 10})
+            gemini_available = True
+        except Exception:
+            gemini_available = False
+
+    return {
+        "gemini_available": gemini_available,
+        "gemini_key_configured": gemini_key_configured,
+        "ocr_available": hasattr(app.state, "ocr_engine") and app.state.ocr_engine is not None,
+    }
+
+
 @app.post("/extract", response_model=InvoiceExtractionResponse)
-async def extract(file: UploadFile = File(...)) -> InvoiceExtractionResponse:
+async def extract(
+    file: UploadFile = File(...),
+    engine: Literal["auto", "gemini", "ocr"] = Query(default="auto")
+) -> InvoiceExtractionResponse:
     """Extract invoice fields from an uploaded PDF or image file."""
 
     filename = file.filename or ""
-    suffix = Path(filename).suffix.lower()
-    if suffix not in SUPPORTED_SUFFIXES:
-        raise HTTPException(status_code=400, detail=f"Unsupported file type: {suffix}")
+    raw_suffix = Path(filename).suffix.lower()
+    if raw_suffix not in SUPPORTED_SUFFIXES:
+        raise HTTPException(status_code=400, detail=f"Unsupported file type: {raw_suffix}")
 
-    engine: PaddleOcrEngine = app.state.ocr_engine
-    temp_path: Path | None = None
+    safe_suffix = raw_suffix
+    ocr_engine: PaddleOcrEngine = app.state.ocr_engine
 
     try:
         file_bytes = await file.read()
-
-        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
-            temp_path = Path(tmp.name)
-            tmp.write(file_bytes)
-
-        logger.info("Received upload: %s", filename)
-
         poppler_path = os.getenv("POPPLER_PATH")
         pages = load_invoice_images(file_bytes, filename, poppler_path=poppler_path)
+        
+        if not pages:
+             raise IngestionError("Aucune page trouvée dans le fichier")
 
+        # --- Gemini Path ---
+        if engine in ("gemini", "auto"):
+            try:
+                # Convert first page to bytes for Gemini
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp:
+                    pages[0].save(tmp.name, format="PNG")
+                    with open(tmp.name, "rb") as f:
+                        image_data = f.read()
+                os.unlink(tmp.name)
+
+                fields = extract_with_gemini(image_data, "image/png")
+                logger.info("Extraction via Gemini Vision successful for %s", Path(filename).name)
+                
+                return InvoiceExtractionResponse(
+                    **fields,
+                    confidence=0.95,
+                    raw_text="Extraction via Gemini Vision",
+                )
+            except GeminiExtractionError as exc:
+                if engine == "gemini":
+                    logger.error("Gemini extraction failed: %s", exc)
+                    raise HTTPException(status_code=503, detail=str(exc))
+                else:
+                    logger.warning("Gemini failed, falling back to OCR: %s", exc)
+                    # Proceed to OCR path
+            except Exception as exc:
+                if engine == "gemini":
+                    logger.exception("Gemini unexpected error")
+                    raise HTTPException(status_code=503, detail="Gemini service unavailable")
+                else:
+                    logger.warning("Gemini unexpected error, falling back to OCR: %s", exc)
+
+        # --- OCR Path ---
         all_lines = []
         for page_index, page_image in enumerate(pages):
-            result = engine.recognize(page_image, page_index)
+            result = ocr_engine.recognize(page_image, page_index)
             all_lines.extend(result.lines)
 
         fields = extract_invoice_fields(all_lines)
         confidences = extract_field_confidences(all_lines)
         raw_text = extract_raw_text(all_lines)
         confidence = compute_confidence(confidences)
+
+        # Log field names as requested (not content)
+        field_names = [k for k, v in fields.items() if v is not None]
+        logger.info("Extraction via OCR successful for %s. Fields: %s", Path(filename).name, field_names)
 
         return InvoiceExtractionResponse(
             **fields,

@@ -7,14 +7,26 @@
     <Nullable>enable</Nullable>
     <UseWPF>true</UseWPF>
     <ApplicationIcon>hotix_icon.ico</ApplicationIcon>
+    <SelfContained>false</SelfContained>
+    <PublishSingleFile>false</PublishSingleFile>
   </PropertyGroup>
+
+  <Target Name="CopyPythonServer" AfterTargets="Build">
+    <ItemGroup>
+      <ServerFiles Include="$(ProjectDir)..\server\*.py" />
+      <SettingsFile Include="$(ProjectDir)..\server\appsettings.json" />
+    </ItemGroup>
+    <Copy SourceFiles="@(ServerFiles)" DestinationFolder="$(OutputPath)\server" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(SettingsFile)" DestinationFolder="$(OutputPath)" SkipUnchangedFiles="true" />
+  </Target>
 
   <ItemGroup>
     <Compile Remove="Program.cs" />
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="ClosedXML" Version="0.102.4" />
+    <PackageReference Include="ClosedXML" Version="0.104.0" />
+    <PackageReference Include="System.IO.Packaging" Version="9.0.0" />
   </ItemGroup>
 
   <ItemGroup>

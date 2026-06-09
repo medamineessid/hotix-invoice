@@ -19,9 +19,9 @@ public sealed class ConfidenceToColorConverter : IValueConverter
             : value is string s && double.TryParse(s, NumberStyles.Float, CultureInfo.InvariantCulture, out double p) ? p
             : 0.0;
 
-        return confidence >= HighThreshold ? HighBrush
-            : confidence >= MediumThreshold ? MediumBrush
-            : LowBrush;
+        if (confidence >= HighThreshold)   return HighBrush;
+        if (confidence >= MediumThreshold) return MediumBrush;
+        return LowBrush;
     }
 
     public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)

@@ -31,8 +31,10 @@ def load_invoice_images(file_bytes: bytes, filename: str, poppler_path: str | No
             raise IngestionError(f"Unable to convert PDF to images: {exc}") from exc
 
     try:
-        image = Image.open(io.BytesIO(file_bytes))
-        frames = [frame.convert("RGB") for frame in ImageSequence.Iterator(image)]
+        with io.BytesIO(file_bytes) as buf:
+            image = Image.open(buf)
+            image.load()
+            frames = [frame.convert("RGB") for frame in ImageSequence.Iterator(image)]
         return frames or [image.convert("RGB")]
     except Exception as exc:
         raise IngestionError(f"Unable to open image file: {exc}") from exc

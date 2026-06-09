@@ -8,15 +8,16 @@ Système local d'extraction automatique de champs de factures scannées (PDF et 
 
 ```
 hotix-invoice/
-├── server/        ← Serveur Python (OCR + extraction)
-├── client/        ← Application Windows WPF (.NET 8)
-├── scripts/       ← Scripts d'installation et de démarrage
-└── requirements.txt
-```
+├── server/        ← Python logic, extraction engines & appsettings.json
+├── client/        ← WPF C# application code
+├── venv/          ← Python 3.12 environment
+├── scripts/       ← setup.ps1 and start.bat
+├── requirements.txt
+└── README.md```
 
 - The **Python server** runs locally and exposes a `POST /extract` API.
 - The **C# WPF client** is the graphical interface the user interacts with.
-- Both must be running at the same time for the app to work.
+- The Python server is launched automatically by the application. No manual server management is required.
 
 ---
 
@@ -106,11 +107,7 @@ This will:
 
 ### Step 6 — Create a Desktop Shortcut (Optional)
 
-Right-click `scripts\start.bat` → **Send to** → **Desktop (create shortcut)**
-
-Rename the shortcut to **"HOTIX"**.
-
-The user can now just double-click it to launch the full application.
+Right-click `client\bin\Release\net8.0-windows\Hotix.InvoiceClient.exe` → Send to → Desktop (create shortcut). Rename the shortcut to HOTIX.
 
 ---
 
@@ -120,25 +117,27 @@ The user can now just double-click it to launch the full application.
 
 Double-click the **HOTIX** shortcut on the desktop.
 
-A console window will appear briefly while the OCR server starts — this is normal. The main window will open automatically once ready.
+A **splash screen** will appear while the OCR server initializes. Once ready, the main application window will open automatically. The server now runs silently in the background with no visible console window.
 
-> The dot in the top-right corner of the window shows the server status:
-> - 🟢 Green = server is running, ready to extract
-> - 🔴 Red = server is not running, wait a few seconds or restart
+> The status bar in the top-right corner indicates **"Serveur OCR actif"** when the system is ready. If the server process stops unexpectedly, a red error screen will prompt you to restart.
 
 ---
 
 ### Extracting Invoices
 
-1. Click **Parcourir** and select the folder containing your invoice files
+1. Click **Ajouter...** and select your invoice files or a folder
    - Or drag and drop a folder directly onto the window
    - Supported formats: PDF, JPG, PNG, TIF, BMP
 
-2. Select which files to process (all are selected by default)
+2. **Select the Extraction Engine** in the control panel:
+   - **Automatique**: Tries Gemini Vision first, falls back to local OCR if needed.
+   - **Gemini Vision**: High accuracy cloud-based extraction (requires API key).
+   - **OCR local**: Standard local extraction (no internet required).
 
 3. Click **Lancer l'extraction** (or press `F5`)
 
 4. Wait for the progress bar to complete
+
 
 ---
 
@@ -161,7 +160,13 @@ Results appear in the **Résultats** tab with the following columns:
 
 - Fields shown in **grey italic** were not found in the invoice.
 - Invoices with missing fields appear in the **Extractions Incomplètes** tab.
-- Click any row to see the raw OCR text in the preview panel on the right.
+
+### Configuring Gemini API Key
+
+To use Gemini Vision for better accuracy:
+1. Click the gear icon **⚙** next to the engine selector.
+2. Enter your **Gemini API key** (visit [Google AI Studio](https://aistudio.google.com/app/apikey) to get a free key).
+3. Click **Enregistrer**. A green indicator signifies the key is active.
 
 ---
 
@@ -186,8 +191,11 @@ Results appear in the **Résultats** tab with the following columns:
 
 ## Troubleshooting
 
-**Red server dot — "Serveur OCR inaccessible"**
-The Python server is not running. Close the app and relaunch via the HOTIX shortcut.
+**"Le serveur OCR s'est arrêté de façon inattendue"**
+The background process failed. Close the app and relaunch via the HOTIX shortcut. This can happen if another application is using port 8000.
+
+**"Clé API Gemini non configurée"**
+You selected Gemini but haven't provided a key. Use the gear icon **⚙** to set it up or switch back to "OCR local".
 
 **PDF files fail with "Poppler manquant"**
 Poppler is not installed or not on PATH. Redo Step 3 of the IT setup.

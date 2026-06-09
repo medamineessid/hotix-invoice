@@ -24,22 +24,27 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
 
     private readonly HttpClient _apiHttpClient;
     private readonly InvoiceClient _invoiceClient;
-    private readonly DispatcherTimer _healthTimer;
+
+    private string _selectedEngine = "auto";
+    private bool _geminiAvailable;
+    private string _geminiKeyInput = string.Empty;
+    private bool _isSettingsPanelOpen;
+    private bool _isServerRunning = true;
+    private InvoiceRowViewModel? _selectedRow;
+    private CancellationTokenSource? _extractionCts;
 
     private string _selectedFolder = string.Empty;
-    private bool _isServerHealthy;
+    private bool _isServerHealthy = true;
     private bool _isExtracting;
     private bool _isProgressVisible;
     private int _processedFiles;
     private int _totalFiles;
-    private bool _allFilesSelected = true;
+    private bool _allFilesSelected;
     private bool _allRowsSelected;
-    private string? _saveConfirmationPath;
     private bool _showSummaryBanner;
     private string _summaryBannerText = string.Empty;
     private string _summaryBannerColor = "#2ECC71";
-    private InvoiceRowViewModel? _selectedRow;
-    private CancellationTokenSource? _extractionCts;
+    private string? _saveConfirmationPath;
 
     public MainViewModel()
     {
@@ -61,6 +66,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         DetectedFiles.CollectionChanged += (_, _) => NotifyFileCountChanged();
 
         BrowseFolderCommand    = new RelayCommand(_ => BrowseFolder());
+        BrowseFilesCommand     = new RelayCommand(_ => BrowseFiles());
         StartExtractionCommand = new RelayCommand(async _ => await StartExtractionAsync(), _ => CanStartExtraction());
         CancelExtractionCommand = new RelayCommand(_ => CancelExtraction(), _ => IsExtracting);
         ExportExcelCommand     = new RelayCommand(_ => ExportExcel(), _ => CanExport());
@@ -70,11 +76,19 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         ToggleAllFilesCommand  = new RelayCommand(_ => ToggleAllFiles());
         ToggleAllRowsCommand   = new RelayCommand(_ => ToggleAllRows());
         OpenSavedFolderCommand = new RelayCommand(_ => OpenSavedFolder(), _ => _saveConfirmationPath != null);
-
-        _healthTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(10) };
-        _healthTimer.Tick += async (_, _) => await CheckServerHealthAsync();
+        ToggleSettingsCommand  = new RelayCommand(_ => IsSettingsPanelOpen = !IsSettingsPanelOpen);
+        SaveGeminiKeyCommand   = new RelayCommand(async _ => await SaveGeminiKeyAsync());
 
         LoadSettings();
+        LoadGeminiKeyFromAppSettings();
+
+        // Hook into server process death
+        if (App.ServerProcess != null)
+        {
+            App.ServerProcess.EnableRaisingEvents = true;
+            App.ServerProcess.Exited += (s, e) => IsServerRunning = false;
+            if (App.ServerProcess.HasExited) IsServerRunning = false;
+        }
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -84,6 +98,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     public ObservableCollection<InvoiceRowViewModel> IncompleteResults { get; }
 
     public ICommand BrowseFolderCommand     { get; }
+    public ICommand BrowseFilesCommand      { get; }
     public ICommand StartExtractionCommand  { get; }
     public ICommand CancelExtractionCommand { get; }
     public ICommand ExportExcelCommand      { get; }
@@ -93,6 +108,8 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     public ICommand ToggleAllFilesCommand   { get; }
     public ICommand ToggleAllRowsCommand    { get; }
     public ICommand OpenSavedFolderCommand  { get; }
+    public ICommand ToggleSettingsCommand   { get; }
+    public ICommand SaveGeminiKeyCommand    { get; }
 
     public string SelectedFolder
     {
@@ -107,12 +124,46 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         }
     }
 
+    public string SelectedEngine
+    {
+        get => _selectedEngine;
+        set => SetField(ref _selectedEngine, value);
+    }
+
+    public bool GeminiAvailable
+    {
+        get => _geminiAvailable;
+        private set => SetField(ref _geminiAvailable, value);
+    }
+
+    public string GeminiKeyInput
+    {
+        get => _geminiKeyInput;
+        set => SetField(ref _geminiKeyInput, value);
+    }
+
+    public bool IsSettingsPanelOpen
+    {
+        get => _isSettingsPanelOpen;
+        set => SetField(ref _isSettingsPanelOpen, value);
+    }
+
+    public bool IsServerRunning
+    {
+        get => _isServerRunning;
+        set => SetField(ref _isServerRunning, value);
+    }
+
     public bool HasSelectedFolder => !string.IsNullOrWhiteSpace(SelectedFolder);
 
     public bool IsServerHealthy
     {
         get => _isServerHealthy;
-        private set => SetField(ref _isServerHealthy, value);
+        private set
+        {
+            if (SetField(ref _isServerHealthy, value))
+                RaiseCommandStateChanged();
+        }
     }
 
     public bool IsExtracting
@@ -243,21 +294,59 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
 
     public async Task InitializeAsync()
     {
-        await CheckServerHealthAsync();
-        _healthTimer.Start();
+        await CheckEngineStatusAsync();
+    }
+
+    private async Task CheckEngineStatusAsync()
+    {
+        try
+        {
+            using HttpResponseMessage response = await _apiHttpClient.GetAsync("/engine-status");
+            if (response.IsSuccessStatusCode)
+            {
+                var body = await response.Content.ReadAsStringAsync();
+                var status = JsonSerializer.Deserialize<JsonElement>(body);
+                GeminiAvailable = status.GetProperty("gemini_available").GetBoolean();
+            }
+        }
+        catch { GeminiAvailable = false; }
+    }
+
+    private async Task SaveGeminiKeyAsync()
+    {
+        try
+        {
+            string appSettingsPath = @"C:\hotix-invoice\server\appsettings.json";
+            var settings = new { gemini_api_key = GeminiKeyInput, default_engine = SelectedEngine };
+            await File.WriteAllTextAsync(appSettingsPath, JsonSerializer.Serialize(settings, new JsonSerializerOptions { WriteIndented = true }));
+            await CheckEngineStatusAsync();
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Erreur lors de l'enregistrement de la clé : {ex.Message}", "Erreur", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    private void LoadGeminiKeyFromAppSettings()
+    {
+        try
+        {
+            string appSettingsPath = @"C:\hotix-invoice\server\appsettings.json";
+            if (File.Exists(appSettingsPath))
+            {
+                var doc = JsonDocument.Parse(File.ReadAllText(appSettingsPath));
+                if (doc.RootElement.TryGetProperty("gemini_api_key", out var el))
+                    GeminiKeyInput = el.GetString() ?? string.Empty;
+                if (doc.RootElement.TryGetProperty("default_engine", out var engineEl))
+                    SelectedEngine = engineEl.GetString() ?? "auto";
+            }
+        }
+        catch { }
     }
 
     private async Task CheckServerHealthAsync()
     {
-        try
-        {
-            using HttpResponseMessage response = await _apiHttpClient.GetAsync("/health");
-            IsServerHealthy = response.IsSuccessStatusCode;
-        }
-        catch
-        {
-            IsServerHealthy = false;
-        }
+        // Now handled by App.xaml.cs at startup
     }
 
     private void BrowseFolder()
@@ -275,6 +364,36 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         SelectedFolder = dialog.FolderName;
         SaveSettings();
         LoadDetectedFiles();
+    }
+
+    private void BrowseFiles()
+    {
+        var dialog = new OpenFileDialog
+        {
+            Title            = "Sélectionner les fichiers de factures",
+            Filter           = "Fichiers de factures|*.pdf;*.jpg;*.jpeg;*.png;*.bmp;*.tif;*.tiff|Tous les fichiers|*.*",
+            Multiselect      = true,
+            InitialDirectory = Directory.Exists(SelectedFolder)
+                ? SelectedFolder
+                : Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
+        };
+
+        if (!dialog.ShowDialog().GetValueOrDefault()) return;
+
+        string? folder = Path.GetDirectoryName(dialog.FileNames[0]);
+        if (folder != null) SelectedFolder = folder;
+
+        DetectedFiles.Clear();
+        foreach (string file in dialog.FileNames.OrderBy(f => f))
+        {
+            var item = new FileItemViewModel(file);
+            item.PropertyChanged += OnFileItemPropertyChanged;
+            DetectedFiles.Add(item);
+        }
+
+        SaveSettings();
+        NotifyFileCountChanged();
+        RaiseCommandStateChanged();
     }
 
     private void LoadDetectedFiles()
@@ -325,7 +444,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
 
     private bool CanStartExtraction() =>
         HasSelectedFolder && Directory.Exists(SelectedFolder) && !IsExtracting
-        && DetectedFiles.Any(f => f.IsSelected);
+        && DetectedFiles.Any(f => f.IsSelected) && IsServerHealthy;
 
     private async Task StartExtractionAsync()
     {
@@ -357,7 +476,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                 InvoiceRowViewModel row;
                 try
                 {
-                    InvoiceResult result = await _invoiceClient.ExtractAsync(file, _extractionCts.Token);
+                    InvoiceResult result = await _invoiceClient.ExtractAsync(file, SelectedEngine, _extractionCts.Token);
                     row = InvoiceRowViewModel.FromSuccess(file, result);
                 }
                 catch (OperationCanceledException)
@@ -411,7 +530,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         InvoiceRowViewModel updated;
         try
         {
-            InvoiceResult result = await _invoiceClient.ExtractAsync(filePath);
+            InvoiceResult result = await _invoiceClient.ExtractAsync(filePath, SelectedEngine);
             updated = InvoiceRowViewModel.FromSuccess(filePath, result);
         }
         catch (InvoiceExtractionException ex)
@@ -464,12 +583,16 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             if (ex.ResponseBody.Contains("poppler", StringComparison.OrdinalIgnoreCase)
                 || ex.ResponseBody.Contains("pdfinfo", StringComparison.OrdinalIgnoreCase)
                 || ex.ResponseBody.Contains("pdftoppm", StringComparison.OrdinalIgnoreCase))
-                return "Poppler manquant — PDF non supporté";
+                return "Poppler manquant — PDF non supporté (voir README)";
 
-            return "Erreur serveur OCR";
+            if (ex.ResponseBody.Contains("OcrEngineError", StringComparison.OrdinalIgnoreCase)
+                || ex.ResponseBody.Contains("PaddleOCR", StringComparison.OrdinalIgnoreCase))
+                return "Erreur OCR — Vérifiez l'installation";
+
+            return "Erreur interne serveur OCR";
         }
 
-        return "Erreur serveur OCR";
+        return "Erreur serveur OCR (HTTP " + (int)ex.StatusCode + ")";
     }
 
     private void ShowExtractionSummary()
@@ -479,8 +602,15 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         int success    = Results.Count - errors;
 
         SummaryBannerText  = $"Extraction terminée — {success} réussies, {incomplete} incomplètes, {errors} erreurs. Vérifiez les résultats avant d'exporter.";
-        SummaryBannerColor = errors > 0 ? "#C0392B" : incomplete > 0 ? "#E67E22" : "#2ECC71";
+        SummaryBannerColor = ResolveSummaryColor(errors, incomplete);
         ShowSummaryBanner  = true;
+    }
+
+    private static string ResolveSummaryColor(int errors, int incomplete)
+    {
+        if (errors > 0)    return "#C0392B";
+        if (incomplete > 0) return "#E67E22";
+        return "#2ECC71";
     }
 
     private bool CanExport() => Results.Count > 0 && !IsExtracting;
@@ -598,7 +728,6 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
 
     public void Dispose()
     {
-        _healthTimer.Stop();
         _extractionCts?.Cancel();
         _extractionCts?.Dispose();
         _apiHttpClient.Dispose();

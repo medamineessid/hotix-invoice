@@ -17,7 +17,7 @@ public sealed class InvoiceClient
     /// <summary>
     /// Returns the extracted result, or throws <see cref="InvoiceExtractionException"/> on non-200.
     /// </summary>
-    public async Task<InvoiceResult> ExtractAsync(string filePath, CancellationToken cancellationToken = default)
+    public async Task<InvoiceResult> ExtractAsync(string filePath, string engine = "auto", CancellationToken cancellationToken = default)
     {
         if (!File.Exists(filePath))
             throw new FileNotFoundException($"Fichier introuvable : {filePath}", filePath);
@@ -29,7 +29,7 @@ public sealed class InvoiceClient
         using var form = new MultipartFormDataContent();
         form.Add(fileContent, "file", Path.GetFileName(filePath));
 
-        using HttpResponseMessage response = await _httpClient.PostAsync("/extract", form, cancellationToken).ConfigureAwait(false);
+        using HttpResponseMessage response = await _httpClient.PostAsync($"/extract?engine={engine}", form, cancellationToken).ConfigureAwait(false);
         string body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
 
         if (!response.IsSuccessStatusCode)

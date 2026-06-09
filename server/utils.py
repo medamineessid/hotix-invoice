@@ -75,6 +75,7 @@ class OCRLine:
     line_index: int = 0
 
 
+STRIP_CHARS = " :-\t\r\n"
 AMOUNT_CLEANER = re.compile(r"[^\d,\.\-]")
 MULTISPACE = re.compile(r"\s+")
 DATE_DD_MM_YYYY = re.compile(r"\b(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})\b")
@@ -125,7 +126,7 @@ def normalize_text_for_output(text: str) -> str:
     """Strip leading/trailing noise from a candidate value."""
 
     cleaned = collapse_text(text)
-    return cleaned.strip(" :-\t\r\n")
+    return cleaned.strip(STRIP_CHARS)
 
 
 def extract_amount(text: str) -> Optional[str]:
@@ -211,9 +212,9 @@ def clean_date(text: str) -> Optional[str]:
 def clean_invoice_number(text: str) -> str:
     """Return a compact invoice/reference identifier."""
 
-    cleaned = collapse_text(text).strip(" :-\t\r\n")
-    cleaned = re.sub(r"^(facture|ref(?:erence)?|reference|n[o°]?\.?|no\.?)\s*[:\-]?", "", cleaned, flags=re.IGNORECASE)
-    return re.sub(r"\s+", " ", cleaned).strip(" :-\t\r\n")
+    cleaned = collapse_text(text).strip(STRIP_CHARS)
+    cleaned = re.sub(r"^(facture|ref(?:erence)?|n[o°]?\.?|no\.?)\s*[:\-]?", "", cleaned, flags=re.IGNORECASE)
+    return re.sub(r"\s+", " ", cleaned).strip(STRIP_CHARS)
 
 
 def normalize_supplier_client(text: str) -> str:

@@ -171,12 +171,27 @@
             </Setter>
         </Style>
 
-        <!-- Shared context menu for both grids -->
-        <ContextMenu x:Key="RowContextMenu">
-            <MenuItem Header="Relancer l'extraction"
-                      Command="{Binding PlacementTarget.Tag.RerunCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
-                      CommandParameter="{Binding}" />
-        </ContextMenu>
+        <Style x:Key="EngineComboBoxStyle" TargetType="ComboBox">
+            <Setter Property="Background"      Value="#2D2D2D" />
+            <Setter Property="Foreground"      Value="White" />
+            <Setter Property="BorderBrush"     Value="#3E3E3E" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding"         Value="6,4" />
+            <Setter Property="MinHeight"       Value="34" />
+            <Style.Triggers>
+                <Trigger Property="IsEnabled" Value="False">
+                    <Setter Property="Foreground" Value="{StaticResource BrushMuted}" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="GearButtonStyle" TargetType="Button" BasedOn="{StaticResource GrayButtonStyle}">
+            <Setter Property="Width"  Value="34" />
+            <Setter Property="Height" Value="34" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Content" Value="⚙" />
+            <Setter Property="FontSize" Value="18" />
+        </Style>
     </Window.Resources>
 
     <Grid Background="{StaticResource BrushBackground}">
@@ -206,23 +221,7 @@
                 </StackPanel>
 
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,14,0">
-                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,14,0">
-                        <Ellipse Width="10" Height="10" Margin="0,0,6,0">
-                            <Ellipse.Style>
-                                <Style TargetType="Ellipse">
-                                    <Setter Property="Fill"    Value="{StaticResource BrushAccent}" />
-                                    <Setter Property="ToolTip" Value="Serveur OCR inaccessible — lancez le serveur Python" />
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding IsServerHealthy}" Value="True">
-                                            <Setter Property="Fill"    Value="{StaticResource BrushSuccess}" />
-                                            <Setter Property="ToolTip" Value="{x:Null}" />
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </Ellipse.Style>
-                        </Ellipse>
-                        <TextBlock Text="Serveur OCR" Foreground="{StaticResource BrushText}" VerticalAlignment="Center" />
-                    </StackPanel>
+                    <TextBlock Text="Serveur OCR actif" Foreground="{StaticResource BrushMuted}" VerticalAlignment="Center" Margin="0,0,14,0" />
 
                     <Button Style="{StaticResource WindowControlButtonStyle}" Content="—" Click="MinimizeButton_Click" />
                     <Button Style="{StaticResource WindowControlButtonStyle}" Content="□" Click="MaximizeButton_Click" />
@@ -237,6 +236,7 @@
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="2*" />
                     <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="1.5*" />
                 </Grid.ColumnDefinitions>
 
@@ -248,14 +248,49 @@
                                  Background="#353535" Foreground="{StaticResource BrushText}"
                                  BorderBrush="{StaticResource BrushBorder}" BorderThickness="1"
                                  ToolTip="Vous pouvez aussi glisser-déposer un dossier ici" />
-                        <Button Content="Parcourir" Style="{StaticResource RedButtonStyle}" Width="110" Margin="10,0,0,0"
-                                Command="{Binding BrowseFolderCommand}"
-                                ToolTip="Sélectionner le dossier contenant les factures" />
+                        <Button x:Name="AddButton" Content="Ajouter..." Style="{StaticResource RedButtonStyle}" Width="110" Margin="10,0,0,0"
+                                Click="AddButton_Click"
+                                ToolTip="Ajouter des factures (fichiers ou dossier)">
+                            <Button.ContextMenu>
+                                <ContextMenu>
+                                    <MenuItem Header="Ajouter des fichiers..." Command="{Binding BrowseFilesCommand}" />
+                                    <MenuItem Header="Ajouter un dossier..."  Command="{Binding BrowseFolderCommand}" />
+                                </ContextMenu>
+                            </Button.ContextMenu>
+                        </Button>
                     </DockPanel>
                 </StackPanel>
 
+                <!-- Engine picker -->
+                <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="10,0">
+                    <TextBlock Text="Moteur d'extraction" Foreground="{StaticResource BrushMuted}" Margin="0,0,0,6" />
+                    <StackPanel Orientation="Horizontal">
+                        <ComboBox Style="{StaticResource EngineComboBoxStyle}" Width="180" 
+                                  SelectedValuePath="Tag"
+                                  SelectedValue="{Binding SelectedEngine}">
+                            <ComboBoxItem Content="Automatique (Gemini → OCR)" Tag="auto" />
+                            <ComboBoxItem Content="Gemini Vision (cloud)" Tag="gemini">
+                                <ComboBoxItem.Style>
+                                    <Style TargetType="ComboBoxItem">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding GeminiAvailable}" Value="False">
+                                                <Setter Property="Foreground" Value="{StaticResource BrushMuted}" />
+                                                <Setter Property="ToolTip" Value="Clé API Gemini non configurée" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </ComboBoxItem.Style>
+                            </ComboBoxItem>
+                            <ComboBoxItem Content="OCR local (PaddleOCR)" Tag="ocr" />
+                        </ComboBox>
+                        <Button Style="{StaticResource GearButtonStyle}" Margin="6,0,0,0"
+                                Command="{Binding ToggleSettingsCommand}"
+                                ToolTip="Configurer la clé API Gemini" />
+                    </StackPanel>
+                </StackPanel>
+
                 <!-- Run / Cancel -->
-                <StackPanel Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Center" Margin="10,0">
+                <StackPanel Grid.Column="2" VerticalAlignment="Center" HorizontalAlignment="Center" Margin="10,0">
                     <Button Style="{StaticResource RedButtonStyle}" Width="220" Height="44" Command="{Binding StartExtractionCommand}"
                             ToolTip="Lancer l'extraction (F5)">
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
@@ -304,13 +339,44 @@
                 </StackPanel>
 
                 <!-- Progress -->
-                <StackPanel Grid.Column="2" VerticalAlignment="Center" Margin="14,0,0,0"
+                <StackPanel Grid.Column="3" VerticalAlignment="Center" Margin="14,0,0,0"
                             Visibility="{Binding IsProgressVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
                     <ProgressBar Style="{StaticResource ProgressBarStyle}" Minimum="0" Maximum="100"
                                  Value="{Binding ProgressPercentage, Mode=OneWay}" />
                     <TextBlock Text="{Binding ProgressText}" Foreground="{StaticResource BrushMuted}" Margin="0,8,0,0" />
                 </StackPanel>
             </Grid>
+        </Border>
+
+        <!-- ══ GEMINI SETTINGS PANEL ══ -->
+        <Border Grid.Row="1" Background="#252525" BorderBrush="{StaticResource BrushBorder}" BorderThickness="1" 
+                CornerRadius="8" Margin="14,0,14,4" Padding="14,10" Panel.ZIndex="100"
+                Visibility="{Binding IsSettingsPanelOpen, Converter={StaticResource BooleanToVisibilityConverter}}">
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                <TextBlock Text="Clé API Gemini" Foreground="{StaticResource BrushText}" VerticalAlignment="Center" Margin="0,0,14,0" />
+                <PasswordBox x:Name="GeminiPasswordBox" Width="400" Height="34" 
+                             Background="#1A1A1A" Foreground="White" BorderBrush="{StaticResource BrushBorder}"
+                             VerticalContentAlignment="Center" Padding="8,0"
+                             PasswordChanged="GeminiPasswordBox_PasswordChanged" />
+                <Button Content="Enregistrer" Style="{StaticResource RedButtonStyle}" Width="100" Margin="10,0,0,0"
+                        Command="{Binding SaveGeminiKeyCommand}" />
+                
+                <StackPanel Orientation="Horizontal" Margin="20,0,0,0" VerticalAlignment="Center">
+                    <Ellipse Width="8" Height="8" Margin="0,0,6,0">
+                        <Ellipse.Style>
+                            <Style TargetType="Ellipse">
+                                <Setter Property="Fill" Value="{StaticResource BrushAccent}" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding GeminiAvailable}" Value="True">
+                                        <Setter Property="Fill" Value="{StaticResource BrushSuccess}" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Ellipse.Style>
+                    </Ellipse>
+                    <TextBlock Text="Statut Gemini" Foreground="{StaticResource BrushMuted}" FontSize="12" />
+                </StackPanel>
+            </StackPanel>
         </Border>
 
         <!-- ══ FILE LIST PANEL ══ -->
@@ -709,6 +775,19 @@
                             ToolTip="Effacer tous les résultats" />
                 </StackPanel>
             </Grid>
+        </Border>
+        <!-- ══ SERVER DIED OVERLAY ══ -->
+        <Border Grid.RowSpan="6" Background="#CC000000" Panel.ZIndex="1000"
+                Visibility="{Binding IsServerRunning, Converter={StaticResource InverseBooleanToVisibilityConverter}}">
+            <Border Background="#2D2D2D" BorderBrush="{StaticResource BrushAccent}" BorderThickness="1"
+                    CornerRadius="12" Width="450" VerticalAlignment="Center" Padding="30">
+                <StackPanel HorizontalAlignment="Center">
+                    <TextBlock Text="✕" Foreground="{StaticResource BrushAccent}" FontSize="48" HorizontalAlignment="Center" Margin="0,0,0,20" />
+                    <TextBlock Text="Le serveur OCR s'est arrêté de façon inattendue" Foreground="White" FontSize="18" FontWeight="Bold" HorizontalAlignment="Center" Margin="0,0,0,10" />
+                    <TextBlock Text="Veuillez redémarrer l'application pour continuer." Foreground="{StaticResource BrushMuted}" HorizontalAlignment="Center" Margin="0,0,0,30" TextAlignment="Center" />
+                    <Button Content="Fermer l'application" Style="{StaticResource RedButtonStyle}" Width="200" Click="CloseButton_Click" />
+                </StackPanel>
+            </Border>
         </Border>
     </Grid>
 </Window>

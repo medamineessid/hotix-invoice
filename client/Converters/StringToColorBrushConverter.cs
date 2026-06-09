@@ -10,8 +10,14 @@ public sealed class StringToColorBrushConverter : IValueConverter
     {
         if (value is string hex)
         {
-            try { return new SolidColorBrush((Color)ColorConverter.ConvertFromString(hex)); }
-            catch { }
+            try
+            {
+                return new SolidColorBrush((Color)ColorConverter.ConvertFromString(hex));
+            }
+            catch (FormatException)
+            {
+                return Brushes.Transparent;
+            }
         }
         return Brushes.Transparent;
     }

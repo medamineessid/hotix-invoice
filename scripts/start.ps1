@@ -3,14 +3,14 @@ param()
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
 
-function Write-Info { param([string]$msg) Write-Host "  $msg" -ForegroundColor Cyan }
-function Write-Ok   { param([string]$msg) Write-Host "  [OK] $msg" -ForegroundColor Green }
-function Write-Fail { param([string]$msg) Write-Host "  [FAIL] $msg" -ForegroundColor Red }
+function Write-Info { param([string]$msg) Write-Output "  $msg" }
+function Write-Ok   { param([string]$msg) Write-Output "  [OK] $msg" }
+function Write-Fail { param([string]$msg) Write-Output "  [FAIL] $msg" }
 
-Write-Host ""
-Write-Host "HOTIX — Starting" -ForegroundColor White
-Write-Host "================" -ForegroundColor White
-Write-Host ""
+Write-Output ""
+Write-Output "HOTIX — Starting"
+Write-Output "================"
+Write-Output ""
 
 Set-Location $projectRoot
 
@@ -45,7 +45,9 @@ while ($attempt -lt $maxAttempts) {
             $ready = $true
             break
         }
-    } catch {}
+    } catch {
+        Write-Verbose "Health check attempt $attempt failed: $_"
+    }
 }
 
 if (-not $ready) {
