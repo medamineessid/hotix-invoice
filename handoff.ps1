@@ -24,7 +24,7 @@ Write-Step 'Activating virtual environment'
 
 if (-not $SkipVerify) {
     Write-Step 'Running system verification'
-    python verify_system.py
+    python server/verify_system.py
     if ($LASTEXITCODE -ne 0) {
         throw 'System verification failed.'
     }
@@ -32,7 +32,7 @@ if (-not $SkipVerify) {
 
 if ($SmokeTest) {
     Write-Step 'Running OCR smoke test'
-    python test_ocr.py
+    python server/test_ocr.py
     if ($LASTEXITCODE -ne 0) {
         throw 'OCR smoke test failed.'
     }
@@ -40,4 +40,4 @@ if ($SmokeTest) {
 
 $reloadArg = if ($NoReload) { @() } else { @('--reload') }
 Write-Step 'Starting FastAPI server'
-python -m uvicorn main:app @reloadArg
+python -m uvicorn server.main:app @reloadArg
