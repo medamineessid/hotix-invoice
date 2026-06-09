@@ -1,0 +1,29 @@
+# Python
+venv/
+.venv*/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+.eggs/
+dist/
+build/
+*.egg
+
+# Environment
+.env
+.env.*
+
+# .NET / C#
+client/bin/
+client/obj/
+
+# IDE
+.idea/
+.vscode/
+*.user
+
+# OS
+Thumbs.db
+Desktop.ini
