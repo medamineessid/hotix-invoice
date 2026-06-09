@@ -27,3 +27,7 @@ client/obj/
 # OS
 Thumbs.db
 Desktop.ini
+
+client/publish/
+client/bin/
+client/obj/
