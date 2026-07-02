@@ -92,6 +92,11 @@
             <Setter Property="BorderBrush" Value="#4A4A4A" />
         </Style>
 
+        <Style x:Key="WarningButtonStyle" TargetType="Button" BasedOn="{StaticResource RedButtonStyle}">
+            <Setter Property="Background"  Value="#B8860B" />
+            <Setter Property="BorderBrush" Value="#B8860B" />
+        </Style>
+
         <Style x:Key="WindowControlButtonStyle" TargetType="Button" BasedOn="{StaticResource GrayButtonStyle}">
             <Setter Property="Width"   Value="38" />
             <Setter Property="Height"  Value="28" />
@@ -325,7 +330,7 @@
                             Command="{Binding CancelExtractionCommand}"
                             ToolTip="Annuler l'extraction en cours (Échap)">
                         <Button.Style>
-                            <Style TargetType="Button" BasedOn="{StaticResource GrayButtonStyle}">
+                            <Style TargetType="Button" BasedOn="{StaticResource WarningButtonStyle}">
                                 <Setter Property="Visibility" Value="Collapsed" />
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding IsExtracting}" Value="True">
@@ -346,37 +351,6 @@
                     <TextBlock Text="{Binding ProgressText}" Foreground="{StaticResource BrushMuted}" Margin="0,8,0,0" />
                 </StackPanel>
             </Grid>
-        </Border>
-
-        <!-- ══ GEMINI SETTINGS PANEL ══ -->
-        <Border Grid.Row="1" Background="#252525" BorderBrush="{StaticResource BrushBorder}" BorderThickness="1" 
-                CornerRadius="8" Margin="14,0,14,4" Padding="14,10" Panel.ZIndex="100"
-                Visibility="{Binding IsSettingsPanelOpen, Converter={StaticResource BooleanToVisibilityConverter}}">
-            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                <TextBlock Text="Clé API Gemini" Foreground="{StaticResource BrushText}" VerticalAlignment="Center" Margin="0,0,14,0" />
-                <PasswordBox x:Name="GeminiPasswordBox" Width="400" Height="34" 
-                             Background="#1A1A1A" Foreground="White" BorderBrush="{StaticResource BrushBorder}"
-                             VerticalContentAlignment="Center" Padding="8,0"
-                             PasswordChanged="GeminiPasswordBox_PasswordChanged" />
-                <Button Content="Enregistrer" Style="{StaticResource RedButtonStyle}" Width="100" Margin="10,0,0,0"
-                        Command="{Binding SaveGeminiKeyCommand}" />
-                
-                <StackPanel Orientation="Horizontal" Margin="20,0,0,0" VerticalAlignment="Center">
-                    <Ellipse Width="8" Height="8" Margin="0,0,6,0">
-                        <Ellipse.Style>
-                            <Style TargetType="Ellipse">
-                                <Setter Property="Fill" Value="{StaticResource BrushAccent}" />
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding GeminiAvailable}" Value="True">
-                                        <Setter Property="Fill" Value="{StaticResource BrushSuccess}" />
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </Ellipse.Style>
-                    </Ellipse>
-                    <TextBlock Text="Statut Gemini" Foreground="{StaticResource BrushMuted}" FontSize="12" />
-                </StackPanel>
-            </StackPanel>
         </Border>
 
         <!-- ══ FILE LIST PANEL ══ -->
@@ -458,7 +432,26 @@
                     <!-- TAB 1: Résultats -->
                     <TabItem Header="Résultats">
                         <Grid>
-                            <DataGrid ItemsSource="{Binding Results}"
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+
+                            <!-- Confidence Legend -->
+                            <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,8" HorizontalAlignment="Left">
+                                <TextBlock Text="Confiance : " Foreground="{StaticResource BrushMuted}" VerticalAlignment="Center" Margin="0,0,12,0" />
+                                <Border Background="#2ECC71" CornerRadius="4" Padding="6,2" Margin="0,0,8,0">
+                                    <TextBlock Text="Élevée (≥75%)" Foreground="White" FontSize="11" />
+                                </Border>
+                                <Border Background="#E67E22" CornerRadius="4" Padding="6,2" Margin="0,0,8,0">
+                                    <TextBlock Text="Moyenne (40-75%)" Foreground="White" FontSize="11" />
+                                </Border>
+                                <Border Background="#C0392B" CornerRadius="4" Padding="6,2">
+                                    <TextBlock Text="Basse (&lt;40%)" Foreground="White" FontSize="11" />
+                                </Border>
+                            </StackPanel>
+
+                            <DataGrid Grid.Row="1" ItemsSource="{Binding Results}"
                                       Style="{StaticResource ResultGridStyle}"
                                       SelectedItem="{Binding SelectedRow}"
                                       Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}"
@@ -724,8 +717,7 @@
                     <DockPanel Grid.Row="0" Margin="0,0,0,8">
                         <Button DockPanel.Dock="Right" Style="{StaticResource GrayButtonStyle}" Content="✕"
                                 Width="24" Height="24" Padding="0" FontSize="11"
-                                Command="{Binding ClearSelectedRowCommand}"
-                                Click="ClosePreview_Click" />
+                            Command="{Binding ClearSelectedRowCommand}" />
                         <TextBlock Text="{Binding PreviewFileName}"
                                    Foreground="{StaticResource BrushMuted}" FontWeight="SemiBold"
                                    TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />

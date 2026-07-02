@@ -6,6 +6,7 @@ using System.Net.Http;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Threading;
+using Sentry;
 
 namespace Hotix.InvoiceClient;
 
@@ -13,7 +14,13 @@ public partial class App : Application
 {
     public static Process? ServerProcess { get; private set; }
     private static readonly HttpClient _httpClient = new() { Timeout = TimeSpan.FromSeconds(1) };
-
+public App()
+{
+    SentrySdk.Init(o =>
+    {
+        o.Dsn = "https://154c8274aa22e3a02b159304b92a5df6@o4511656088567808.ingest.de.sentry.io/4511656096497744";
+    });
+}
     protected override async void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
@@ -159,6 +166,7 @@ public partial class App : Application
 
     private void HandleGlobalException(Exception ex)
     {
+        SentrySdk.CaptureException(ex);
         CleanupServer();
         MessageBox.Show($"Une erreur inattendue est survenue : {ex.Message}", "Erreur Système", MessageBoxButton.OK, MessageBoxImage.Error);
         Current.Shutdown();
@@ -168,7 +176,7 @@ public partial class App : Application
     {
         try
         {
-            string appSettingsPath = @"C:\hotix-invoice\server\appsettings.json";
+            string appSettingsPath = ViewModels.MainViewModel.ResolveAppSettingsPath();
             if (!File.Exists(appSettingsPath)) return true;
             var doc = System.Text.Json.JsonDocument.Parse(File.ReadAllText(appSettingsPath));
             if (doc.RootElement.TryGetProperty("gemini_api_key", out var el))

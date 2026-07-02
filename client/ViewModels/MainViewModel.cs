@@ -75,8 +75,14 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         RerunAllErrorsCommand  = new RelayCommand(async _ => await RerunAllErrorsAsync(), _ => Results.Any(r => r.HasError) && !IsExtracting);
         ToggleAllFilesCommand  = new RelayCommand(_ => ToggleAllFiles());
         ToggleAllRowsCommand   = new RelayCommand(_ => ToggleAllRows());
+        ClearSelectedRowCommand = new RelayCommand(_ => SelectedRow = null);
         OpenSavedFolderCommand = new RelayCommand(_ => OpenSavedFolder(), _ => _saveConfirmationPath != null);
-        ToggleSettingsCommand  = new RelayCommand(_ => IsSettingsPanelOpen = !IsSettingsPanelOpen);
+        ToggleSettingsCommand  = new RelayCommand(_ =>
+        {
+            var wizard = new global::Hotix.InvoiceClient.GeminiSetupWindow { DataContext = this };
+            wizard.Owner = Application.Current.MainWindow;
+            wizard.ShowDialog();
+        });
         SaveGeminiKeyCommand   = new RelayCommand(async _ => await SaveGeminiKeyAsync());
 
         LoadSettings();
@@ -107,6 +113,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     public ICommand RerunAllErrorsCommand   { get; }
     public ICommand ToggleAllFilesCommand   { get; }
     public ICommand ToggleAllRowsCommand    { get; }
+    public ICommand ClearSelectedRowCommand { get; }
     public ICommand OpenSavedFolderCommand  { get; }
     public ICommand ToggleSettingsCommand   { get; }
     public ICommand SaveGeminiKeyCommand    { get; }
@@ -316,7 +323,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     {
         try
         {
-            string appSettingsPath = @"C:\hotix-invoice\server\appsettings.json";
+            string appSettingsPath = ResolveAppSettingsPath();
             var settings = new { gemini_api_key = GeminiKeyInput, default_engine = SelectedEngine };
             await File.WriteAllTextAsync(appSettingsPath, JsonSerializer.Serialize(settings, new JsonSerializerOptions { WriteIndented = true }));
             await CheckEngineStatusAsync();
@@ -331,7 +338,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     {
         try
         {
-            string appSettingsPath = @"C:\hotix-invoice\server\appsettings.json";
+            string appSettingsPath = ResolveAppSettingsPath();
             if (File.Exists(appSettingsPath))
             {
                 var doc = JsonDocument.Parse(File.ReadAllText(appSettingsPath));
@@ -341,7 +348,26 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                     SelectedEngine = engineEl.GetString() ?? "auto";
             }
         }
-        catch { }
+        catch
+        {
+            // Intentionally ignored: loading settings is best-effort. If the settings file is missing or corrupted, we proceed with defaults.
+        }
+    }
+
+    public static string ResolveAppSettingsPath()
+    {
+        string appDir = AppDomain.CurrentDomain.BaseDirectory;
+        string[] serverDirectories =
+        {
+            Path.Combine(appDir, "server"),
+            Path.Combine(appDir, "..", "server"),
+            @"C:\hotix-invoice\server",
+        };
+
+        string serverDirectory = serverDirectories.FirstOrDefault(Directory.Exists)
+            ?? @"C:\hotix-invoice\server";
+
+        return Path.Combine(serverDirectory, "appsettings.json");
     }
 
     private async Task CheckServerHealthAsync()
@@ -520,6 +546,42 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         _extractionCts?.Cancel();
     }
 
+    private async Task<InvoiceRowViewModel> ExtractRowViewModelAsync(string filePath)
+    {
+        try
+        {
+            InvoiceResult result = await _invoiceClient.ExtractAsync(filePath, SelectedEngine);
+            return InvoiceRowViewModel.FromSuccess(filePath, result);
+        }
+        catch (InvoiceExtractionException ex)
+        {
+            return InvoiceRowViewModel.FromError(filePath, MapErrorMessage(ex));
+        }
+        catch (Exception ex)
+        {
+            return InvoiceRowViewModel.FromError(filePath, ex.Message);
+        }
+    }
+
+    private void UpdateRowInCollections(InvoiceRowViewModel row, InvoiceRowViewModel updated)
+    {
+        int idx = Results.IndexOf(row);
+        if (idx >= 0) Results[idx] = updated;
+
+        int idxInc = IncompleteResults.IndexOf(row);
+        if (idxInc >= 0)
+        {
+            if (updated.IsIncomplete) IncompleteResults[idxInc] = updated;
+            else IncompleteResults.RemoveAt(idxInc);
+        }
+        else if (updated.IsIncomplete)
+        {
+            IncompleteResults.Add(updated);
+        }
+
+        if (SelectedRow == row) SelectedRow = updated;
+    }
+
     private async Task RerunRowAsync(InvoiceRowViewModel? row)
     {
         if (row is null || IsExtracting) return;
@@ -527,39 +589,9 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         string filePath = Path.Combine(SelectedFolder, row.FileName);
         if (!File.Exists(filePath)) return;
 
-        InvoiceRowViewModel updated;
-        try
-        {
-            InvoiceResult result = await _invoiceClient.ExtractAsync(filePath, SelectedEngine);
-            updated = InvoiceRowViewModel.FromSuccess(filePath, result);
-        }
-        catch (InvoiceExtractionException ex)
-        {
-            updated = InvoiceRowViewModel.FromError(filePath, MapErrorMessage(ex));
-        }
-        catch (Exception ex)
-        {
-            updated = InvoiceRowViewModel.FromError(filePath, ex.Message);
-        }
+        InvoiceRowViewModel updated = await ExtractRowViewModelAsync(filePath);
 
-        await Application.Current.Dispatcher.InvokeAsync(() =>
-        {
-            int idx = Results.IndexOf(row);
-            if (idx >= 0) Results[idx] = updated;
-
-            int idxInc = IncompleteResults.IndexOf(row);
-            if (idxInc >= 0)
-            {
-                if (updated.IsIncomplete) IncompleteResults[idxInc] = updated;
-                else IncompleteResults.RemoveAt(idxInc);
-            }
-            else if (updated.IsIncomplete)
-            {
-                IncompleteResults.Add(updated);
-            }
-
-            if (SelectedRow == row) SelectedRow = updated;
-        });
+        await Application.Current.Dispatcher.InvokeAsync(() => UpdateRowInCollections(row, updated));
 
         NotifySummaryChanged();
         OnPropertyChanged(nameof(HasErrors));
@@ -699,7 +731,10 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             Directory.CreateDirectory(Path.GetDirectoryName(SettingsPath)!);
             File.WriteAllText(SettingsPath, JsonSerializer.Serialize(new { lastFolder = SelectedFolder }));
         }
-        catch { }
+        catch
+        {
+            // Intentionally ignored: saving settings is best-effort. If it fails, we shouldn't disrupt the application flow.
+        }
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────

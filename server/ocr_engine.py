@@ -2,13 +2,17 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, replace
 from typing import Any
 
 import numpy as np
 from PIL import Image
 
-from utils import BoundingBox, OCRLine, collapse_text
+from .utils import BoundingBox, OCRLine, collapse_text
+
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -89,7 +93,8 @@ class PaddleOcrEngine:
 
         try:
             box = BoundingBox.from_points(box_points)
-        except Exception:
+        except Exception as exc:
+            logger.debug("Skipping malformed bounding box on page %s: %s", page_index, exc)
             return None
 
         return OCRLine(

@@ -12,22 +12,23 @@ from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from models import InvoiceExtractionResponse
-from ingestion import IngestionError, load_invoice_images
-from ocr_engine import PaddleOcrEngine, OcrEngineError
-from field_extractor import (
+from google import genai
+from google.genai import errors as genai_errors
+from google.genai import types as genai_types
+
+from .models import InvoiceExtractionResponse
+from .ingestion import IngestionError, load_invoice_images
+from .ocr_engine import PaddleOcrEngine, OcrEngineError
+from .field_extractor import (
     extract_invoice_fields,
     extract_field_confidences,
     extract_raw_text,
     compute_confidence,
 )
 
-# Import gemini_extractor from the root directory
-import sys
 from typing import Literal
 from fastapi import Query
-sys.path.append(str(Path(__file__).parent.parent))
-from gemini_extractor import extract_with_gemini, GeminiExtractionError, load_gemini_api_key
+from .gemini_extractor import extract_with_gemini, GeminiExtractionError, load_gemini_api_key
 
 logging.basicConfig(
     level=os.getenv("HOTIX_LOG_LEVEL", "INFO"),
@@ -55,9 +56,9 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["http://127.0.0.1:8000", "http://localhost:8000"],
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )
 
@@ -76,13 +77,15 @@ async def engine_status() -> dict[str, bool]:
     gemini_available = False
     if gemini_key_configured:
         try:
-            # Test ping for Gemini (simple generation with small prompt)
-            import google.generativeai as genai
-            genai.configure(api_key=key)
-            model = genai.GenerativeModel("gemini-1.5-flash")
-            # Minimal prompt to verify key and quota
-            model.generate_content("ping", request_options={"timeout": 10})
+            client = genai.Client(api_key=key)
+            client.models.generate_content(
+                model="gemini-3.5-flash",
+                contents="ping",
+                config=genai_types.GenerateContentConfig(),
+            )
             gemini_available = True
+        except genai_errors.APIError:
+            gemini_available = False
         except Exception:
             gemini_available = False
 
@@ -91,6 +94,74 @@ async def engine_status() -> dict[str, bool]:
         "gemini_key_configured": gemini_key_configured,
         "ocr_available": hasattr(app.state, "ocr_engine") and app.state.ocr_engine is not None,
     }
+
+
+async def _extract_first_page_bytes(page) -> bytes:
+    from io import BytesIO
+    import aiofiles
+    from anyio import Path as AsyncPath
+
+    img_buf = BytesIO()
+    page.save(img_buf, format="PNG")
+
+    async with aiofiles.tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp:
+        await tmp.write(img_buf.getvalue())
+        tmp_name = tmp.name
+
+    try:
+        async with aiofiles.open(tmp_name, "rb") as f:
+            return await f.read()
+    finally:
+        await AsyncPath(tmp_name).unlink()
+
+
+async def _run_gemini_extraction(
+    pages: list, filename: str, engine: str
+) -> InvoiceExtractionResponse | None:
+    try:
+        image_data = await _extract_first_page_bytes(pages[0])
+        fields = extract_with_gemini(image_data, "image/png")
+        logger.info("Extraction via Gemini Vision successful for %s", Path(filename).name)
+        return InvoiceExtractionResponse(
+            **fields,
+            confidence=0.95,
+            raw_text="Extraction via Gemini Vision",
+        )
+    except GeminiExtractionError as exc:
+        if engine == "gemini":
+            logger.error("Gemini extraction failed: %s", exc)
+            raise HTTPException(status_code=503, detail=str(exc))
+        logger.warning("Gemini failed, falling back to OCR: %s", exc)
+        return None
+    except Exception as exc:
+        if engine == "gemini":
+            logger.exception("Gemini unexpected error")
+            raise HTTPException(status_code=503, detail="Gemini service unavailable")
+        logger.warning("Gemini unexpected error, falling back to OCR: %s", exc)
+        return None
+
+
+def _run_ocr_extraction(
+    pages: list, filename: str, ocr_engine: PaddleOcrEngine
+) -> InvoiceExtractionResponse:
+    all_lines = []
+    for page_index, page_image in enumerate(pages):
+        result = ocr_engine.recognize(page_image, page_index)
+        all_lines.extend(result.lines)
+
+    fields = extract_invoice_fields(all_lines)
+    confidences = extract_field_confidences(all_lines)
+    raw_text = extract_raw_text(all_lines)
+    confidence = compute_confidence(confidences)
+
+    field_names = [k for k, v in fields.items() if v is not None]
+    logger.info("Extraction via OCR successful for %s. Fields: %s", Path(filename).name, field_names)
+
+    return InvoiceExtractionResponse(
+        **fields,
+        confidence=confidence,
+        raw_text=raw_text,
+    )
 
 
 @app.post("/extract", response_model=InvoiceExtractionResponse)
@@ -105,7 +176,6 @@ async def extract(
     if raw_suffix not in SUPPORTED_SUFFIXES:
         raise HTTPException(status_code=400, detail=f"Unsupported file type: {raw_suffix}")
 
-    safe_suffix = raw_suffix
     ocr_engine: PaddleOcrEngine = app.state.ocr_engine
 
     try:
@@ -118,56 +188,12 @@ async def extract(
 
         # --- Gemini Path ---
         if engine in ("gemini", "auto"):
-            try:
-                # Convert first page to bytes for Gemini
-                with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp:
-                    pages[0].save(tmp.name, format="PNG")
-                    with open(tmp.name, "rb") as f:
-                        image_data = f.read()
-                os.unlink(tmp.name)
-
-                fields = extract_with_gemini(image_data, "image/png")
-                logger.info("Extraction via Gemini Vision successful for %s", Path(filename).name)
-                
-                return InvoiceExtractionResponse(
-                    **fields,
-                    confidence=0.95,
-                    raw_text="Extraction via Gemini Vision",
-                )
-            except GeminiExtractionError as exc:
-                if engine == "gemini":
-                    logger.error("Gemini extraction failed: %s", exc)
-                    raise HTTPException(status_code=503, detail=str(exc))
-                else:
-                    logger.warning("Gemini failed, falling back to OCR: %s", exc)
-                    # Proceed to OCR path
-            except Exception as exc:
-                if engine == "gemini":
-                    logger.exception("Gemini unexpected error")
-                    raise HTTPException(status_code=503, detail="Gemini service unavailable")
-                else:
-                    logger.warning("Gemini unexpected error, falling back to OCR: %s", exc)
+            res = await _run_gemini_extraction(pages, filename, engine)
+            if res is not None:
+                return res
 
         # --- OCR Path ---
-        all_lines = []
-        for page_index, page_image in enumerate(pages):
-            result = ocr_engine.recognize(page_image, page_index)
-            all_lines.extend(result.lines)
-
-        fields = extract_invoice_fields(all_lines)
-        confidences = extract_field_confidences(all_lines)
-        raw_text = extract_raw_text(all_lines)
-        confidence = compute_confidence(confidences)
-
-        # Log field names as requested (not content)
-        field_names = [k for k, v in fields.items() if v is not None]
-        logger.info("Extraction via OCR successful for %s. Fields: %s", Path(filename).name, field_names)
-
-        return InvoiceExtractionResponse(
-            **fields,
-            confidence=confidence,
-            raw_text=raw_text,
-        )
+        return _run_ocr_extraction(pages, filename, ocr_engine)
 
     except (IngestionError, OcrEngineError) as exc:
         logger.exception("Extraction failed for %s", filename)
@@ -179,8 +205,3 @@ async def extract(
         raise HTTPException(status_code=500, detail="Internal server error") from exc
     finally:
         await file.close()
-        if temp_path and temp_path.exists():
-            try:
-                temp_path.unlink()
-            except OSError:
-                pass

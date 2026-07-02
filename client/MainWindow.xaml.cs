@@ -8,23 +8,21 @@ namespace Hotix.InvoiceClient;
 
 public partial class MainWindow : Window
 {
-    private readonly MainViewModel _viewModel;
+    private MainViewModel ViewModel => (MainViewModel)DataContext;
 
     public MainWindow()
     {
         InitializeComponent();
-        _viewModel = new MainViewModel();
-        DataContext = _viewModel;
 
         Loaded  += OnLoaded;
         Closing += OnClosing;
     }
 
     private async void OnLoaded(object sender, RoutedEventArgs e)
-        => await _viewModel.InitializeAsync();
+        => await ViewModel.InitializeAsync();
 
     private void OnClosing(object? sender, CancelEventArgs e)
-        => _viewModel.Dispose();
+        => ViewModel.Dispose();
 
     private void TitleBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
@@ -63,16 +61,7 @@ public partial class MainWindow : Window
         var paths = (string[])e.Data.GetData(DataFormats.FileDrop);
         string? folder = paths.FirstOrDefault(Directory.Exists);
         if (folder != null)
-            _viewModel.SetFolderFromDrop(folder);
-    }
-
-    private void ClosePreview_Click(object sender, RoutedEventArgs e)
-        => _viewModel.SelectedRow = null;
-
-    private void GeminiPasswordBox_PasswordChanged(object sender, RoutedEventArgs e)
-    {
-        if (sender is System.Windows.Controls.PasswordBox pb)
-            _viewModel.GeminiKeyInput = pb.Password;
+            ViewModel.SetFolderFromDrop(folder);
     }
 
     private void AddButton_Click(object sender, RoutedEventArgs e)

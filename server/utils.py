@@ -7,7 +7,7 @@ import unicodedata
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
-from typing import Iterable, Optional, Sequence
+from typing import Optional, Sequence
 
 
 @dataclass(frozen=True)
@@ -80,7 +80,7 @@ AMOUNT_CLEANER = re.compile(r"[^\d,\.\-]")
 MULTISPACE = re.compile(r"\s+")
 DATE_DD_MM_YYYY = re.compile(r"\b(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})\b")
 MONTH_NAME_PATTERN = re.compile(
-    r"\b(\d{1,2})\s+([a-zA-ZÀ-ÿ]+)\s+(\d{4})\b",
+    r"\b(\d{1,2})\s+([a-zÀ-ÿ]+)\s+(\d{4})\b",
     re.IGNORECASE,
 )
 
@@ -104,13 +104,6 @@ def collapse_text(value: str) -> str:
     """Collapse whitespace while preserving original characters."""
 
     return MULTISPACE.sub(" ", value.replace("\u00a0", " ")).strip()
-
-
-def contains_keyword(text: str, keywords: Sequence[str]) -> bool:
-    """Return True when the normalized text contains any keyword variant."""
-
-    normalized = normalize_text(text)
-    return any(normalize_text(keyword) in normalized for keyword in keywords)
 
 
 def looks_like_latin_text(text: str) -> bool:
@@ -207,24 +200,3 @@ def extract_date(text: str) -> Optional[str]:
 def clean_date(text: str) -> Optional[str]:
     """Alias for extract_date used by field_extractor."""
     return extract_date(text)
-
-
-def clean_invoice_number(text: str) -> str:
-    """Return a compact invoice/reference identifier."""
-
-    cleaned = collapse_text(text).strip(STRIP_CHARS)
-    cleaned = re.sub(r"^(facture|ref(?:erence)?|n[o°]?\.?|no\.?)\s*[:\-]?", "", cleaned, flags=re.IGNORECASE)
-    return re.sub(r"\s+", " ", cleaned).strip(STRIP_CHARS)
-
-
-def normalize_supplier_client(text: str) -> str:
-    """Clean a supplier or client value while preserving original casing."""
-
-    cleaned = collapse_text(text)
-    return re.sub(r"^[\-:]+", "", cleaned).strip()
-
-
-def sort_by_reading_order(lines: Iterable[OCRLine]) -> list[OCRLine]:
-    """Sort OCR lines top-to-bottom, then left-to-right."""
-
-    return sorted(lines, key=lambda line: (line.page_index, line.box.y1, line.box.x1))

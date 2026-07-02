@@ -1,11 +1,11 @@
 import os
 import json
-import base64
 import logging
 from pathlib import Path
 from typing import Optional, Dict, Any
-import google.generativeai as genai
-from google.api_core import exceptions
+from google import genai
+from google.genai import errors as genai_errors
+from google.genai import types
 
 logger = logging.getLogger(__name__)
 
@@ -35,8 +35,7 @@ def extract_with_gemini(image_data: bytes, mime_type: str) -> Dict[str, Optional
     if not api_key:
         raise GeminiExtractionError("Clé API Gemini non configurée")
 
-    genai.configure(api_key=api_key)
-    model = genai.GenerativeModel("gemini-1.5-flash")
+    client = genai.Client(api_key=api_key)
 
     # Only 8 fields requested: numero_facture, date, fournisseur, client, montant_ht, montant_tva, montant_taxe, montant_ttc
     prompt = """Extrais les informations de cette facture sous forme de JSON uniquement.
@@ -45,18 +44,15 @@ Utilise null si une information est absente. Ne devine jamais.
 Réponds uniquement avec le JSON."""
 
     try:
-        # Prepare the image part
-        image_part = {
-            "mime_type": mime_type,
-            "data": image_data
-        }
-
-        response = model.generate_content(
-            [prompt, image_part],
-            generation_config=genai.types.GenerationConfig(
+        response = client.models.generate_content(
+            model="gemini-3.5-flash",
+            contents=[
+                prompt,
+                types.Part.from_bytes(data=image_data, mime_type=mime_type),
+            ],
+            config=types.GenerateContentConfig(
                 response_mime_type="application/json",
             ),
-            request_options={"timeout": 60}
         )
 
         if not response.text:
@@ -81,10 +77,10 @@ Réponds uniquement avec le JSON."""
         # Return the fields, non-string values to None
         return {k: (str(v) if v is not None else None) for k, v in data.items() if k in required_keys}
 
-    except exceptions.ResourceExhausted:
-        raise GeminiExtractionError("Quota d'API Gemini dépassé (429)")
-    except exceptions.GoogleAPICallError as e:
-        raise GeminiExtractionError(f"Erreur API Gemini: {e}")
+    except genai_errors.APIError as exc:
+        if getattr(exc, "code", None) == 429:
+            raise GeminiExtractionError("Quota d'API Gemini dépassé (429)")
+        raise GeminiExtractionError(f"Erreur API Gemini: {exc}")
     except json.JSONDecodeError:
         raise GeminiExtractionError("Échec de l'analyse du JSON renvoyé par Gemini")
     except Exception as e:

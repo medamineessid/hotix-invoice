@@ -26,11 +26,11 @@
 
   <ItemGroup>
     <PackageReference Include="ClosedXML" Version="0.104.0" />
+    <PackageReference Include="Sentry" Version="6.6.0" />
     <PackageReference Include="System.IO.Packaging" Version="9.0.0" />
   </ItemGroup>
 
   <ItemGroup>
-    <None Include="appsettings.json" CopyToOutputDirectory="PreserveNewest" />
     <Resource Include="hotix_icon.ico" />
   </ItemGroup>
 

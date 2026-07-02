@@ -1,0 +1,12 @@
+  Determining projects to restore...
+  All projects are up-to-date for restore.
+c:\hotix-invoice\client\ViewModels\MainViewModel.cs(373,24): warning CS1998: This async method lacks 'await' operators and will run synchronously. Consider using the 'await' operator to await non-blocking API calls, or 'await Task.Run(...)' to do CPU-bound work on a background thread. [c:\hotix-invoice\client\Hotix.InvoiceClient.csproj]
+  Hotix.InvoiceClient -> c:\hotix-invoice\client\bin\Debug\net8.0-windows\Hotix.InvoiceClient.dll
+
+Build succeeded.
+
+c:\hotix-invoice\client\ViewModels\MainViewModel.cs(373,24): warning CS1998: This async method lacks 'await' operators and will run synchronously. Consider using the 'await' operator to await non-blocking API calls, or 'await Task.Run(...)' to do CPU-bound work on a background thread. [c:\hotix-invoice\client\Hotix.InvoiceClient.csproj]
+    1 Warning(s)
+    0 Error(s)
+
+Time Elapsed 00:00:03.72

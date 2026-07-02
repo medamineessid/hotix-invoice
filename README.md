@@ -107,7 +107,8 @@ This will:
 
 ### Step 6 — Create a Desktop Shortcut (Optional)
 
-Right-click `client\bin\Release\net8.0-windows\Hotix.InvoiceClient.exe` → Send to → Desktop (create shortcut). Rename the shortcut to HOTIX.
+Right-click `client\publish\Hotix.InvoiceClient.exe` → Send to → Desktop (create shortcut). Rename the shortcut to HOTIX.
+Right-click `client\publish\Hotix.InvoiceClient.exe` → Send to → Desktop (create shortcut). Rename the shortcut to HOTIX.
 
 ---
 

@@ -9,7 +9,7 @@ from PIL import Image, ImageSequence
 from pdf2image import convert_from_bytes
 
 
-SUPPORTED_EXTENSIONS = {".pdf", ".jpg", ".jpeg", ".png", ".tif", ".tiff"}
+SUPPORTED_EXTENSIONS = {".pdf", ".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff"}
 
 
 class IngestionError(RuntimeError):

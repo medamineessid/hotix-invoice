@@ -49,6 +49,7 @@ public sealed class InvoiceClient
             ".jpg"  => "image/jpeg",
             ".jpeg" => "image/jpeg",
             ".png"  => "image/png",
+            ".bmp"  => "image/bmp",
             ".tif"  => "image/tiff",
             ".tiff" => "image/tiff",
             _       => "application/octet-stream",

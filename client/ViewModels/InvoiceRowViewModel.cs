@@ -188,20 +188,6 @@ public sealed class InvoiceRowViewModel : INotifyPropertyChanged
         Confidence   = 0.0,
     };
 
-    public InvoiceResult ToInvoiceResult() => new()
-    {
-        NumeroFacture = NumeroFacture,
-        Date          = Date,
-        Fournisseur   = Fournisseur,
-        Client        = Client,
-        MontantHt     = MontantHt,
-        MontantTva    = MontantTva,
-        MontantTaxe   = MontantTaxe,
-        MontantTtc    = MontantTtc,
-        Confidence    = Confidence,
-        RawText       = RawText,
-    };
-
     private bool SetField<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
     {
         if (EqualityComparer<T>.Default.Equals(field, value)) return false;
