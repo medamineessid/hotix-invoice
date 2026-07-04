@@ -144,6 +144,7 @@ async def _run_gemini_extraction(
             **fields,
             confidence=0.95,
             raw_text="Extraction via Gemini Vision",
+            engine_used="gemini",
         )
     except GeminiExtractionError as exc:
         if engine == "gemini":
@@ -179,6 +180,7 @@ def _run_ocr_extraction(
         **fields,
         confidence=confidence,
         raw_text=raw_text,
+        engine_used="ocr",
     )
 
 

@@ -29,6 +29,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     private bool _geminiAvailable;
     private string _geminiKeyInput = string.Empty;
     private bool _isSettingsPanelOpen;
+    private DispatcherTimer? _engineStatusTimer;
     private bool _isServerRunning = true;
     private InvoiceRowViewModel? _selectedRow;
     private CancellationTokenSource? _extractionCts;
@@ -95,6 +96,14 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             App.ServerProcess.Exited += (s, e) => IsServerRunning = false;
             if (App.ServerProcess.HasExited) IsServerRunning = false;
         }
+
+        // Poll engine status every 45 seconds on the UI thread
+        _engineStatusTimer = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromSeconds(45),
+        };
+        _engineStatusTimer.Tick += async (s, e) => await CheckEngineStatusAsync();
+        _engineStatusTimer.Start();
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -763,6 +772,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
 
     public void Dispose()
     {
+        _engineStatusTimer?.Stop();
         _extractionCts?.Cancel();
         _extractionCts?.Dispose();
         _apiHttpClient.Dispose();

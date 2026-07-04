@@ -15,6 +15,7 @@ public sealed class InvoiceRowViewModel : INotifyPropertyChanged
     private string? _montantTva;
     private string? _montantTaxe;
     private string? _montantTtc;
+    private string _engineUsed = "ocr";
     private double _confidence;
     private string? _rawText;
     private bool _hasError;
@@ -76,6 +77,20 @@ public sealed class InvoiceRowViewModel : INotifyPropertyChanged
         get => _montantTtc;
         set => SetField(ref _montantTtc, value);
     }
+
+    public string EngineUsed
+    {
+        get => _engineUsed;
+        set
+        {
+            if (SetField(ref _engineUsed, value))
+            {
+                OnPropertyChanged(nameof(IsLocalOcr));
+            }
+        }
+    }
+
+    public bool IsLocalOcr => _engineUsed == "ocr";
 
     public double Confidence
     {
@@ -177,6 +192,7 @@ public sealed class InvoiceRowViewModel : INotifyPropertyChanged
         MontantTtc    = result.MontantTtc,
         Confidence    = result.Confidence,
         RawText       = result.RawText,
+        EngineUsed    = result.EngineUsed,
         HasError      = false,
     };
 

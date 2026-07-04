@@ -43,14 +43,14 @@ class PaddleOcrEngine:
         if self._ocr is None:
             from paddleocr import PaddleOCR
 
-            self._ocr = PaddleOCR(lang=self._language, use_angle_cls=True, show_log=False)
+            self._ocr = PaddleOCR(lang=self._language)
         return self._ocr
 
     def recognize(self, image: Image.Image, page_index: int) -> OCRResult:
         """Run OCR on a PIL image and return normalized text lines."""
 
         try:
-            result = self.ocr.ocr(np.array(image.convert("RGB")), cls=True)
+            result = self.ocr.ocr(np.array(image.convert("RGB")))
         except Exception as exc:  # pragma: no cover - runtime OCR failures need direct surfacing
             raise OcrEngineError(f"OCR failed on page {page_index + 1}: {exc}") from exc
 

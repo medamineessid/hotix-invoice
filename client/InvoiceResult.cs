@@ -34,6 +34,9 @@ public sealed class InvoiceResult
     [JsonPropertyName("raw_text")]
     public string? RawText { get; set; }
 
+    [JsonPropertyName("engine_used")]
+    public string EngineUsed { get; set; } = "ocr";
+
     [JsonIgnore]
     public bool HasMissingFields =>
         string.IsNullOrWhiteSpace(NumeroFacture)

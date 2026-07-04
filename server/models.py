@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -22,6 +22,7 @@ class InvoiceExtractionResponse(BaseModel):
     montant_ttc: Optional[str] = Field(default=None)
     confidence: float = Field(default=0.0, ge=0.0, le=1.0)
     raw_text: str = Field(default="")
+    engine_used: Literal["gemini", "ocr"] = Field(default="ocr")
 
 
 class HealthResponse(BaseModel):

@@ -13,7 +13,7 @@ public sealed class ExcelWriter
     private static readonly XLColor White         = XLColor.White;
 
     private static readonly string[] Headers =
-        { "N° Facture", "Date", "Fournisseur", "Client", "Montant HT", "TVA", "Taxe", "TTC", "Confiance", "Fichier" };
+        { "N° Facture", "Date", "Fournisseur", "Client", "Montant HT", "TVA", "Taxe", "TTC", "Confiance", "Fichier", "Moteur" };
 
     public void Write(string outputPath, IReadOnlyList<InvoiceRowViewModel> rows)
     {
@@ -61,6 +61,10 @@ public sealed class ExcelWriter
             confCell.Style.Font.FontColor = White;
 
             SetCell(ws, rowIndex, 10, row.FileName, rowBg, false);
+
+            // Engine used
+            string engineLabel = row.EngineUsed == "gemini" ? "Gemini (cloud)" : "OCR local";
+            SetCell(ws, rowIndex, 11, engineLabel, rowBg, false);
 
             rowIndex++;
         }

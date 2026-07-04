@@ -578,14 +578,20 @@
                                         </DataGridTextColumn.ElementStyle>
                                     </DataGridTextColumn>
 
-                                    <DataGridTemplateColumn Header="Confiance" Width="110" CanUserSort="True" SortMemberPath="Confidence">
+                                    <DataGridTemplateColumn Header="Confiance" Width="150" CanUserSort="True" SortMemberPath="Confidence">
                                         <DataGridTemplateColumn.CellTemplate>
                                             <DataTemplate>
-                                                <Border Background="{Binding Confidence, Converter={StaticResource ConfidenceToColorConverter}}"
-                                                        CornerRadius="10" Padding="8,2" HorizontalAlignment="Center"
-                                                        ToolTip="{Binding ConfidenceTooltip}">
-                                                    <TextBlock Text="{Binding ConfidenceDisplay}" Foreground="White" FontWeight="SemiBold" HorizontalAlignment="Center" />
-                                                </Border>
+                                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                    <Border Background="{Binding Confidence, Converter={StaticResource ConfidenceToColorConverter}}"
+                                                            CornerRadius="10" Padding="8,2"
+                                                            ToolTip="{Binding ConfidenceTooltip}">
+                                                        <TextBlock Text="{Binding ConfidenceDisplay}" Foreground="White" FontWeight="SemiBold" HorizontalAlignment="Center" />
+                                                    </Border>
+                                                    <Border Background="#444444" CornerRadius="4" Padding="4,1" Margin="4,0,0,0"
+                                                            Visibility="{Binding IsLocalOcr, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                        <TextBlock Text="Local (hors ligne)" Foreground="#AAAAAA" FontSize="10" />
+                                                    </Border>
+                                                </StackPanel>
                                             </DataTemplate>
                                         </DataGridTemplateColumn.CellTemplate>
                                     </DataGridTemplateColumn>
@@ -663,16 +669,21 @@
                                         <DataGridTextColumn Header="Taxe"        Binding="{Binding MontantTaxe,   Converter={StaticResource NullToPlaceholderConverter}}" MinWidth="60"  MaxWidth="100" />
                                         <DataGridTextColumn Header="TTC"         Binding="{Binding MontantTtc,    Converter={StaticResource NullToPlaceholderConverter}}" MinWidth="60"  MaxWidth="100" />
 
-                                        <DataGridTemplateColumn Header="Confiance" Width="110" CanUserSort="True" SortMemberPath="Confidence">
+                                        <DataGridTemplateColumn Header="Confiance" Width="150" CanUserSort="True" SortMemberPath="Confidence">
                                             <DataGridTemplateColumn.CellTemplate>
                                                 <DataTemplate>
-                                                    <Border Background="{Binding Confidence, Converter={StaticResource ConfidenceToColorConverter}}"
-                                                            CornerRadius="10" Padding="8,2" HorizontalAlignment="Center"
-                                                            ToolTip="{Binding ConfidenceTooltip}">
-                                                        <TextBlock Text="{Binding ConfidenceDisplay}" Foreground="White" FontWeight="SemiBold" HorizontalAlignment="Center" />
+                                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                        <Border Background="{Binding Confidence, Converter={StaticResource ConfidenceToColorConverter}}"
+                                                                CornerRadius="10" Padding="8,2"
+                                                                ToolTip="{Binding ConfidenceTooltip}">
+                                                            <TextBlock Text="{Binding ConfidenceDisplay}" Foreground="White" FontWeight="SemiBold" HorizontalAlignment="Center" />
+                                                        </Border>
+                                                        <Border Background="#444444" CornerRadius="4" Padding="4,1" Margin="4,0,0,0"
+                                                                Visibility="{Binding IsLocalOcr, Converter={StaticResource BooleanToVisibilityConverter}}"><TextBlock Text="Local (hors ligne)" Foreground="#AAAAAA" FontSize="10" />
                                                     </Border>
-                                                </DataTemplate>
-                                            </DataGridTemplateColumn.CellTemplate>
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
                                         </DataGridTemplateColumn>
 
                                         <DataGridTextColumn Header="Fichier" Binding="{Binding FileDisplay}" MinWidth="120" />
