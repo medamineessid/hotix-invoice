@@ -1,0 +1,95 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:sys="clr-namespace:System;assembly=mscorlib">
+
+    <!-- ═══════════════════════════════════════════════
+         HOTIX Typography
+         Swiss International Typography principles
+         Hierarchy from size, spacing, position
+         ═══════════════════════════════════════════════ -->
+
+    <!-- Font Families -->
+    <FontFamily x:Key="FontPrimary">Inter, Helvetica Neue, Segoe UI</FontFamily>
+    <FontFamily x:Key="FontDisplay">Inter, Helvetica Neue, Segoe UI</FontFamily>
+    <FontFamily x:Key="FontMono">Consolas, Courier New, monospace</FontFamily>
+
+    <!-- ═══ Font Sizes ═══ -->
+    <sys:Double x:Key="FontSizeDisplay">36</sys:Double>
+    <sys:Double x:Key="FontSizePageTitle">28</sys:Double>
+    <sys:Double x:Key="FontSizeSectionHeading">20</sys:Double>
+    <sys:Double x:Key="FontSizeCardTitle">16</sys:Double>
+    <sys:Double x:Key="FontSizeBody">14</sys:Double>
+    <sys:Double x:Key="FontSizeCaption">12</sys:Double>
+    <sys:Double x:Key="FontSizeMetadata">11</sys:Double>
+
+    <!-- ═══ Font Weights ═══ -->
+    <FontWeight x:Key="FontWeightLight">300</FontWeight>
+    <FontWeight x:Key="FontWeightRegular">400</FontWeight>
+    <FontWeight x:Key="FontWeightMedium">500</FontWeight>
+    <FontWeight x:Key="FontWeightSemiBold">600</FontWeight>
+    <FontWeight x:Key="FontWeightBold">700</FontWeight>
+
+    <!-- ═══ Named Text Styles (applied via Style) ═══ -->
+    <Style x:Key="TextDisplay" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource FontDisplay}" />
+        <Setter Property="FontSize"   Value="{StaticResource FontSizeDisplay}" />
+        <Setter Property="FontWeight" Value="{StaticResource FontWeightLight}" />
+        <Setter Property="Foreground" Value="{StaticResource BrushTextPrimary}" />
+        <Setter Property="LineHeight" Value="44" />
+    </Style>
+
+    <Style x:Key="TextPageTitle" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource FontDisplay}" />
+        <Setter Property="FontSize"   Value="{StaticResource FontSizePageTitle}" />
+        <Setter Property="FontWeight" Value="{StaticResource FontWeightLight}" />
+        <Setter Property="Foreground" Value="{StaticResource BrushTextPrimary}" />
+        <Setter Property="LineHeight" Value="36" />
+    </Style>
+
+    <Style x:Key="TextSectionHeading" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource FontPrimary}" />
+        <Setter Property="FontSize"   Value="{StaticResource FontSizeSectionHeading}" />
+        <Setter Property="FontWeight" Value="{StaticResource FontWeightRegular}" />
+        <Setter Property="Foreground" Value="{StaticResource BrushTextPrimary}" />
+        <Setter Property="LineHeight" Value="28" />
+    </Style>
+
+    <Style x:Key="TextCardTitle" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource FontPrimary}" />
+        <Setter Property="FontSize"   Value="{StaticResource FontSizeCardTitle}" />
+        <Setter Property="FontWeight" Value="{StaticResource FontWeightMedium}" />
+        <Setter Property="Foreground" Value="{StaticResource BrushTextPrimary}" />
+        <Setter Property="LineHeight" Value="22" />
+    </Style>
+
+    <Style x:Key="TextBody" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource FontPrimary}" />
+        <Setter Property="FontSize"   Value="{StaticResource FontSizeBody}" />
+        <Setter Property="FontWeight" Value="{StaticResource FontWeightRegular}" />
+        <Setter Property="Foreground" Value="{StaticResource BrushTextPrimary}" />
+        <Setter Property="LineHeight" Value="20" />
+    </Style>
+
+    <Style x:Key="TextCaption" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource FontPrimary}" />
+        <Setter Property="FontSize"   Value="{StaticResource FontSizeCaption}" />
+        <Setter Property="FontWeight" Value="{StaticResource FontWeightRegular}" />
+        <Setter Property="Foreground" Value="{StaticResource BrushTextSecondary}" />
+        <Setter Property="LineHeight" Value="18" />
+    </Style>
+
+    <Style x:Key="TextMetadata" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource FontPrimary}" />
+        <Setter Property="FontSize"   Value="{StaticResource FontSizeMetadata}" />
+        <Setter Property="FontWeight" Value="{StaticResource FontWeightRegular}" />
+        <Setter Property="Foreground" Value="{StaticResource BrushTextMuted}" />
+        <Setter Property="LineHeight" Value="16" />
+    </Style>
+
+    <Style x:Key="TextMono" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource FontMono}" />
+        <Setter Property="FontSize"   Value="{StaticResource FontSizeBody}" />
+        <Setter Property="Foreground" Value="{StaticResource BrushTextSecondary}" />
+    </Style>
+
+</ResourceDictionary>

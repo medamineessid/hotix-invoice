@@ -1,0 +1,168 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <ResourceDictionary.MergedDictionaries>
+        <ResourceDictionary Source="Brushes.xaml" />
+        <ResourceDictionary Source="Spacing.xaml" />
+        <ResourceDictionary Source="Animations.xaml" />
+    </ResourceDictionary.MergedDictionaries>
+
+    <!-- ═══════════════════════════════════════════════
+         HOTIX Button Styles
+         Radius: 14 | Padding: 14x24
+         Primary: Black fill, White text
+         Secondary: White fill, Gray border
+         Danger: Suprematist Red fill, White text
+         ═══════════════════════════════════════════════ -->
+
+    <!-- Base button template with animations -->
+    <ControlTemplate x:Key="TemplateButtonBase" TargetType="Button">
+        <Border x:Name="Border"
+                Background="{TemplateBinding Background}"
+                BorderBrush="{TemplateBinding BorderBrush}"
+                BorderThickness="{TemplateBinding BorderThickness}"
+                CornerRadius="{StaticResource RadiusMedium}">
+            <Border.Effect>
+                <DropShadowEffect ShadowDepth="1" Direction="270" BlurRadius="4" Opacity="0.08" Color="#000000" />
+            </Border.Effect>
+            <ContentPresenter x:Name="Content"
+                              HorizontalAlignment="Center"
+                              VerticalAlignment="Center"
+                              Margin="24,12"
+                              RecognizesAccessKey="True" />
+        </Border>
+        <ControlTemplate.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Trigger.EnterActions>
+                    <BeginStoryboard Storyboard="{StaticResource StoryboardButtonHoverEnter}" />
+                </Trigger.EnterActions>
+                <Trigger.ExitActions>
+                    <BeginStoryboard Storyboard="{StaticResource StoryboardButtonHoverLeave}" />
+                </Trigger.ExitActions>
+            </Trigger>
+            <Trigger Property="IsPressed" Value="True">
+                <Trigger.EnterActions>
+                    <BeginStoryboard Storyboard="{StaticResource StoryboardButtonPressed}" />
+                </Trigger.EnterActions>
+                <Trigger.ExitActions>
+                    <BeginStoryboard Storyboard="{StaticResource StoryboardButtonReleased}" />
+                </Trigger.ExitActions>
+            </Trigger>
+            <Trigger Property="IsEnabled" Value="False">
+                <Setter TargetName="Border" Property="Opacity" Value="0.4" />
+                <Setter Property="Cursor" Value="Arrow" />
+            </Trigger>
+        </ControlTemplate.Triggers>
+    </ControlTemplate>
+
+    <!-- ═══ Primary Button — Black ═══ -->
+    <Style x:Key="ButtonPrimaryStyle" TargetType="Button">
+        <Setter Property="Background"  Value="{StaticResource BrushButtonPrimary}" />
+        <Setter Property="Foreground"  Value="{StaticResource BrushTextInverse}" />
+        <Setter Property="BorderBrush" Value="{StaticResource BrushButtonPrimary}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="FontFamily" Value="{StaticResource FontPrimary}" />
+        <Setter Property="FontSize"   Value="{StaticResource FontSizeBody}" />
+        <Setter Property="FontWeight" Value="{StaticResource FontWeightMedium}" />
+        <Setter Property="Template"   Value="{StaticResource TemplateButtonBase}" />
+        <Setter Property="RenderTransform">
+            <Setter.Value>
+                <TransformGroup>
+                    <TranslateTransform X="0" Y="0" />
+                    <ScaleTransform ScaleX="1" ScaleY="1" />
+                </TransformGroup>
+            </Setter.Value>
+        </Setter>
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Background" Value="{StaticResource BrushButtonPrimaryHover}" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <!-- ═══ Secondary Button — White ═══ -->
+    <Style x:Key="ButtonSecondaryStyle" TargetType="Button">
+        <Setter Property="Background"  Value="{StaticResource BrushButtonSecondary}" />
+        <Setter Property="Foreground"  Value="{StaticResource BrushTextPrimary}" />
+        <Setter Property="BorderBrush" Value="{StaticResource BrushButtonSecondaryStroke}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="FontFamily" Value="{StaticResource FontPrimary}" />
+        <Setter Property="FontSize"   Value="{StaticResource FontSizeBody}" />
+        <Setter Property="FontWeight" Value="{StaticResource FontWeightMedium}" />
+        <Setter Property="Template"   Value="{StaticResource TemplateButtonBase}" />
+        <Setter Property="RenderTransform">
+            <Setter.Value>
+                <TransformGroup>
+                    <TranslateTransform X="0" Y="0" />
+                    <ScaleTransform ScaleX="1" ScaleY="1" />
+                </TransformGroup>
+            </Setter.Value>
+        </Setter>
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Background" Value="{StaticResource BrushButtonSecondaryHover}" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <!-- ═══ Danger Button — Suprematist Red ═══ -->
+    <Style x:Key="ButtonDangerStyle" TargetType="Button">
+        <Setter Property="Background"  Value="{StaticResource BrushButtonDanger}" />
+        <Setter Property="Foreground"  Value="{StaticResource BrushTextInverse}" />
+        <Setter Property="BorderBrush" Value="{StaticResource BrushButtonDanger}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="FontFamily" Value="{StaticResource FontPrimary}" />
+        <Setter Property="FontSize"   Value="{StaticResource FontSizeBody}" />
+        <Setter Property="FontWeight" Value="{StaticResource FontWeightMedium}" />
+        <Setter Property="Template"   Value="{StaticResource TemplateButtonBase}" />
+        <Setter Property="RenderTransform">
+            <Setter.Value>
+                <TransformGroup>
+                    <TranslateTransform X="0" Y="0" />
+                    <ScaleTransform ScaleX="1" ScaleY="1" />
+                </TransformGroup>
+            </Setter.Value>
+        </Setter>
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Background" Value="{StaticResource BrushButtonDangerHover}" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <!-- ═══ Small Icon Button (window controls, close) ═══ -->
+    <Style x:Key="ButtonIconStyle" TargetType="Button" BasedOn="{StaticResource ButtonSecondaryStyle}">
+        <Setter Property="Width"  Value="36" />
+        <Setter Property="Height" Value="36" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Border"
+                            Background="{TemplateBinding Background}"
+                            CornerRadius="{StaticResource RadiusSmall}">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
+                                          RecognizesAccessKey="True" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Border" Property="Background" Value="{StaticResource BrushHover}" />
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="Border" Property="Background" Value="{StaticResource BrushPressed}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ═══ Default Button (applied to all Button elements) ═══ -->
+    <Style TargetType="Button" BasedOn="{StaticResource ButtonSecondaryStyle}" />
+
+</ResourceDictionary>

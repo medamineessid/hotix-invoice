@@ -1,0 +1,255 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <ResourceDictionary.MergedDictionaries>
+        <ResourceDictionary Source="Brushes.xaml" />
+        <ResourceDictionary Source="Spacing.xaml" />
+    </ResourceDictionary.MergedDictionaries>
+
+    <!-- ═══════════════════════════════════════════════
+         HOTIX Input Styles
+         Large, comfortable, radius 14
+         Minimal border, traditional labels above
+         Black border on focus with small red accent line
+         ═══════════════════════════════════════════════ -->
+
+    <!-- ═══ TextBox ═══ -->
+    <Style x:Key="TextBoxStyle" TargetType="TextBox">
+        <Setter Property="Background"         Value="{StaticResource BrushInputBackground}" />
+        <Setter Property="Foreground"         Value="{StaticResource BrushTextPrimary}" />
+        <Setter Property="BorderBrush"        Value="{StaticResource BrushInputBorder}" />
+        <Setter Property="BorderThickness"    Value="1" />
+        <Setter Property="Padding"            Value="14,12" />
+        <Setter Property="MinHeight"          Value="44" />
+        <Setter Property="FontFamily"         Value="{StaticResource FontPrimary}" />
+        <Setter Property="FontSize"           Value="{StaticResource FontSizeBody}" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="CaretBrush"         Value="{StaticResource BrushTextPrimary}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="TextBox">
+                    <Border x:Name="Border"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="{StaticResource RadiusMedium}">
+                        <Grid>
+                            <ScrollViewer x:Name="PART_ContentHost"
+                                          Margin="{TemplateBinding Padding}"
+                                          VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
+                            <Border x:Name="AccentLine"
+                                    Height="2"
+                                    Width="24"
+                                    HorizontalAlignment="Left"
+                                    VerticalAlignment="Bottom"
+                                    Background="{StaticResource BrushAccent}"
+                                    Opacity="0"
+                                    Margin="14,0,0,0" />
+                        </Grid>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Border" Property="BorderBrush" Value="{StaticResource BrushInputBorderHover}" />
+                        </Trigger>
+                        <Trigger Property="IsFocused" Value="True">
+                            <Setter TargetName="Border" Property="BorderBrush" Value="{StaticResource BrushInputBorderFocus}" />
+                            <Setter TargetName="AccentLine" Property="Opacity" Value="1" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.45" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ═══ ReadOnly TextBox ═══ -->
+    <Style x:Key="TextBoxReadOnlyStyle" TargetType="TextBox" BasedOn="{StaticResource TextBoxStyle}">
+        <Setter Property="Background" Value="{StaticResource BrushAltBackground}" />
+        <Setter Property="IsReadOnly" Value="True" />
+    </Style>
+
+    <!-- ═══ PasswordBox ═══ -->
+    <Style x:Key="PasswordBoxStyle" TargetType="PasswordBox">
+        <Setter Property="Background"         Value="{StaticResource BrushInputBackground}" />
+        <Setter Property="Foreground"         Value="{StaticResource BrushTextPrimary}" />
+        <Setter Property="BorderBrush"        Value="{StaticResource BrushInputBorder}" />
+        <Setter Property="BorderThickness"    Value="1" />
+        <Setter Property="Padding"            Value="14,12" />
+        <Setter Property="MinHeight"          Value="44" />
+        <Setter Property="FontFamily"         Value="{StaticResource FontPrimary}" />
+        <Setter Property="FontSize"           Value="{StaticResource FontSizeBody}" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="PasswordBox">
+                    <Border x:Name="Border"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="{StaticResource RadiusMedium}">
+                        <Grid>
+                            <ScrollViewer x:Name="PART_ContentHost"
+                                          Margin="{TemplateBinding Padding}"
+                                          VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
+                            <Border x:Name="AccentLine"
+                                    Height="2"
+                                    Width="24"
+                                    HorizontalAlignment="Left"
+                                    VerticalAlignment="Bottom"
+                                    Background="{StaticResource BrushAccent}"
+                                    Opacity="0"
+                                    Margin="14,0,0,0" />
+                        </Grid>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Border" Property="BorderBrush" Value="{StaticResource BrushInputBorderHover}" />
+                        </Trigger>
+                        <Trigger Property="IsFocused" Value="True">
+                            <Setter TargetName="Border" Property="BorderBrush" Value="{StaticResource BrushInputBorderFocus}" />
+                            <Setter TargetName="AccentLine" Property="Opacity" Value="1" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.45" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ═══ ComboBox ═══ -->
+    <Style x:Key="ComboBoxStyle" TargetType="ComboBox">
+        <Setter Property="Background"         Value="{StaticResource BrushInputBackground}" />
+        <Setter Property="Foreground"         Value="{StaticResource BrushTextPrimary}" />
+        <Setter Property="BorderBrush"        Value="{StaticResource BrushInputBorder}" />
+        <Setter Property="BorderThickness"    Value="1" />
+        <Setter Property="Padding"            Value="14,12" />
+        <Setter Property="MinHeight"          Value="44" />
+        <Setter Property="FontFamily"         Value="{StaticResource FontPrimary}" />
+        <Setter Property="FontSize"           Value="{StaticResource FontSizeBody}" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ComboBox">
+                    <Grid>
+                        <Border x:Name="Border"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="{StaticResource RadiusMedium}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <ContentPresenter Grid.Column="0"
+                                                  Margin="{TemplateBinding Padding}"
+                                                  VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                                                  Content="{TemplateBinding SelectionBoxItem}"
+                                                  ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
+                                                  ContentTemplateSelector="{TemplateBinding ItemTemplateSelector}" />
+                                <TextBlock Grid.Column="1" Text="▾" 
+                                           Foreground="{StaticResource BrushTextMuted}"
+                                           FontSize="10" Margin="0,0,14,0"
+                                           VerticalAlignment="Center" />
+                                <Border x:Name="AccentLine"
+                                        Grid.ColumnSpan="2"
+                                        Height="2"
+                                        Width="24"
+                                        HorizontalAlignment="Left"
+                                        VerticalAlignment="Bottom"
+                                        Background="{StaticResource BrushAccent}"
+                                        Opacity="0"
+                                        Margin="14,0,0,0" />
+                            </Grid>
+                        </Border>
+                        <Popup x:Name="PART_Popup"
+                               IsOpen="{TemplateBinding IsDropDownOpen}"
+                               Placement="Bottom"
+                               AllowsTransparency="True"
+                               Focusable="False"
+                               PopupAnimation="None">
+                            <Border Background="{StaticResource BrushSurface}"
+                                    BorderBrush="{StaticResource BrushBorder}"
+                                    BorderThickness="1"
+                                    CornerRadius="{StaticResource RadiusMedium}"
+                                    Effect="{StaticResource ShadowCard}"
+                                    Margin="0,4,0,0">
+                                <ScrollViewer>
+                                    <ItemsPresenter />
+                                </ScrollViewer>
+                            </Border>
+                        </Popup>
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Border" Property="BorderBrush" Value="{StaticResource BrushInputBorderHover}" />
+                        </Trigger>
+                        <Trigger Property="IsFocused" Value="True">
+                            <Setter TargetName="Border" Property="BorderBrush" Value="{StaticResource BrushInputBorderFocus}" />
+                            <Setter TargetName="AccentLine" Property="Opacity" Value="1" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.45" />
+                            <Setter Property="Foreground" Value="{StaticResource BrushTextMuted}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ═══ CheckBox ═══ -->
+    <Style x:Key="CheckBoxStyle" TargetType="CheckBox">
+        <Setter Property="Foreground"        Value="{StaticResource BrushTextPrimary}" />
+        <Setter Property="FontFamily"        Value="{StaticResource FontPrimary}" />
+        <Setter Property="FontSize"          Value="{StaticResource FontSizeBody}" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="CheckBox">
+                    <Grid Background="Transparent">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Border x:Name="CheckBoxBorder"
+                                Width="18" Height="18"
+                                CornerRadius="4"
+                                BorderThickness="1.5"
+                                BorderBrush="{StaticResource BrushInputBorder}"
+                                Background="Transparent"
+                                VerticalAlignment="Center">
+                            <Path x:Name="CheckMark"
+                                  Data="M4,9 L7.5,12.5 L14,5"
+                                  Stroke="{StaticResource BrushSurface}"
+                                  StrokeThickness="2"
+                                  StrokeEndLineCap="Round"
+                                  StrokeStartLineCap="Round"
+                                  StrokeLineJoin="Round"
+                                  Opacity="0" />
+                        </Border>
+                        <ContentPresenter Grid.Column="1"
+                                          Margin="10,0,0,0"
+                                          VerticalAlignment="Center"
+                                          RecognizesAccessKey="True" />
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="CheckBoxBorder" Property="Background" Value="{StaticResource BrushAccent}" />
+                            <Setter TargetName="CheckBoxBorder" Property="BorderBrush" Value="{StaticResource BrushAccent}" />
+                            <Setter TargetName="CheckMark" Property="Opacity" Value="1" />
+                        </Trigger>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="CheckBoxBorder" Property="BorderBrush" Value="{StaticResource BrushInputBorderHover}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+</ResourceDictionary>

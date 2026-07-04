@@ -1,0 +1,57 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <ResourceDictionary.MergedDictionaries>
+        <ResourceDictionary Source="Brushes.xaml" />
+        <ResourceDictionary Source="Spacing.xaml" />
+        <ResourceDictionary Source="Animations.xaml" />
+    </ResourceDictionary.MergedDictionaries>
+
+    <!-- ═══════════════════════════════════════════════
+         HOTIX Card Styles
+         Gallery-frame cards: white, radius 20, padding 24
+         Subtle border, very soft shadow
+         Hover: translate -2px, increase shadow
+         ═══════════════════════════════════════════════ -->
+
+    <Style x:Key="CardStyle" TargetType="Border">
+        <Setter Property="Background"      Value="{StaticResource BrushSurface}" />
+        <Setter Property="BorderBrush"     Value="{StaticResource BrushBorder}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius"    Value="{StaticResource RadiusLarge}" />
+        <Setter Property="Padding"         Value="{StaticResource PaddingCard}" />
+        <Setter Property="Effect"          Value="{StaticResource ShadowCard}" />
+        <Setter Property="RenderTransform">
+            <Setter.Value>
+                <TranslateTransform X="0" Y="0" />
+            </Setter.Value>
+        </Setter>
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Trigger.EnterActions>
+                    <BeginStoryboard Storyboard="{StaticResource StoryboardCardHoverEnter}" />
+                </Trigger.EnterActions>
+                <Trigger.ExitActions>
+                    <BeginStoryboard Storyboard="{StaticResource StoryboardCardHoverLeave}" />
+                </Trigger.ExitActions>
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style x:Key="CardStyleCompact" TargetType="Border" BasedOn="{StaticResource CardStyle}">
+        <Setter Property="Padding" Value="{StaticResource PaddingCardCompact}" />
+    </Style>
+
+    <!-- Card header + body layout helper -->
+    <Style x:Key="CardHeaderStyle" TargetType="TextBlock">
+        <Setter Property="Style" Value="{StaticResource TextCardTitle}" />
+        <Setter Property="Margin" Value="0,0,0,16" />
+    </Style>
+
+    <!-- Card label (above inputs within cards) -->
+    <Style x:Key="CardLabelStyle" TargetType="TextBlock">
+        <Setter Property="Style" Value="{StaticResource TextCaption}" />
+        <Setter Property="Margin" Value="0,0,0,8" />
+    </Style>
+
+</ResourceDictionary>

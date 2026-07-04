@@ -157,6 +157,7 @@ Results appear in the **Résultats** tab with the following columns:
 | Taxe | Stamp duty or other tax |
 | TTC | Total including tax |
 | Confiance | Extraction confidence (green = high, red = low) |
+| Moteur | Engine used: Gemini (cloud) or OCR local — shown as "Local (hors ligne)" badge inline in the grid |
 | Fichier | Source file name |
 
 - Fields shown in **grey italic** were not found in the invoice.
@@ -196,7 +197,10 @@ To use Gemini Vision for better accuracy:
 The background process failed. Close the app and relaunch via the HOTIX shortcut. This can happen if another application is using port 8000.
 
 **"Clé API Gemini non configurée"**
-You selected Gemini but haven't provided a key. Use the gear icon **⚙** to set it up or switch back to "OCR local".
+You selected Gemini but haven't provided a key. Use the gear icon **⚙** to set it up or switch back to "OCR local". The app checks engine availability every **45 seconds** automatically, so it will reflect any configuration changes without a restart.
+
+**Rows show a "Local (hors ligne)" badge**
+This indicates the extraction was performed using the local PaddleOCR engine. Gemini-extracted rows display no badge. The engine used per row is also exported to Excel in the "Moteur" column.
 
 **PDF files fail with "Poppler manquant"**
 Poppler is not installed or not on PATH. Redo Step 3 of the IT setup.

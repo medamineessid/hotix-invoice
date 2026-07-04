@@ -1,21 +1,18 @@
 <Window x:Class="Hotix.InvoiceClient.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        xmlns:converters="clr-namespace:Hotix.InvoiceClient.Converters"
         xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
-        mc:Ignorable="d"
-        Title="HOTIX - Extraction de Factures"
+        xmlns:controls="clr-namespace:Hotix.InvoiceClient.Controls"
+        Title="HOTIX — Extraction de Factures"
         Icon="pack://application:,,,/hotix_icon.ico"
         Width="1280"
         Height="820"
-        MinWidth="900"
-        MinHeight="600"
-        Background="#1E1E1E"
-        Foreground="#F0F0F0"
-        FontFamily="Segoe UI"
-        FontSize="13"
+        MinWidth="960"
+        MinHeight="640"
+        Background="{StaticResource BrushBackground}"
+        Foreground="{StaticResource BrushTextPrimary}"
+        FontFamily="{StaticResource FontPrimary}"
+        FontSize="{StaticResource FontSizeBody}"
         WindowStyle="None"
         ResizeMode="CanResize"
         AllowsTransparency="False"
@@ -23,7 +20,7 @@
         Drop="Window_Drop"
         DragOver="Window_DragOver">
 
-    <!-- WindowChrome restores OS resize behaviour for WindowStyle=None -->
+    <!-- WindowChrome for native resize behavior -->
     <shell:WindowChrome.WindowChrome>
         <shell:WindowChrome CaptionHeight="0"
                             ResizeBorderThickness="6"
@@ -32,764 +29,900 @@
     </shell:WindowChrome.WindowChrome>
 
     <Window.InputBindings>
-        <KeyBinding Key="F5"  Command="{Binding StartExtractionCommand}" />
+        <KeyBinding Key="F5"     Command="{Binding StartExtractionCommand}" />
         <KeyBinding Key="Escape" Command="{Binding CancelExtractionCommand}" />
-        <KeyBinding Key="E"   Modifiers="Ctrl" Command="{Binding ExportExcelCommand}" />
+        <KeyBinding Key="E"      Modifiers="Ctrl" Command="{Binding ExportExcelCommand}" />
     </Window.InputBindings>
 
-    <Window.Resources>
-        <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
-        <converters:InverseBooleanToVisibilityConverter x:Key="InverseBooleanToVisibilityConverter" />
-        <converters:ConfidenceToColorConverter    x:Key="ConfidenceToColorConverter" />
-        <converters:NullToPlaceholderConverter    x:Key="NullToPlaceholderConverter" />
-        <converters:StringToColorBrushConverter   x:Key="StringToColorBrushConverter" />
+    <!-- Window Fade-In on Load -->
+    <Window.RenderTransform>
+        <TransformGroup>
+            <ScaleTransform ScaleX="1" ScaleY="1" />
+            <TranslateTransform />
+        </TransformGroup>
+    </Window.RenderTransform>
+    <Window.Triggers>
+        <EventTrigger RoutedEvent="Loaded">
+            <BeginStoryboard Storyboard="{StaticResource StoryboardWindowFadeIn}" />
+        </EventTrigger>
+    </Window.Triggers>
 
-        <SolidColorBrush x:Key="BrushBackground" Color="#1E1E1E" />
-        <SolidColorBrush x:Key="BrushPanel"      Color="#2D2D2D" />
-        <SolidColorBrush x:Key="BrushBorder"     Color="#3E3E3E" />
-        <SolidColorBrush x:Key="BrushAccent"     Color="#C0392B" />
-        <SolidColorBrush x:Key="BrushText"       Color="#F0F0F0" />
-        <SolidColorBrush x:Key="BrushMuted"      Color="#A0A0A0" />
-        <SolidColorBrush x:Key="BrushSuccess"    Color="#2ECC71" />
+    <!-- ══ ROOT GRID: Sidebar | Main ══ -->
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="{StaticResource SidebarWidth}" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
 
-        <Style x:Key="CardBorderStyle" TargetType="Border">
-            <Setter Property="Background"      Value="{StaticResource BrushPanel}" />
-            <Setter Property="BorderBrush"     Value="{StaticResource BrushBorder}" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="CornerRadius"    Value="6" />
-            <Setter Property="Padding"         Value="14" />
-        </Style>
-
-        <Style x:Key="RedButtonStyle" TargetType="Button">
-            <Setter Property="Background"      Value="{StaticResource BrushAccent}" />
-            <Setter Property="Foreground"      Value="{StaticResource BrushText}" />
-            <Setter Property="BorderBrush"     Value="{StaticResource BrushAccent}" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="Padding"         Value="10,6" />
-            <Setter Property="FontWeight"      Value="SemiBold" />
-            <Setter Property="Cursor"          Value="Hand" />
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border Background="{TemplateBinding Background}"
-                                BorderBrush="{TemplateBinding BorderBrush}"
-                                BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="6">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" Margin="8,2" />
-                        </Border>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-            <Style.Triggers>
-                <Trigger Property="IsEnabled" Value="False">
-                    <Setter Property="Opacity" Value="0.45" />
-                    <Setter Property="Cursor"  Value="Arrow" />
-                </Trigger>
-            </Style.Triggers>
-        </Style>
-
-        <Style x:Key="GrayButtonStyle" TargetType="Button" BasedOn="{StaticResource RedButtonStyle}">
-            <Setter Property="Background"  Value="#3A3A3A" />
-            <Setter Property="BorderBrush" Value="#4A4A4A" />
-        </Style>
-
-        <Style x:Key="WarningButtonStyle" TargetType="Button" BasedOn="{StaticResource RedButtonStyle}">
-            <Setter Property="Background"  Value="#B8860B" />
-            <Setter Property="BorderBrush" Value="#B8860B" />
-        </Style>
-
-        <Style x:Key="WindowControlButtonStyle" TargetType="Button" BasedOn="{StaticResource GrayButtonStyle}">
-            <Setter Property="Width"   Value="38" />
-            <Setter Property="Height"  Value="28" />
-            <Setter Property="Padding" Value="0" />
-            <Setter Property="Margin"  Value="4,0,0,0" />
-        </Style>
-
-        <Style x:Key="WindowCloseButtonStyle" TargetType="Button" BasedOn="{StaticResource WindowControlButtonStyle}">
-            <Setter Property="Background"  Value="{StaticResource BrushAccent}" />
-            <Setter Property="BorderBrush" Value="{StaticResource BrushAccent}" />
-        </Style>
-
-        <Style x:Key="DataGridCellTextStyle" TargetType="TextBlock">
-            <Setter Property="VerticalAlignment" Value="Center" />
-            <Setter Property="Foreground"        Value="{StaticResource BrushText}" />
-            <Setter Property="TextTrimming"      Value="CharacterEllipsis" />
-        </Style>
-
-        <Style x:Key="ProgressBarStyle" TargetType="ProgressBar">
-            <Setter Property="Foreground"      Value="{StaticResource BrushAccent}" />
-            <Setter Property="Background"      Value="#3A3A3A" />
-            <Setter Property="Height"          Value="14" />
-            <Setter Property="BorderBrush"     Value="{StaticResource BrushBorder}" />
-            <Setter Property="BorderThickness" Value="1" />
-        </Style>
-
-        <Style x:Key="CheckBoxStyle" TargetType="CheckBox">
-            <Setter Property="Foreground"        Value="{StaticResource BrushText}" />
-            <Setter Property="VerticalAlignment" Value="Center" />
-        </Style>
-
-        <Style x:Key="ResultGridStyle" TargetType="DataGrid">
-            <Setter Property="AutoGenerateColumns"      Value="False" />
-            <Setter Property="HeadersVisibility"        Value="Column" />
-            <Setter Property="CanUserAddRows"           Value="False" />
-            <Setter Property="CanUserDeleteRows"        Value="False" />
-            <Setter Property="CanUserResizeRows"        Value="False" />
-            <Setter Property="CanUserSortColumns"       Value="True" />
-            <Setter Property="GridLinesVisibility"      Value="Horizontal" />
-            <Setter Property="HorizontalGridLinesBrush" Value="{StaticResource BrushBorder}" />
-            <Setter Property="Background"               Value="{StaticResource BrushPanel}" />
-            <Setter Property="BorderBrush"              Value="{StaticResource BrushBorder}" />
-            <Setter Property="BorderThickness"          Value="1" />
-            <Setter Property="RowBackground"            Value="#2D2D2D" />
-            <Setter Property="AlternatingRowBackground" Value="#252525" />
-            <Setter Property="AlternationCount"         Value="2" />
-            <Setter Property="Foreground"               Value="{StaticResource BrushText}" />
-            <Setter Property="SelectionMode"            Value="Single" />
-            <Setter Property="SelectionUnit"            Value="FullRow" />
-            <Setter Property="ColumnHeaderStyle">
-                <Setter.Value>
-                    <Style TargetType="DataGridColumnHeader">
-                        <Setter Property="Background"      Value="#333333" />
-                        <Setter Property="Foreground"      Value="{StaticResource BrushText}" />
-                        <Setter Property="FontWeight"      Value="SemiBold" />
-                        <Setter Property="BorderBrush"     Value="{StaticResource BrushBorder}" />
-                        <Setter Property="BorderThickness" Value="0,0,1,1" />
-                        <Setter Property="Padding"         Value="8,6" />
-                    </Style>
-                </Setter.Value>
-            </Setter>
-            <Setter Property="RowStyle">
-                <Setter.Value>
-                    <Style TargetType="DataGridRow">
-                        <Setter Property="Foreground" Value="{StaticResource BrushText}" />
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding IsError}" Value="True">
-                                <Setter Property="Foreground" Value="{StaticResource BrushAccent}" />
-                            </DataTrigger>
-                            <Trigger Property="IsSelected" Value="True">
-                                <Setter Property="Background" Value="{StaticResource BrushAccent}" />
-                                <Setter Property="Foreground" Value="{StaticResource BrushText}" />
-                            </Trigger>
-                        </Style.Triggers>
-                    </Style>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <Style x:Key="EngineComboBoxStyle" TargetType="ComboBox">
-            <Setter Property="Background"      Value="#2D2D2D" />
-            <Setter Property="Foreground"      Value="White" />
-            <Setter Property="BorderBrush"     Value="#3E3E3E" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="Padding"         Value="6,4" />
-            <Setter Property="MinHeight"       Value="34" />
-            <Style.Triggers>
-                <Trigger Property="IsEnabled" Value="False">
-                    <Setter Property="Foreground" Value="{StaticResource BrushMuted}" />
-                </Trigger>
-            </Style.Triggers>
-        </Style>
-
-        <Style x:Key="GearButtonStyle" TargetType="Button" BasedOn="{StaticResource GrayButtonStyle}">
-            <Setter Property="Width"  Value="34" />
-            <Setter Property="Height" Value="34" />
-            <Setter Property="Padding" Value="0" />
-            <Setter Property="Content" Value="⚙" />
-            <Setter Property="FontSize" Value="18" />
-        </Style>
-    </Window.Resources>
-
-    <Grid Background="{StaticResource BrushBackground}">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="60" />   <!-- title bar -->
-            <RowDefinition Height="Auto" /> <!-- control panel -->
-            <RowDefinition Height="Auto" /> <!-- file list panel -->
-            <RowDefinition Height="Auto" /> <!-- summary banner -->
-            <RowDefinition Height="*" />    <!-- tabs + preview -->
-            <RowDefinition Height="40" />   <!-- status bar -->
-        </Grid.RowDefinitions>
-
-        <!-- ══ TITLE BAR ══ -->
-        <Border Grid.Row="0" BorderBrush="{StaticResource BrushBorder}" BorderThickness="0,0,0,1" Background="{StaticResource BrushPanel}">
-            <Grid MouseLeftButtonDown="TitleBar_MouseLeftButtonDown" Background="Transparent">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
-
-                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="14,0,0,0">
-                    <Border Width="34" Height="24" Background="{StaticResource BrushAccent}" CornerRadius="4" />
-                    <StackPanel Margin="10,0,0,0" VerticalAlignment="Center">
-                        <TextBlock Text="HOTIX" FontSize="16" FontWeight="Bold" Foreground="{StaticResource BrushText}" />
-                        <TextBlock Text="Extraction de Factures" FontSize="12" Foreground="{StaticResource BrushMuted}" />
-                    </StackPanel>
-                </StackPanel>
-
-                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,14,0">
-                    <TextBlock Text="Serveur OCR actif" Foreground="{StaticResource BrushMuted}" VerticalAlignment="Center" Margin="0,0,14,0" />
-
-                    <Button Style="{StaticResource WindowControlButtonStyle}" Content="—" Click="MinimizeButton_Click" />
-                    <Button Style="{StaticResource WindowControlButtonStyle}" Content="□" Click="MaximizeButton_Click" />
-                    <Button Style="{StaticResource WindowCloseButtonStyle}"   Content="✕" Click="CloseButton_Click" />
-                </StackPanel>
-            </Grid>
-        </Border>
-
-        <!-- ══ CONTROL PANEL ══ -->
-        <Border Grid.Row="1" Style="{StaticResource CardBorderStyle}" Margin="14,10,14,4">
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="2*" />
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="1.5*" />
-                </Grid.ColumnDefinitions>
-
-                <!-- Folder picker -->
-                <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,14,0">
-                    <TextBlock Text="Dossier source" Foreground="{StaticResource BrushMuted}" Margin="0,0,0,6" />
-                    <DockPanel>
-                        <TextBox Text="{Binding SelectedFolder}" IsReadOnly="True" VerticalContentAlignment="Center" Height="34"
-                                 Background="#353535" Foreground="{StaticResource BrushText}"
-                                 BorderBrush="{StaticResource BrushBorder}" BorderThickness="1"
-                                 ToolTip="Vous pouvez aussi glisser-déposer un dossier ici" />
-                        <Button x:Name="AddButton" Content="Ajouter..." Style="{StaticResource RedButtonStyle}" Width="110" Margin="10,0,0,0"
-                                Click="AddButton_Click"
-                                ToolTip="Ajouter des factures (fichiers ou dossier)">
-                            <Button.ContextMenu>
-                                <ContextMenu>
-                                    <MenuItem Header="Ajouter des fichiers..." Command="{Binding BrowseFilesCommand}" />
-                                    <MenuItem Header="Ajouter un dossier..."  Command="{Binding BrowseFolderCommand}" />
-                                </ContextMenu>
-                            </Button.ContextMenu>
-                        </Button>
-                    </DockPanel>
-                </StackPanel>
-
-                <!-- Engine picker -->
-                <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="10,0">
-                    <TextBlock Text="Moteur d'extraction" Foreground="{StaticResource BrushMuted}" Margin="0,0,0,6" />
-                    <StackPanel Orientation="Horizontal">
-                        <ComboBox Style="{StaticResource EngineComboBoxStyle}" Width="180" 
-                                  SelectedValuePath="Tag"
-                                  SelectedValue="{Binding SelectedEngine}">
-                            <ComboBoxItem Content="Automatique (Gemini → OCR)" Tag="auto" />
-                            <ComboBoxItem Content="Gemini Vision (cloud)" Tag="gemini">
-                                <ComboBoxItem.Style>
-                                    <Style TargetType="ComboBoxItem">
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding GeminiAvailable}" Value="False">
-                                                <Setter Property="Foreground" Value="{StaticResource BrushMuted}" />
-                                                <Setter Property="ToolTip" Value="Clé API Gemini non configurée" />
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </ComboBoxItem.Style>
-                            </ComboBoxItem>
-                            <ComboBoxItem Content="OCR local (PaddleOCR)" Tag="ocr" />
-                        </ComboBox>
-                        <Button Style="{StaticResource GearButtonStyle}" Margin="6,0,0,0"
-                                Command="{Binding ToggleSettingsCommand}"
-                                ToolTip="Configurer la clé API Gemini" />
-                    </StackPanel>
-                </StackPanel>
-
-                <!-- Run / Cancel -->
-                <StackPanel Grid.Column="2" VerticalAlignment="Center" HorizontalAlignment="Center" Margin="10,0">
-                    <Button Style="{StaticResource RedButtonStyle}" Width="220" Height="44" Command="{Binding StartExtractionCommand}"
-                            ToolTip="Lancer l'extraction (F5)">
-                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                            <TextBlock Text="⟳" Margin="0,0,8,0" VerticalAlignment="Center">
-                                <TextBlock.Style>
-                                    <Style TargetType="TextBlock">
-                                        <Setter Property="Visibility" Value="Collapsed" />
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding IsExtracting}" Value="True">
-                                                <Setter Property="Visibility" Value="Visible" />
-                                                <DataTrigger.EnterActions>
-                                                    <BeginStoryboard>
-                                                        <Storyboard RepeatBehavior="Forever">
-                                                            <DoubleAnimation Storyboard.TargetProperty="(TextBlock.RenderTransform).(RotateTransform.Angle)"
-                                                                             From="0" To="360" Duration="0:0:1" />
-                                                        </Storyboard>
-                                                    </BeginStoryboard>
-                                                </DataTrigger.EnterActions>
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </TextBlock.Style>
-                                <TextBlock.RenderTransform>
-                                    <RotateTransform Angle="0" />
-                                </TextBlock.RenderTransform>
-                            </TextBlock>
-                            <TextBlock Text="Lancer l'extraction" VerticalAlignment="Center" />
-                        </StackPanel>
-                    </Button>
-
-                    <Button Width="220" Height="30" Margin="0,6,0,0"
-                            Command="{Binding CancelExtractionCommand}"
-                            ToolTip="Annuler l'extraction en cours (Échap)">
-                        <Button.Style>
-                            <Style TargetType="Button" BasedOn="{StaticResource WarningButtonStyle}">
-                                <Setter Property="Visibility" Value="Collapsed" />
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding IsExtracting}" Value="True">
-                                        <Setter Property="Visibility" Value="Visible" />
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </Button.Style>
-                        <TextBlock Text="Annuler" VerticalAlignment="Center" />
-                    </Button>
-                </StackPanel>
-
-                <!-- Progress -->
-                <StackPanel Grid.Column="3" VerticalAlignment="Center" Margin="14,0,0,0"
-                            Visibility="{Binding IsProgressVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
-                    <ProgressBar Style="{StaticResource ProgressBarStyle}" Minimum="0" Maximum="100"
-                                 Value="{Binding ProgressPercentage, Mode=OneWay}" />
-                    <TextBlock Text="{Binding ProgressText}" Foreground="{StaticResource BrushMuted}" Margin="0,8,0,0" />
-                </StackPanel>
-            </Grid>
-        </Border>
-
-        <!-- ══ FILE LIST PANEL ══ -->
-        <Border Grid.Row="2" Style="{StaticResource CardBorderStyle}" Margin="14,0,14,4" Padding="10,8"
-                Visibility="{Binding HasSelectedFolder, Converter={StaticResource BooleanToVisibilityConverter}}">
+        <!-- ═══════════════════════════════════════════════
+             SIDEBAR
+             ═══════════════════════════════════════════════ -->
+        <Border Grid.Column="0" Style="{StaticResource SidebarStyle}">
             <Grid>
                 <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />   <!-- Logo -->
+                    <RowDefinition Height="*" />       <!-- Navigation -->
+                    <RowDefinition Height="Auto" />    <!-- Quote -->
+                    <RowDefinition Height="Auto" />    <!-- Footer -->
                 </Grid.RowDefinitions>
 
-                <DockPanel Grid.Row="0" Margin="0,0,0,6">
-                    <TextBlock Text="{Binding FileCountLabel}" Foreground="{StaticResource BrushMuted}"
-                               VerticalAlignment="Center" DockPanel.Dock="Left" />
-                    <CheckBox Content="Tout sélectionner / Désélectionner"
-                              Style="{StaticResource CheckBoxStyle}"
-                              IsChecked="{Binding AllFilesSelected}"
-                              Command="{Binding ToggleAllFilesCommand}"
-                              HorizontalAlignment="Right" Margin="0,0,4,0" />
-                </DockPanel>
+                <!-- ── Logo Area ── -->
+                <StackPanel Grid.Row="0" Margin="24,32,24,48">
+                    <Border Width="32" Height="32"
+                            Background="{StaticResource BrushAccent}"
+                            CornerRadius="8"
+                            Margin="0,0,0,16" />
+                    <TextBlock Text="HOTIX" Style="{StaticResource SidebarLogoStyle}" />
+                    <TextBlock Text="Extraction de Factures"
+                               Style="{StaticResource TextCaption}"
+                               Margin="0,4,0,0" />
+                </StackPanel>
 
-                <ItemsControl Grid.Row="1" ItemsSource="{Binding DetectedFiles}" MaxHeight="120">
-                    <ItemsControl.Template>
-                        <ControlTemplate TargetType="ItemsControl">
-                            <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-                                <WrapPanel IsItemsHost="True" />
-                            </ScrollViewer>
-                        </ControlTemplate>
-                    </ItemsControl.Template>
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate>
-                            <CheckBox Content="{Binding FileName}" IsChecked="{Binding IsSelected}"
-                                      Style="{StaticResource CheckBoxStyle}"
-                                      Margin="0,2,16,2" />
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
+                <!-- ── Navigation ── -->
+                <StackPanel Grid.Row="1" Margin="12,0,12,0">
+                    <TextBlock Text="Navigation" Style="{StaticResource SidebarSectionLabel}" />
+
+                    <!-- Extraction Nav Item (selected by default) -->
+                    <Border x:Name="NavExtraction" Style="{StaticResource NavItemStyle}" MouseLeftButtonDown="NavExtraction_Click">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+
+                            <!-- 2px vertical indicator -->
+                            <Border Grid.Column="0" x:Name="NavExtractionIndicator"
+                                    Width="2" Height="20"
+                                    Background="{StaticResource BrushTextPrimary}"
+                                    CornerRadius="1"
+                                    VerticalAlignment="Center" />
+
+                            <!-- Icon -->
+                            <TextBlock Grid.Column="0" Text="◇" Style="{StaticResource NavIconStyle}" Margin="16,0,12,0" />
+
+                            <!-- Text -->
+                            <TextBlock Grid.Column="1" x:Name="NavExtractionText"
+                                       Text="Extraction" Style="{StaticResource NavTextSelectedStyle}" />
+
+                            <!-- Red square accent -->
+                            <Border Grid.Column="2" Style="{StaticResource NavRedSquareStyle}" />
+                        </Grid>
+                    </Border>
+
+                    <!-- Settings Nav Item -->
+                    <Border x:Name="NavSettings" Style="{StaticResource NavItemStyle}" MouseLeftButtonDown="NavSettings_Click">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+
+                            <Border Grid.Column="0" x:Name="NavSettingsIndicator"
+                                    Width="2" Height="0"
+                                    Background="{StaticResource BrushTextPrimary}"
+                                    CornerRadius="1"
+                                    VerticalAlignment="Center"
+                                    Opacity="0" />
+
+                            <TextBlock Grid.Column="0" Text="◈" Style="{StaticResource NavIconStyle}" Margin="16,0,12,0" />
+                            <TextBlock Grid.Column="1" x:Name="NavSettingsText"
+                                       Text="Configuration" Style="{StaticResource NavTextStyle}" />
+                        </Grid>
+                    </Border>
+
+                    <!-- About Nav Item -->
+                    <Border x:Name="NavAbout" Style="{StaticResource NavItemStyle}" MouseLeftButtonDown="NavAbout_Click">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+
+                            <Border Grid.Column="0" x:Name="NavAboutIndicator"
+                                    Width="2" Height="0"
+                                    Background="{StaticResource BrushTextPrimary}"
+                                    CornerRadius="1"
+                                    VerticalAlignment="Center"
+                                    Opacity="0" />
+
+                            <TextBlock Grid.Column="0" Text="○" Style="{StaticResource NavIconStyle}" Margin="16,0,12,0" />
+                            <TextBlock Grid.Column="1" x:Name="NavAboutText"
+                                       Text="À propos" Style="{StaticResource NavTextStyle}" />
+                        </Grid>
+                    </Border>
+                </StackPanel>
+
+                <!-- ── Inspirational Quote ── -->
+                <StackPanel Grid.Row="2" Margin="24,0,24,32">
+                    <Border Height="1" Background="{StaticResource BrushBorder}" Margin="0,0,0,16" />
+                    <TextBlock Text="« La clarté est la seule beauté. »"
+                               Style="{StaticResource SidebarQuoteStyle}" />
+                    <TextBlock Text="— Kazimir Malevich"
+                               Style="{StaticResource TextMetadata}"
+                               Margin="0,4,0,0" />
+                </StackPanel>
+
+                <!-- ── Footer ── -->
+                <StackPanel Grid.Row="3" Margin="24,0,24,20">
+                    <TextBlock Text="v1.0.0" Style="{StaticResource SidebarFooterStyle}" />
+                    <TextBlock Text="HOTIX" Style="{StaticResource SidebarFooterStyle}" Margin="0,2,0,0" />
+                </StackPanel>
             </Grid>
         </Border>
 
-        <!-- ══ SUMMARY BANNER ══ -->
-        <Border Grid.Row="3" Margin="14,0,14,4" CornerRadius="6" Padding="12,8"
-                Visibility="{Binding ShowSummaryBanner, Converter={StaticResource BooleanToVisibilityConverter}}"
-                Background="{Binding SummaryBannerColor, Converter={StaticResource StringToColorBrushConverter}}">
-            <DockPanel>
-                <Button DockPanel.Dock="Right" Style="{StaticResource GrayButtonStyle}"
-                        Content="Relancer les erreurs" Margin="12,0,0,0"
-                        Command="{Binding RerunAllErrorsCommand}"
-                        ToolTip="Relancer l'extraction uniquement pour les fichiers en erreur"
-                        Visibility="{Binding HasErrors, Converter={StaticResource BooleanToVisibilityConverter}}" />
-                <TextBlock Text="{Binding SummaryBannerText}" Foreground="White" FontWeight="SemiBold"
-                           TextWrapping="Wrap" VerticalAlignment="Center" />
-            </DockPanel>
-        </Border>
+        <!-- ═══════════════════════════════════════════════
+             MAIN WORKSPACE
+             ═══════════════════════════════════════════════ -->
+        <Grid Grid.Column="1" Background="{StaticResource BrushAltBackground}">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="48" />   <!-- Title Bar -->
+                <RowDefinition Height="*" />     <!-- Content -->
+                <RowDefinition Height="44" />    <!-- Status Bar -->
+            </Grid.RowDefinitions>
 
-        <!-- ══ TABS + RAW TEXT PREVIEW ══ -->
-        <Grid Grid.Row="4" Margin="14,0,14,4">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="300">
-                    <ColumnDefinition.Style>
-                        <Style TargetType="ColumnDefinition">
-                            <Setter Property="Width" Value="300" />
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding HasSelectedRow}" Value="False">
-                                    <Setter Property="Width" Value="0" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </ColumnDefinition.Style>
-                </ColumnDefinition>
-            </Grid.ColumnDefinitions>
+            <!-- ── Custom Title Bar ── -->
+            <Border Grid.Row="0"
+                    BorderThickness="0,0,0,0"
+                    Background="{StaticResource BrushBackground}">
+                <Grid MouseLeftButtonDown="TitleBar_MouseLeftButtonDown" Background="Transparent">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
 
-            <!-- Tabs -->
-            <Border Grid.Column="0" Style="{StaticResource CardBorderStyle}" Padding="10">
-                <TabControl Background="{StaticResource BrushPanel}" BorderBrush="{StaticResource BrushBorder}" BorderThickness="1">
+                    <TextBlock Grid.Column="0"
+                               Style="{StaticResource TextCaption}"
+                               Text="HOTIX — Extraction de Factures"
+                               VerticalAlignment="Center"
+                               Margin="32,0,0,0" />
 
-                    <!-- TAB 1: Résultats -->
-                    <TabItem Header="Résultats">
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,16,0">
+                        <Button Style="{StaticResource ButtonIconStyle}" Content="─" Click="MinimizeButton_Click" />
+                        <Button Style="{StaticResource ButtonIconStyle}" Content="□" Click="MaximizeButton_Click" />
+                        <Button Style="{StaticResource ButtonIconStyle}" Content="✕" Click="CloseButton_Click" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <!-- ── Main Content Area ── -->
+            <ScrollViewer Grid.Row="1" 
+                          VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Disabled"
+                          BorderThickness="0">
+                <Grid Margin="32,48,32,32">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />   <!-- Page Title -->
+                        <RowDefinition Height="Auto" />   <!-- Control Card -->
+                        <RowDefinition Height="Auto" />   <!-- File List -->
+                        <RowDefinition Height="Auto" />   <!-- Summary Banner -->
+                        <RowDefinition Height="*" />      <!-- Results Area -->
+                    </Grid.RowDefinitions>
+
+                    <!-- ══ PAGE TITLE ══ -->
+                    <StackPanel Grid.Row="0" Margin="0,0,0,32">
+                        <TextBlock x:Name="PageTitle" Text="Extraction" Style="{StaticResource TextPageTitle}" />
+                        <!-- Geometric underline: small black square + horizontal line -->
+                        <Grid Margin="0,12,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Border Grid.Column="0"
+                                    Width="6" Height="6"
+                                    Background="{StaticResource BrushAccent}"
+                                    CornerRadius="1"
+                                    VerticalAlignment="Center" />
+                            <Border Grid.Column="1"
+                                    Height="1"
+                                    Background="{StaticResource BrushBorder}"
+                                    Margin="12,0,0,0"
+                                    VerticalAlignment="Center" />
+                        </Grid>
+                    </StackPanel>
+
+                    <!-- ══ CONTROL CARD ══ -->
+                    <Border Grid.Row="1" Style="{StaticResource CardStyle}" Margin="0,0,0,16">
                         <Grid>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="*" />
-                            </Grid.RowDefinitions>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="2*" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="1.5*" />
+                            </Grid.ColumnDefinitions>
 
-                            <!-- Confidence Legend -->
-                            <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,8" HorizontalAlignment="Left">
-                                <TextBlock Text="Confiance : " Foreground="{StaticResource BrushMuted}" VerticalAlignment="Center" Margin="0,0,12,0" />
-                                <Border Background="#2ECC71" CornerRadius="4" Padding="6,2" Margin="0,0,8,0">
-                                    <TextBlock Text="Élevée (≥75%)" Foreground="White" FontSize="11" />
-                                </Border>
-                                <Border Background="#E67E22" CornerRadius="4" Padding="6,2" Margin="0,0,8,0">
-                                    <TextBlock Text="Moyenne (40-75%)" Foreground="White" FontSize="11" />
-                                </Border>
-                                <Border Background="#C0392B" CornerRadius="4" Padding="6,2">
-                                    <TextBlock Text="Basse (&lt;40%)" Foreground="White" FontSize="11" />
-                                </Border>
+                            <!-- Folder Picker -->
+                            <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,16,0">
+                                <TextBlock Text="Dossier source" Style="{StaticResource CardLabelStyle}" />
+                                <DockPanel>
+                                    <TextBox Text="{Binding SelectedFolder}"
+                                             Style="{StaticResource TextBoxReadOnlyStyle}"
+                                             ToolTip="Vous pouvez aussi glisser-déposer un dossier ici" />
+                                    <Button x:Name="AddButton"
+                                            Content="Ajouter"
+                                            Style="{StaticResource ButtonPrimaryStyle}"
+                                            Width="100"
+                                            Margin="12,0,0,0"
+                                            Click="AddButton_Click"
+                                            ToolTip="Ajouter des factures (fichiers ou dossier)">
+                                        <Button.ContextMenu>
+                                            <ContextMenu>
+                                                <MenuItem Header="Ajouter des fichiers..." Command="{Binding BrowseFilesCommand}" />
+                                                <MenuItem Header="Ajouter un dossier..."  Command="{Binding BrowseFolderCommand}" />
+                                            </ContextMenu>
+                                        </Button.ContextMenu>
+                                    </Button>
+                                </DockPanel>
                             </StackPanel>
 
-                            <DataGrid Grid.Row="1" ItemsSource="{Binding Results}"
-                                      Style="{StaticResource ResultGridStyle}"
-                                      SelectedItem="{Binding SelectedRow}"
-                                      Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}"
-                                      ContextMenu="{StaticResource RowContextMenu}">
-                                <DataGrid.Columns>
-                                    <DataGridTemplateColumn Width="40" CanUserSort="False">
-                                        <DataGridTemplateColumn.HeaderTemplate>
-                                            <DataTemplate>
-                                                <CheckBox IsChecked="{Binding DataContext.AllRowsSelected, RelativeSource={RelativeSource AncestorType=DataGrid}}"
-                                                          Command="{Binding DataContext.ToggleAllRowsCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
-                                                          Style="{StaticResource CheckBoxStyle}" HorizontalAlignment="Center" />
-                                            </DataTemplate>
-                                        </DataGridTemplateColumn.HeaderTemplate>
-                                        <DataGridTemplateColumn.CellTemplate>
-                                            <DataTemplate>
-                                                <CheckBox IsChecked="{Binding IsSelected, UpdateSourceTrigger=PropertyChanged}"
-                                                          Style="{StaticResource CheckBoxStyle}" HorizontalAlignment="Center" />
-                                            </DataTemplate>
-                                        </DataGridTemplateColumn.CellTemplate>
-                                    </DataGridTemplateColumn>
+                            <!-- Engine Picker -->
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0">
+                                <TextBlock Text="Moteur d'extraction" Style="{StaticResource CardLabelStyle}" />
+                                <StackPanel Orientation="Horizontal">
+                                    <ComboBox Style="{StaticResource ComboBoxStyle}"
+                                              Width="180"
+                                              SelectedValuePath="Tag"
+                                              SelectedValue="{Binding SelectedEngine}">
+                                        <ComboBoxItem Content="Automatique (Gemini → OCR)" Tag="auto" />
+                                        <ComboBoxItem Content="Gemini Vision (cloud)" Tag="gemini">
+                                            <ComboBoxItem.Style>
+                                                <Style TargetType="ComboBoxItem">
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding GeminiAvailable}" Value="False">
+                                                            <Setter Property="Foreground" Value="{StaticResource BrushTextMuted}" />
+                                                            <Setter Property="ToolTip" Value="Clé API Gemini non configurée" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </ComboBoxItem.Style>
+                                        </ComboBoxItem>
+                                        <ComboBoxItem Content="OCR local (PaddleOCR)" Tag="ocr" />
+                                    </ComboBox>
+                                    <Button Content="⚙"
+                                            Style="{StaticResource ButtonIconStyle}"
+                                            Margin="8,0,0,0"
+                                            Command="{Binding ToggleSettingsCommand}"
+                                            ToolTip="Configurer la clé API Gemini" />
+                                </StackPanel>
+                            </StackPanel>
 
-                                    <DataGridTextColumn Header="N° Facture" Binding="{Binding NumeroFacture, Converter={StaticResource NullToPlaceholderConverter}}" MinWidth="100" MaxWidth="180">
-                                        <DataGridTextColumn.ElementStyle>
-                                            <Style TargetType="TextBlock" BasedOn="{StaticResource DataGridCellTextStyle}">
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding NumeroFactureMissing}" Value="True">
-                                                        <Setter Property="Foreground" Value="{StaticResource BrushMuted}" />
-                                                        <Setter Property="FontStyle"  Value="Italic" />
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </DataGridTextColumn.ElementStyle>
-                                    </DataGridTextColumn>
-
-                                    <DataGridTextColumn Header="Date" Binding="{Binding Date, Converter={StaticResource NullToPlaceholderConverter}}" MinWidth="80" MaxWidth="120">
-                                        <DataGridTextColumn.ElementStyle>
-                                            <Style TargetType="TextBlock" BasedOn="{StaticResource DataGridCellTextStyle}">
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding DateMissing}" Value="True">
-                                                        <Setter Property="Foreground" Value="{StaticResource BrushMuted}" />
-                                                        <Setter Property="FontStyle"  Value="Italic" />
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </DataGridTextColumn.ElementStyle>
-                                    </DataGridTextColumn>
-
-                                    <DataGridTextColumn Header="Fournisseur" Binding="{Binding Fournisseur, Converter={StaticResource NullToPlaceholderConverter}}" MinWidth="100" MaxWidth="200">
-                                        <DataGridTextColumn.ElementStyle>
-                                            <Style TargetType="TextBlock" BasedOn="{StaticResource DataGridCellTextStyle}">
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding FournisseurMissing}" Value="True">
-                                                        <Setter Property="Foreground" Value="{StaticResource BrushMuted}" />
-                                                        <Setter Property="FontStyle"  Value="Italic" />
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </DataGridTextColumn.ElementStyle>
-                                    </DataGridTextColumn>
-
-                                    <DataGridTextColumn Header="Client" Binding="{Binding Client, Converter={StaticResource NullToPlaceholderConverter}}" MinWidth="80" MaxWidth="160">
-                                        <DataGridTextColumn.ElementStyle>
-                                            <Style TargetType="TextBlock" BasedOn="{StaticResource DataGridCellTextStyle}">
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding ClientMissing}" Value="True">
-                                                        <Setter Property="Foreground" Value="{StaticResource BrushMuted}" />
-                                                        <Setter Property="FontStyle"  Value="Italic" />
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </DataGridTextColumn.ElementStyle>
-                                    </DataGridTextColumn>
-
-                                    <DataGridTextColumn Header="Montant HT" Binding="{Binding MontantHt, Converter={StaticResource NullToPlaceholderConverter}}" MinWidth="80" MaxWidth="120">
-                                        <DataGridTextColumn.ElementStyle>
-                                            <Style TargetType="TextBlock" BasedOn="{StaticResource DataGridCellTextStyle}">
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding MontantHtMissing}" Value="True">
-                                                        <Setter Property="Foreground" Value="{StaticResource BrushMuted}" />
-                                                        <Setter Property="FontStyle"  Value="Italic" />
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </DataGridTextColumn.ElementStyle>
-                                    </DataGridTextColumn>
-
-                                    <DataGridTextColumn Header="TVA" Binding="{Binding MontantTva, Converter={StaticResource NullToPlaceholderConverter}}" MinWidth="60" MaxWidth="100">
-                                        <DataGridTextColumn.ElementStyle>
-                                            <Style TargetType="TextBlock" BasedOn="{StaticResource DataGridCellTextStyle}">
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding MontantTvaMissing}" Value="True">
-                                                        <Setter Property="Foreground" Value="{StaticResource BrushMuted}" />
-                                                        <Setter Property="FontStyle"  Value="Italic" />
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </DataGridTextColumn.ElementStyle>
-                                    </DataGridTextColumn>
-
-                                    <DataGridTextColumn Header="Taxe" Binding="{Binding MontantTaxe, Converter={StaticResource NullToPlaceholderConverter}}" MinWidth="60" MaxWidth="100">
-                                        <DataGridTextColumn.ElementStyle>
-                                            <Style TargetType="TextBlock" BasedOn="{StaticResource DataGridCellTextStyle}">
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding MontantTaxeMissing}" Value="True">
-                                                        <Setter Property="Foreground" Value="{StaticResource BrushMuted}" />
-                                                        <Setter Property="FontStyle"  Value="Italic" />
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </DataGridTextColumn.ElementStyle>
-                                    </DataGridTextColumn>
-
-                                    <DataGridTextColumn Header="TTC" Binding="{Binding MontantTtc, Converter={StaticResource NullToPlaceholderConverter}}" MinWidth="60" MaxWidth="100">
-                                        <DataGridTextColumn.ElementStyle>
-                                            <Style TargetType="TextBlock" BasedOn="{StaticResource DataGridCellTextStyle}">
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding MontantTtcMissing}" Value="True">
-                                                        <Setter Property="Foreground" Value="{StaticResource BrushMuted}" />
-                                                        <Setter Property="FontStyle"  Value="Italic" />
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </DataGridTextColumn.ElementStyle>
-                                    </DataGridTextColumn>
-
-                                    <DataGridTemplateColumn Header="Confiance" Width="150" CanUserSort="True" SortMemberPath="Confidence">
-                                        <DataGridTemplateColumn.CellTemplate>
-                                            <DataTemplate>
-                                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
-                                                    <Border Background="{Binding Confidence, Converter={StaticResource ConfidenceToColorConverter}}"
-                                                            CornerRadius="10" Padding="8,2"
-                                                            ToolTip="{Binding ConfidenceTooltip}">
-                                                        <TextBlock Text="{Binding ConfidenceDisplay}" Foreground="White" FontWeight="SemiBold" HorizontalAlignment="Center" />
-                                                    </Border>
-                                                    <Border Background="#444444" CornerRadius="4" Padding="4,1" Margin="4,0,0,0"
-                                                            Visibility="{Binding IsLocalOcr, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                                        <TextBlock Text="Local (hors ligne)" Foreground="#AAAAAA" FontSize="10" />
-                                                    </Border>
-                                                </StackPanel>
-                                            </DataTemplate>
-                                        </DataGridTemplateColumn.CellTemplate>
-                                    </DataGridTemplateColumn>
-
-                                    <DataGridTextColumn Header="Fichier" Binding="{Binding FileDisplay}" MinWidth="120">
-                                        <DataGridTextColumn.ElementStyle>
-                                            <Style TargetType="TextBlock" BasedOn="{StaticResource DataGridCellTextStyle}" />
-                                        </DataGridTextColumn.ElementStyle>
-                                    </DataGridTextColumn>
-                                </DataGrid.Columns>
-                            </DataGrid>
-
-                            <!-- Empty state overlay -->
-                            <TextBlock Text="Aucune facture traitée — sélectionnez un dossier et lancez l'extraction"
-                                       Foreground="{StaticResource BrushMuted}" FontStyle="Italic"
-                                       HorizontalAlignment="Center" VerticalAlignment="Center"
-                                       IsHitTestVisible="False">
-                                <TextBlock.Style>
-                                    <Style TargetType="TextBlock">
-                                        <Setter Property="Visibility" Value="Collapsed" />
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding Results.Count}" Value="0">
-                                                <Setter Property="Visibility" Value="Visible" />
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </TextBlock.Style>
-                            </TextBlock>
-                        </Grid>
-                    </TabItem>
-
-                    <!-- TAB 2: Extractions Incomplètes -->
-                    <TabItem Header="Extractions Incomplètes">
-                        <Grid>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="*" />
-                            </Grid.RowDefinitions>
-
-                            <TextBlock Grid.Row="0"
-                                       Text="Ces factures nécessitent une vérification manuelle"
-                                       Foreground="{StaticResource BrushAccent}"
-                                       FontWeight="SemiBold"
-                                       Margin="4,0,0,8" />
-
-                            <Grid Grid.Row="1">
-                                <DataGrid ItemsSource="{Binding IncompleteResults}"
-                                          Style="{StaticResource ResultGridStyle}"
-                                          SelectedItem="{Binding SelectedRow}"
-                                          Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}"
-                                          ContextMenu="{StaticResource RowContextMenu}">
-                                    <DataGrid.Columns>
-                                        <DataGridTemplateColumn Width="40" CanUserSort="False">
-                                            <DataGridTemplateColumn.HeaderTemplate>
-                                                <DataTemplate>
-                                                    <CheckBox IsChecked="{Binding DataContext.AllRowsSelected, RelativeSource={RelativeSource AncestorType=DataGrid}}"
-                                                              Command="{Binding DataContext.ToggleAllRowsCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
-                                                              Style="{StaticResource CheckBoxStyle}" HorizontalAlignment="Center" />
-                                                </DataTemplate>
-                                            </DataGridTemplateColumn.HeaderTemplate>
-                                            <DataGridTemplateColumn.CellTemplate>
-                                                <DataTemplate>
-                                                    <CheckBox IsChecked="{Binding IsSelected, UpdateSourceTrigger=PropertyChanged}"
-                                                              Style="{StaticResource CheckBoxStyle}" HorizontalAlignment="Center" />
-                                                </DataTemplate>
-                                            </DataGridTemplateColumn.CellTemplate>
-                                        </DataGridTemplateColumn>
-
-                                        <DataGridTextColumn Header="N° Facture" Binding="{Binding NumeroFacture, Converter={StaticResource NullToPlaceholderConverter}}" MinWidth="100" MaxWidth="180" />
-                                        <DataGridTextColumn Header="Date"        Binding="{Binding Date,          Converter={StaticResource NullToPlaceholderConverter}}" MinWidth="80"  MaxWidth="120" />
-                                        <DataGridTextColumn Header="Fournisseur" Binding="{Binding Fournisseur,   Converter={StaticResource NullToPlaceholderConverter}}" MinWidth="100" MaxWidth="200" />
-                                        <DataGridTextColumn Header="Client"      Binding="{Binding Client,        Converter={StaticResource NullToPlaceholderConverter}}" MinWidth="80"  MaxWidth="160" />
-                                        <DataGridTextColumn Header="Montant HT"  Binding="{Binding MontantHt,     Converter={StaticResource NullToPlaceholderConverter}}" MinWidth="80"  MaxWidth="120" />
-                                        <DataGridTextColumn Header="TVA"         Binding="{Binding MontantTva,    Converter={StaticResource NullToPlaceholderConverter}}" MinWidth="60"  MaxWidth="100" />
-                                        <DataGridTextColumn Header="Taxe"        Binding="{Binding MontantTaxe,   Converter={StaticResource NullToPlaceholderConverter}}" MinWidth="60"  MaxWidth="100" />
-                                        <DataGridTextColumn Header="TTC"         Binding="{Binding MontantTtc,    Converter={StaticResource NullToPlaceholderConverter}}" MinWidth="60"  MaxWidth="100" />
-
-                                        <DataGridTemplateColumn Header="Confiance" Width="150" CanUserSort="True" SortMemberPath="Confidence">
-                                            <DataGridTemplateColumn.CellTemplate>
-                                                <DataTemplate>
-                                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
-                                                        <Border Background="{Binding Confidence, Converter={StaticResource ConfidenceToColorConverter}}"
-                                                                CornerRadius="10" Padding="8,2"
-                                                                ToolTip="{Binding ConfidenceTooltip}">
-                                                            <TextBlock Text="{Binding ConfidenceDisplay}" Foreground="White" FontWeight="SemiBold" HorizontalAlignment="Center" />
-                                                        </Border>
-                                                        <Border Background="#444444" CornerRadius="4" Padding="4,1" Margin="4,0,0,0"
-                                                                Visibility="{Binding IsLocalOcr, Converter={StaticResource BooleanToVisibilityConverter}}"><TextBlock Text="Local (hors ligne)" Foreground="#AAAAAA" FontSize="10" />
-                                                    </Border>
-                                                </StackPanel>
-                                            </DataTemplate>
-                                        </DataGridTemplateColumn.CellTemplate>
-                                        </DataGridTemplateColumn>
-
-                                        <DataGridTextColumn Header="Fichier" Binding="{Binding FileDisplay}" MinWidth="120" />
-                                    </DataGrid.Columns>
-                                </DataGrid>
-
-                                <!-- Empty state overlay -->
-                                <TextBlock Text="Aucune extraction incomplète"
-                                           Foreground="{StaticResource BrushMuted}" FontStyle="Italic"
-                                           HorizontalAlignment="Center" VerticalAlignment="Center"
-                                           IsHitTestVisible="False">
-                                    <TextBlock.Style>
-                                        <Style TargetType="TextBlock">
+                            <!-- Run / Cancel -->
+                            <StackPanel Grid.Column="2" HorizontalAlignment="Center" Margin="24,0">
+                                <Button Style="{StaticResource ButtonPrimaryStyle}"
+                                        Width="200"
+                                        Command="{Binding StartExtractionCommand}"
+                                        ToolTip="Lancer l'extraction (F5)">
+                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                        <TextBlock Text="Lancer l'extraction" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Button>
+                                <Button Width="200" Height="32"
+                                        Margin="0,8,0,0"
+                                        Command="{Binding CancelExtractionCommand}"
+                                        ToolTip="Annuler l'extraction en cours (Échap)">
+                                    <Button.Style>
+                                        <Style TargetType="Button" BasedOn="{StaticResource ButtonDangerStyle}">
                                             <Setter Property="Visibility" Value="Collapsed" />
                                             <Style.Triggers>
-                                                <DataTrigger Binding="{Binding IncompleteResults.Count}" Value="0">
+                                                <DataTrigger Binding="{Binding IsExtracting}" Value="True">
                                                     <Setter Property="Visibility" Value="Visible" />
                                                 </DataTrigger>
                                             </Style.Triggers>
                                         </Style>
-                                    </TextBlock.Style>
-                                </TextBlock>
-                            </Grid>
+                                    </Button.Style>
+                                    <TextBlock Text="Annuler" VerticalAlignment="Center" />
+                                </Button>
+                            </StackPanel>
+
+                            <!-- Progress → Circular Ring -->
+                            <StackPanel Grid.Column="3" VerticalAlignment="Center" Margin="24,0,0,0" Orientation="Horizontal"
+                                        Visibility="{Binding IsProgressVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                <controls:ProgressRing x:Name="ProgressRingControl"
+                                                       Width="36" Height="36"
+                                                       Percentage="{Binding ProgressPercentage}"
+                                                       StrokeThickness="3"
+                                                       TrackColor="{StaticResource BrushBorderLight}"
+                                                       ProgressColor="{StaticResource BrushAccent}"
+                                                       VerticalAlignment="Center" />
+                                <TextBlock Text="{Binding ProgressText}"
+                                           Style="{StaticResource TextMetadata}"
+                                           VerticalAlignment="Center"
+                                           Margin="12,0,0,0" />
+                            </StackPanel>
                         </Grid>
-                    </TabItem>
-                </TabControl>
-            </Border>
+                    </Border>
 
-            <!-- Splitter -->
-            <GridSplitter Grid.Column="1" Width="5" HorizontalAlignment="Center" VerticalAlignment="Stretch"
-                          Background="{StaticResource BrushBorder}" Cursor="SizeWE"
-                          Visibility="{Binding HasSelectedRow, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                    <!-- ══ FILE LIST CARD ══ -->
+                    <Border Grid.Row="2" Style="{StaticResource CardStyleCompact}" Margin="0,0,0,16"
+                            Visibility="{Binding HasSelectedFolder, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
 
-            <!-- Raw text preview panel -->
-            <Border Grid.Column="2" Style="{StaticResource CardBorderStyle}" Padding="10"
-                    Visibility="{Binding HasSelectedRow, Converter={StaticResource BooleanToVisibilityConverter}}">
-                <Grid>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="*" />
-                    </Grid.RowDefinitions>
+                            <DockPanel Grid.Row="0" Margin="0,0,0,12">
+                                <TextBlock Text="{Binding FileCountLabel}"
+                                           Style="{StaticResource TextCaption}"
+                                           DockPanel.Dock="Left"
+                                           VerticalAlignment="Center" />
+                                <CheckBox Content="Tout sélectionner"
+                                          Style="{StaticResource CheckBoxStyle}"
+                                          IsChecked="{Binding AllFilesSelected}"
+                                          Command="{Binding ToggleAllFilesCommand}"
+                                          HorizontalAlignment="Right" />
+                            </DockPanel>
 
-                    <DockPanel Grid.Row="0" Margin="0,0,0,8">
-                        <Button DockPanel.Dock="Right" Style="{StaticResource GrayButtonStyle}" Content="✕"
-                                Width="24" Height="24" Padding="0" FontSize="11"
-                            Command="{Binding ClearSelectedRowCommand}" />
-                        <TextBlock Text="{Binding PreviewFileName}"
-                                   Foreground="{StaticResource BrushMuted}" FontWeight="SemiBold"
-                                   TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
-                    </DockPanel>
+                            <ItemsControl Grid.Row="1"
+                                          ItemsSource="{Binding DetectedFiles}"
+                                          MaxHeight="120">
+                                <ItemsControl.Template>
+                                    <ControlTemplate TargetType="ItemsControl">
+                                        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                                            <WrapPanel IsItemsHost="True" />
+                                        </ScrollViewer>
+                                    </ControlTemplate>
+                                </ItemsControl.Template>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <CheckBox Content="{Binding FileName}"
+                                                  IsChecked="{Binding IsSelected}"
+                                                  Style="{StaticResource CheckBoxStyle}"
+                                                  Margin="0,2,24,2" />
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </Grid>
+                    </Border>
 
-                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto">
-                        <TextBox Text="{Binding PreviewRawText, Mode=OneWay}"
-                                 IsReadOnly="True" TextWrapping="Wrap"
-                                 Background="#1A1A1A" Foreground="{StaticResource BrushMuted}"
-                                 BorderThickness="0" FontFamily="Consolas" FontSize="11"
-                                 VerticalAlignment="Top" />
-                    </ScrollViewer>
+                    <!-- ══ SUMMARY BANNER ══ -->
+                    <Border Grid.Row="3" Margin="0,0,0,16"
+                            CornerRadius="{StaticResource RadiusMedium}"
+                            Padding="16,12"
+                            Visibility="{Binding ShowSummaryBanner, Converter={StaticResource BooleanToVisibilityConverter}}"
+                            Background="{Binding SummaryBannerColor, Converter={StaticResource StringToColorBrushConverter}}">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0"
+                                       Text="{Binding SummaryBannerText}"
+                                       Foreground="{StaticResource BrushTextInverse}"
+                                       FontWeight="{StaticResource FontWeightMedium}"
+                                       TextWrapping="Wrap"
+                                       VerticalAlignment="Center" />
+                            <Button Grid.Column="1"
+                                    Content="Relancer les erreurs"
+                                    Style="{StaticResource ButtonSecondaryStyle}"
+                                    Margin="16,0,0,0"
+                                    Command="{Binding RerunAllErrorsCommand}"
+                                    ToolTip="Relancer l'extraction uniquement pour les fichiers en erreur"
+                                    Visibility="{Binding HasErrors, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                        </Grid>
+                    </Border>
+
+                    <!-- ══ RESULTS AREA ══ -->
+                    <Grid Grid.Row="4">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="300">
+                                <ColumnDefinition.Style>
+                                    <Style TargetType="ColumnDefinition">
+                                        <Setter Property="Width" Value="300" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding HasSelectedRow}" Value="False">
+                                                <Setter Property="Width" Value="0" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </ColumnDefinition.Style>
+                            </ColumnDefinition>
+                        </Grid.ColumnDefinitions>
+
+                        <!-- Results Card (Tabs + Grid) -->
+                        <Border Grid.Column="0" Style="{StaticResource CardStyle}" Padding="0">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="*" />
+                                </Grid.RowDefinitions>
+
+                                <!-- Tab Headers (custom, no TabControl) -->
+                                <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="24,16,24,0">
+                                    <Border x:Name="TabResults"
+                                            Padding="4,8"
+                                            Margin="0,0,24,0"
+                                            Cursor="Hand"
+                                            MouseLeftButtonDown="TabResults_Click">
+                                        <StackPanel Orientation="Vertical">
+                                            <TextBlock Text="Résultats"
+                                                       Style="{StaticResource TextBody}"
+                                                       x:Name="TabResultsText"
+                                                       FontWeight="{StaticResource FontWeightMedium}" />
+                                            <Border x:Name="TabResultsUnderline"
+                                                    Height="2"
+                                                    Background="{StaticResource BrushAccent}"
+                                                    CornerRadius="1"
+                                                    Margin="0,8,0,0" />
+                                        </StackPanel>
+                                    </Border>
+                                    <Border x:Name="TabIncomplete"
+                                            Padding="4,8"
+                                            Cursor="Hand"
+                                            MouseLeftButtonDown="TabIncomplete_Click">
+                                        <StackPanel Orientation="Vertical">
+                                            <TextBlock Text="Extractions Incomplètes"
+                                                       Style="{StaticResource TextBody}"
+                                                       x:Name="TabIncompleteText"
+                                                       Foreground="{StaticResource BrushTextMuted}" />
+                                            <Border x:Name="TabIncompleteUnderline"
+                                                    Height="2"
+                                                    Background="Transparent"
+                                                    CornerRadius="1"
+                                                    Margin="0,8,0,0" />
+                                        </StackPanel>
+                                    </Border>
+                                </StackPanel>
+
+                                <!-- Tab Content: Results Grid -->
+                                <Grid Grid.Row="1" x:Name="PanelResults" Margin="0,8,0,0">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="*" />
+                                    </Grid.RowDefinitions>
+
+                                    <!-- Confidence Legend -->
+                                    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="24,8,24,12">
+                                        <TextBlock Text="Confiance"
+                                                   Style="{StaticResource TextMetadata}"
+                                                   VerticalAlignment="Center"
+                                                   Margin="0,0,16,0" />
+                                        <Border Background="{StaticResource BrushConfidenceHigh}"
+                                                CornerRadius="4" Padding="8,2" Margin="0,0,8,0">
+                                            <TextBlock Text="Élevée (≥75%)" Foreground="{StaticResource BrushTextInverse}"
+                                                       FontSize="11" FontWeight="{StaticResource FontWeightMedium}" />
+                                        </Border>
+                                        <Border Background="{StaticResource BrushConfidenceMedium}"
+                                                CornerRadius="4" Padding="8,2" Margin="0,0,8,0">
+                                            <TextBlock Text="Moyenne (40-75%)" Foreground="{StaticResource BrushTextInverse}"
+                                                       FontSize="11" FontWeight="{StaticResource FontWeightMedium}" />
+                                        </Border>
+                                        <Border Background="{StaticResource BrushConfidenceLow}"
+                                                CornerRadius="4" Padding="8,2">
+                                            <TextBlock Text="Basse (&lt;40%)" Foreground="{StaticResource BrushTextInverse}"
+                                                       FontSize="11" FontWeight="{StaticResource FontWeightMedium}" />
+                                        </Border>
+                                    </StackPanel>
+
+                                    <DataGrid Grid.Row="1"
+                                              x:Name="ResultsGrid"
+                                              ItemsSource="{Binding Results}"
+                                              Style="{StaticResource ResultGridStyle}"
+                                              SelectedItem="{Binding SelectedRow}"
+                                              VirtualizingPanel.VirtualizationMode="Recycling"
+                                              EnableRowVirtualization="True"
+                                              LoadingRow="ResultsGrid_LoadingRow">
+                                        <DataGrid.Resources>
+                                            <ContextMenu x:Key="RowContextMenu">
+                                                <MenuItem Header="Relancer l'extraction" Command="{Binding DataContext.RerunCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}" CommandParameter="{Binding}" />
+                                            </ContextMenu>
+                                        </DataGrid.Resources>
+                                        <DataGrid.Columns>
+                                            <!-- Select Checkbox -->
+                                            <DataGridTemplateColumn Width="44" CanUserSort="False">
+                                                <DataGridTemplateColumn.HeaderTemplate>
+                                                    <DataTemplate>
+                                                        <CheckBox IsChecked="{Binding DataContext.AllRowsSelected, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                                  Command="{Binding DataContext.ToggleAllRowsCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                                  Style="{StaticResource CheckBoxStyle}" HorizontalAlignment="Center" />
+                                                    </DataTemplate>
+                                                </DataGridTemplateColumn.HeaderTemplate>
+                                                <DataGridTemplateColumn.CellTemplate>
+                                                    <DataTemplate>
+                                                        <CheckBox IsChecked="{Binding IsSelected, UpdateSourceTrigger=PropertyChanged}"
+                                                                  Style="{StaticResource CheckBoxStyle}" HorizontalAlignment="Center" />
+                                                    </DataTemplate>
+                                                </DataGridTemplateColumn.CellTemplate>
+                                            </DataGridTemplateColumn>
+
+                                            <DataGridTextColumn Header="N° Facture" Binding="{Binding NumeroFacture, Converter={StaticResource NullToPlaceholderConverter}}"
+                                                                MinWidth="100" MaxWidth="180">
+                                                <DataGridTextColumn.ElementStyle>
+                                                    <Style TargetType="TextBlock">
+                                                        <Setter Property="VerticalAlignment" Value="Center" />
+                                                        <Setter Property="Padding" Value="16,14" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding NumeroFactureMissing}" Value="True">
+                                                                <Setter Property="Foreground" Value="{StaticResource BrushTextMuted}" />
+                                                                <Setter Property="FontStyle" Value="Italic" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </DataGridTextColumn.ElementStyle>
+                                            </DataGridTextColumn>
+
+                                            <DataGridTextColumn Header="Date" Binding="{Binding Date, Converter={StaticResource NullToPlaceholderConverter}}"
+                                                                MinWidth="80" MaxWidth="120">
+                                                <DataGridTextColumn.ElementStyle>
+                                                    <Style TargetType="TextBlock">
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding DateMissing}" Value="True">
+                                                                <Setter Property="Foreground" Value="{StaticResource BrushTextMuted}" />
+                                                                <Setter Property="FontStyle" Value="Italic" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </DataGridTextColumn.ElementStyle>
+                                            </DataGridTextColumn>
+
+                                            <DataGridTextColumn Header="Fournisseur" Binding="{Binding Fournisseur, Converter={StaticResource NullToPlaceholderConverter}}"
+                                                                MinWidth="100" MaxWidth="200">
+                                                <DataGridTextColumn.ElementStyle>
+                                                    <Style TargetType="TextBlock">
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding FournisseurMissing}" Value="True">
+                                                                <Setter Property="Foreground" Value="{StaticResource BrushTextMuted}" />
+                                                                <Setter Property="FontStyle" Value="Italic" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </DataGridTextColumn.ElementStyle>
+                                            </DataGridTextColumn>
+
+                                            <DataGridTextColumn Header="Client" Binding="{Binding Client, Converter={StaticResource NullToPlaceholderConverter}}"
+                                                                MinWidth="80" MaxWidth="160">
+                                                <DataGridTextColumn.ElementStyle>
+                                                    <Style TargetType="TextBlock">
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding ClientMissing}" Value="True">
+                                                                <Setter Property="Foreground" Value="{StaticResource BrushTextMuted}" />
+                                                                <Setter Property="FontStyle" Value="Italic" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </DataGridTextColumn.ElementStyle>
+                                            </DataGridTextColumn>
+
+                                            <DataGridTextColumn Header="Montant HT" Binding="{Binding MontantHt, Converter={StaticResource NullToPlaceholderConverter}}"
+                                                                MinWidth="80" MaxWidth="120" />
+
+                                            <DataGridTextColumn Header="TVA" Binding="{Binding MontantTva, Converter={StaticResource NullToPlaceholderConverter}}"
+                                                                MinWidth="60" MaxWidth="100" />
+
+                                            <DataGridTextColumn Header="Taxe" Binding="{Binding MontantTaxe, Converter={StaticResource NullToPlaceholderConverter}}"
+                                                                MinWidth="60" MaxWidth="100" />
+
+                                            <DataGridTextColumn Header="TTC" Binding="{Binding MontantTtc, Converter={StaticResource NullToPlaceholderConverter}}"
+                                                                MinWidth="60" MaxWidth="100" />
+
+                                            <!-- Confidence Badge -->
+                                            <DataGridTemplateColumn Header="Confiance" Width="160" CanUserSort="True" SortMemberPath="Confidence">
+                                                <DataGridTemplateColumn.CellTemplate>
+                                                    <DataTemplate>
+                                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Center">
+                                                            <Border Background="{Binding Confidence, Converter={StaticResource ConfidenceToColorConverter}}"
+                                                                    CornerRadius="6" Padding="10,4"
+                                                                    ToolTip="{Binding ConfidenceTooltip}">
+                                                                <TextBlock Text="{Binding ConfidenceDisplay}"
+                                                                           Foreground="{StaticResource BrushTextInverse}"
+                                                                           FontWeight="{StaticResource FontWeightMedium}"
+                                                                           FontSize="12" />
+                                                            </Border>
+                                                            <Border Style="{StaticResource EngineBadgeStyle}"
+                                                                    Margin="8,0,0,0"
+                                                                    Visibility="{Binding IsLocalOcr, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                                <TextBlock Text="Local (hors ligne)"
+                                                                           Foreground="{StaticResource BrushTextMuted}"
+                                                                           FontSize="10" />
+                                                            </Border>
+                                                        </StackPanel>
+                                                    </DataTemplate>
+                                                </DataGridTemplateColumn.CellTemplate>
+                                            </DataGridTemplateColumn>
+
+                                            <DataGridTextColumn Header="Fichier" Binding="{Binding FileDisplay}" MinWidth="120" />
+                                        </DataGrid.Columns>
+                                    </DataGrid>
+
+                                    <!-- Empty State Overlay -->
+                                    <Border Grid.Row="1" Background="Transparent" Visibility="Collapsed">
+                                        <Border.Style>
+                                            <Style TargetType="Border">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding Results.Count}" Value="0">
+                                                        <Setter Property="Visibility" Value="Visible" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Border.Style>
+                                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                            <!-- Geometric artwork for empty state -->
+                                            <Grid Width="120" Height="100" Margin="0,0,0,24">
+                                                <Border Width="60" Height="60"
+                                                        Background="{StaticResource BrushGeometricFill}"
+                                                        CornerRadius="4"
+                                                        HorizontalAlignment="Left"
+                                                        VerticalAlignment="Top" />
+                                                <Border Width="40" Height="40"
+                                                        Background="{StaticResource BrushAccent}"
+                                                        CornerRadius="4"
+                                                        HorizontalAlignment="Right"
+                                                        VerticalAlignment="Bottom" />
+                                                <Border Width="80" Height="2"
+                                                        Background="{StaticResource BrushBorder}"
+                                                        HorizontalAlignment="Center"
+                                                        VerticalAlignment="Center" />
+                                            </Grid>
+                                            <TextBlock Text="Aucune facture traitée"
+                                                       Style="{StaticResource TextBody}"
+                                                       Foreground="{StaticResource BrushTextSecondary}"
+                                                       HorizontalAlignment="Center" />
+                                            <TextBlock Text="Sélectionnez un dossier et lancez l'extraction"
+                                                       Style="{StaticResource TextCaption}"
+                                                       HorizontalAlignment="Center"
+                                                       Margin="0,4,0,0" />
+                                        </StackPanel>
+                                    </Border>
+                                </Grid>
+
+                                <!-- Tab Content: Incomplete Grid (hidden by default) -->
+                                <Grid Grid.Row="1" x:Name="PanelIncomplete" Margin="0,8,0,0" Visibility="Collapsed">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="*" />
+                                    </Grid.RowDefinitions>
+
+                                    <TextBlock Grid.Row="0"
+                                               Text="Ces factures nécessitent une vérification manuelle"
+                                               Style="{StaticResource TextCaption}"
+                                               Foreground="{StaticResource BrushAccent}"
+                                               Margin="24,8,24,12" />
+
+                                    <DataGrid Grid.Row="1"
+                                              ItemsSource="{Binding IncompleteResults}"
+                                              Style="{StaticResource ResultGridStyle}"
+                                              SelectedItem="{Binding SelectedRow}">
+                                        <DataGrid.Resources>
+                                            <ContextMenu x:Key="RowContextMenu">
+                                                <MenuItem Header="Relancer l'extraction" Command="{Binding DataContext.RerunCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}" CommandParameter="{Binding}" />
+                                            </ContextMenu>
+                                        </DataGrid.Resources>
+                                        <DataGrid.Columns>
+                                            <DataGridTemplateColumn Width="44" CanUserSort="False">
+                                                <DataGridTemplateColumn.HeaderTemplate>
+                                                    <DataTemplate>
+                                                        <CheckBox IsChecked="{Binding DataContext.AllRowsSelected, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                                  Command="{Binding DataContext.ToggleAllRowsCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                                  Style="{StaticResource CheckBoxStyle}" HorizontalAlignment="Center" />
+                                                    </DataTemplate>
+                                                </DataGridTemplateColumn.HeaderTemplate>
+                                                <DataGridTemplateColumn.CellTemplate>
+                                                    <DataTemplate>
+                                                        <CheckBox IsChecked="{Binding IsSelected, UpdateSourceTrigger=PropertyChanged}"
+                                                                  Style="{StaticResource CheckBoxStyle}" HorizontalAlignment="Center" />
+                                                    </DataTemplate>
+                                                </DataGridTemplateColumn.CellTemplate>
+                                            </DataGridTemplateColumn>
+
+                                            <DataGridTextColumn Header="N° Facture" Binding="{Binding NumeroFacture, Converter={StaticResource NullToPlaceholderConverter}}" MinWidth="100" MaxWidth="180" />
+                                            <DataGridTextColumn Header="Date"        Binding="{Binding Date,          Converter={StaticResource NullToPlaceholderConverter}}" MinWidth="80"  MaxWidth="120" />
+                                            <DataGridTextColumn Header="Fournisseur" Binding="{Binding Fournisseur,   Converter={StaticResource NullToPlaceholderConverter}}" MinWidth="100" MaxWidth="200" />
+                                            <DataGridTextColumn Header="Client"      Binding="{Binding Client,        Converter={StaticResource NullToPlaceholderConverter}}" MinWidth="80"  MaxWidth="160" />
+                                            <DataGridTextColumn Header="Montant HT"  Binding="{Binding MontantHt,     Converter={StaticResource NullToPlaceholderConverter}}" MinWidth="80"  MaxWidth="120" />
+                                            <DataGridTextColumn Header="TVA"         Binding="{Binding MontantTva,    Converter={StaticResource NullToPlaceholderConverter}}" MinWidth="60"  MaxWidth="100" />
+                                            <DataGridTextColumn Header="Taxe"        Binding="{Binding MontantTaxe,   Converter={StaticResource NullToPlaceholderConverter}}" MinWidth="60"  MaxWidth="100" />
+                                            <DataGridTextColumn Header="TTC"         Binding="{Binding MontantTtc,    Converter={StaticResource NullToPlaceholderConverter}}" MinWidth="60"  MaxWidth="100" />
+
+                                            <DataGridTemplateColumn Header="Confiance" Width="160" CanUserSort="True" SortMemberPath="Confidence">
+                                                <DataGridTemplateColumn.CellTemplate>
+                                                    <DataTemplate>
+                                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Center">
+                                                            <Border Background="{Binding Confidence, Converter={StaticResource ConfidenceToColorConverter}}"
+                                                                    CornerRadius="6" Padding="10,4"
+                                                                    ToolTip="{Binding ConfidenceTooltip}">
+                                                                <TextBlock Text="{Binding ConfidenceDisplay}"
+                                                                           Foreground="{StaticResource BrushTextInverse}"
+                                                                           FontWeight="{StaticResource FontWeightMedium}"
+                                                                           FontSize="12" />
+                                                            </Border>
+                                                            <Border Style="{StaticResource EngineBadgeStyle}"
+                                                                    Margin="8,0,0,0"
+                                                                    Visibility="{Binding IsLocalOcr, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                                <TextBlock Text="Local (hors ligne)"
+                                                                           Foreground="{StaticResource BrushTextMuted}"
+                                                                           FontSize="10" />
+                                                            </Border>
+                                                        </StackPanel>
+                                                    </DataTemplate>
+                                                </DataGridTemplateColumn.CellTemplate>
+                                            </DataGridTemplateColumn>
+
+                                            <DataGridTextColumn Header="Fichier" Binding="{Binding FileDisplay}" MinWidth="120" />
+                                        </DataGrid.Columns>
+                                    </DataGrid>
+
+                                                    <!-- Empty State -->
+                                    <Border Grid.Row="1" Background="Transparent" Visibility="Collapsed">
+                                        <Border.Style>
+                                            <Style TargetType="Border">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IncompleteResults.Count}" Value="0">
+                                                        <Setter Property="Visibility" Value="Visible" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Border.Style>
+                                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                            <Border Width="40" Height="40"
+                                                    Background="{StaticResource BrushGeometricFill}"
+                                                    CornerRadius="20"
+                                                    Margin="0,0,0,16" />
+                                            <TextBlock Text="Aucune extraction incomplète"
+                                                       Style="{StaticResource TextBody}"
+                                                       Foreground="{StaticResource BrushTextSecondary}"
+                                                       HorizontalAlignment="Center" />
+                                        </StackPanel>
+                                    </Border>
+                                </Grid>
+                            </Grid>
+                        </Border>
+
+                        <!-- Splitter -->
+                        <GridSplitter Grid.Column="1"
+                                      Width="4"
+                                      HorizontalAlignment="Center"
+                                      VerticalAlignment="Stretch"
+                                      Background="{StaticResource BrushBorderLight}"
+                                      Cursor="SizeWE"
+                                      Visibility="{Binding HasSelectedRow, Converter={StaticResource BooleanToVisibilityConverter}}" />
+
+                        <!-- Raw Text Preview Card -->
+                        <Border Grid.Column="2" Style="{StaticResource CardStyle}"
+                                Padding="16"
+                                Visibility="{Binding HasSelectedRow, Converter={StaticResource BooleanToVisibilityConverter}}">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="*" />
+                                </Grid.RowDefinitions>
+
+                                <DockPanel Grid.Row="0" Margin="0,0,0,12">
+                                    <Button DockPanel.Dock="Right"
+                                            Style="{StaticResource ButtonIconStyle}"
+                                            Content="✕"
+                                            Width="24" Height="24"
+                                            Command="{Binding ClearSelectedRowCommand}" />
+                                    <TextBlock Text="{Binding PreviewFileName}"
+                                               Style="{StaticResource TextCaption}"
+                                               TextTrimming="CharacterEllipsis"
+                                               VerticalAlignment="Center" />
+                                </DockPanel>
+
+                                <ScrollViewer Grid.Row="1"
+                                              VerticalScrollBarVisibility="Auto"
+                                              HorizontalScrollBarVisibility="Auto">
+                                    <TextBox Text="{Binding PreviewRawText, Mode=OneWay}"
+                                             IsReadOnly="True"
+                                             TextWrapping="Wrap"
+                                             Style="{StaticResource TextBoxReadOnlyStyle}"
+                                             Background="{StaticResource BrushAltBackground}"
+                                             BorderThickness="0"
+                                             FontFamily="{StaticResource FontMono}"
+                                             FontSize="{StaticResource FontSizeCaption}" />
+                                </ScrollViewer>
+                            </Grid>
+                        </Border>
+                    </Grid>
+                </Grid>
+            </ScrollViewer>
+
+            <!-- ══ STATUS BAR ══ -->
+            <Border Grid.Row="2"
+                    BorderThickness="0,1,0,0"
+                    BorderBrush="{StaticResource BrushBorderLight}"
+                    Background="{StaticResource BrushBackground}">
+                <Grid Margin="32,0,32,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock Text="{Binding SummaryText}" Style="{StaticResource TextMetadata}" />
+
+                        <StackPanel Orientation="Horizontal"
+                                    Visibility="{Binding ShowSaveConfirmation, Converter={StaticResource BooleanToVisibilityConverter}}">
+                            <TextBlock Text="{Binding SaveConfirmationText}"
+                                       Style="{StaticResource TextCaption}"
+                                       Foreground="{StaticResource BrushSuccess}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,8,0" />
+                            <TextBlock Text="Ouvrir le dossier"
+                                       Style="{StaticResource TextCaption}"
+                                       Foreground="{StaticResource BrushAccent}"
+                                       Cursor="Hand"
+                                       TextDecorations="Underline"
+                                       VerticalAlignment="Center">
+                                <TextBlock.InputBindings>
+                                    <MouseBinding MouseAction="LeftClick" Command="{Binding OpenSavedFolderCommand}" />
+                                </TextBlock.InputBindings>
+                            </TextBlock>
+                        </StackPanel>
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                        <Button Content="Exporter en Excel"
+                                Style="{StaticResource ButtonPrimaryStyle}"
+                                Margin="0,0,12,0"
+                                Command="{Binding ExportExcelCommand}"
+                                ToolTip="Exporter les résultats vers Excel (Ctrl+E)" />
+                        <Button Content="Effacer"
+                                Style="{StaticResource ButtonSecondaryStyle}"
+                                Command="{Binding ClearCommand}"
+                                ToolTip="Effacer tous les résultats" />
+                    </StackPanel>
                 </Grid>
             </Border>
         </Grid>
 
-        <!-- ══ STATUS BAR ══ -->
-        <Border Grid.Row="5" BorderBrush="{StaticResource BrushBorder}" BorderThickness="0,1,0,0" Background="{StaticResource BrushPanel}">
-            <Grid Margin="14,0,14,0">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
-
-                <StackPanel Orientation="Vertical" VerticalAlignment="Center">
-                    <TextBlock Foreground="{StaticResource BrushText}" Text="{Binding SummaryText}" />
-
-                    <StackPanel Orientation="Horizontal"
-                                Visibility="{Binding ShowSaveConfirmation, Converter={StaticResource BooleanToVisibilityConverter}}">
-                        <TextBlock Text="{Binding SaveConfirmationText}" Foreground="{StaticResource BrushSuccess}"
-                                   VerticalAlignment="Center" Margin="0,0,8,0" />
-                        <TextBlock Foreground="{StaticResource BrushAccent}" VerticalAlignment="Center"
-                                   Text="Ouvrir le dossier" Cursor="Hand" TextDecorations="Underline">
-                            <TextBlock.InputBindings>
-                                <MouseBinding MouseAction="LeftClick" Command="{Binding OpenSavedFolderCommand}" />
-                            </TextBlock.InputBindings>
-                        </TextBlock>
-                    </StackPanel>
-                </StackPanel>
-
-                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                    <Button Content="Exporter en Excel" Style="{StaticResource RedButtonStyle}" Margin="0,0,8,0"
-                            Command="{Binding ExportExcelCommand}"
-                            ToolTip="Exporter les résultats vers Excel (Ctrl+E)" />
-                    <Button Content="Effacer" Style="{StaticResource GrayButtonStyle}"
-                            Command="{Binding ClearCommand}"
-                            ToolTip="Effacer tous les résultats" />
-                </StackPanel>
-            </Grid>
-        </Border>
         <!-- ══ SERVER DIED OVERLAY ══ -->
-        <Border Grid.RowSpan="6" Background="#CC000000" Panel.ZIndex="1000"
+        <Border Grid.ColumnSpan="2"
+                Background="{StaticResource BrushOverlay}"
+                Panel.ZIndex="1000"
                 Visibility="{Binding IsServerRunning, Converter={StaticResource InverseBooleanToVisibilityConverter}}">
-            <Border Background="#2D2D2D" BorderBrush="{StaticResource BrushAccent}" BorderThickness="1"
-                    CornerRadius="12" Width="450" VerticalAlignment="Center" Padding="30">
+            <Border Style="{StaticResource DialogStyle}"
+                    Width="440"
+                    VerticalAlignment="Center">
                 <StackPanel HorizontalAlignment="Center">
-                    <TextBlock Text="✕" Foreground="{StaticResource BrushAccent}" FontSize="48" HorizontalAlignment="Center" Margin="0,0,0,20" />
-                    <TextBlock Text="Le serveur OCR s'est arrêté de façon inattendue" Foreground="White" FontSize="18" FontWeight="Bold" HorizontalAlignment="Center" Margin="0,0,0,10" />
-                    <TextBlock Text="Veuillez redémarrer l'application pour continuer." Foreground="{StaticResource BrushMuted}" HorizontalAlignment="Center" Margin="0,0,0,30" TextAlignment="Center" />
-                    <Button Content="Fermer l'application" Style="{StaticResource RedButtonStyle}" Width="200" Click="CloseButton_Click" />
+                    <!-- Geometric composition -->
+                    <Grid Width="48" Height="48" Margin="0,0,0,24">
+                        <Border Width="48" Height="48"
+                                Background="{StaticResource BrushAccentLight}"
+                                CornerRadius="12" />
+                        <Border Width="16" Height="16"
+                                Background="{StaticResource BrushAccent}"
+                                CornerRadius="4"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center" />
+                    </Grid>
+                    <TextBlock Text="Le serveur OCR s'est arrêté"
+                               Style="{StaticResource TextSectionHeading}"
+                               HorizontalAlignment="Center" />
+                    <TextBlock Text="Veuillez redémarrer l'application pour continuer."
+                               Style="{StaticResource TextBody}"
+                               Foreground="{StaticResource BrushTextSecondary}"
+                               TextAlignment="Center"
+                               HorizontalAlignment="Center"
+                               Margin="0,8,0,32" />
+                    <Button Content="Fermer l'application"
+                            Style="{StaticResource ButtonPrimaryStyle}"
+                            Width="200"
+                            Click="CloseButton_Click" />
                 </StackPanel>
             </Border>
         </Border>

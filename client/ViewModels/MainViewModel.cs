@@ -379,9 +379,10 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         return Path.Combine(serverDirectory, "appsettings.json");
     }
 
-    private async Task CheckServerHealthAsync()
+    private Task CheckServerHealthAsync()
     {
         // Now handled by App.xaml.cs at startup
+        return Task.CompletedTask;
     }
 
     private void BrowseFolder()
