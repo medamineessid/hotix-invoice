@@ -39,6 +39,7 @@
 
     <Window.Resources>
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
+        <converters:InverseBooleanToVisibilityConverter x:Key="InverseBooleanToVisibilityConverter" />
         <converters:ConfidenceToColorConverter    x:Key="ConfidenceToColorConverter" />
         <converters:NullToPlaceholderConverter    x:Key="NullToPlaceholderConverter" />
         <converters:StringToColorBrushConverter   x:Key="StringToColorBrushConverter" />
