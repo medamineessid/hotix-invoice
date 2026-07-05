@@ -11,13 +11,15 @@
     <PublishSingleFile>false</PublishSingleFile>
   </PropertyGroup>
 
-  <Target Name="CopyPythonServer" AfterTargets="Build">
+  <Target Name="CopyAssets" AfterTargets="Build">
     <ItemGroup>
       <ServerFiles Include="$(ProjectDir)..\server\*.py" />
       <SettingsFile Include="$(ProjectDir)..\server\appsettings.json" />
+      <ResourceFiles Include="$(ProjectDir)Resources\*.json" />
     </ItemGroup>
     <Copy SourceFiles="@(ServerFiles)" DestinationFolder="$(OutputPath)\server" SkipUnchangedFiles="true" />
     <Copy SourceFiles="@(SettingsFile)" DestinationFolder="$(OutputPath)" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(ResourceFiles)" DestinationFolder="$(OutputPath)\Resources" SkipUnchangedFiles="true" />
   </Target>
 
   <ItemGroup>

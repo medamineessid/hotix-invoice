@@ -43,14 +43,12 @@
     </Style>
 
     <!-- Card header + body layout helper -->
-    <Style x:Key="CardHeaderStyle" TargetType="TextBlock">
-        <Setter Property="Style" Value="{StaticResource TextCardTitle}" />
+    <Style x:Key="CardHeaderStyle" TargetType="TextBlock" BasedOn="{StaticResource TextCardTitle}">
         <Setter Property="Margin" Value="0,0,0,16" />
     </Style>
 
     <!-- Card label (above inputs within cards) -->
-    <Style x:Key="CardLabelStyle" TargetType="TextBlock">
-        <Setter Property="Style" Value="{StaticResource TextCaption}" />
+    <Style x:Key="CardLabelStyle" TargetType="TextBlock" BasedOn="{StaticResource TextCaption}">
         <Setter Property="Margin" Value="0,0,0,8" />
     </Style>
 

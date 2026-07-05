@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.IO;
 using System.Windows;
@@ -21,7 +22,14 @@ public partial class MainWindow : Window
     }
 
     private async void OnLoaded(object sender, RoutedEventArgs e)
-        => await ViewModel.InitializeAsync();
+    {
+        await ViewModel.InitializeAsync();
+
+        // Set initial language radio button state
+        string currentLang = TranslationSource.Instance.CurrentCulture;
+        LangFrenchRadio.IsChecked = currentLang == "fr";
+        LangEnglishRadio.IsChecked = currentLang == "en";
+    }
 
     private void OnClosing(object? sender, CancelEventArgs e)
         => ViewModel.Dispose();
@@ -51,6 +59,38 @@ public partial class MainWindow : Window
 
     private void CloseButton_Click(object sender, RoutedEventArgs e)
         => Close();
+
+    // ── Language Selection ────────────────────────────────────
+
+    private void LangFrench_Checked(object sender, RoutedEventArgs e)
+    {
+        TranslationSource.Instance.CurrentCulture = "fr";
+        SaveLanguagePreference("fr");
+    }
+
+    private void LangEnglish_Checked(object sender, RoutedEventArgs e)
+    {
+        TranslationSource.Instance.CurrentCulture = "en";
+        SaveLanguagePreference("en");
+    }
+
+    private static void SaveLanguagePreference(string culture)
+    {
+        try
+        {
+            string settingsPath = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                "Hotix", "settings.json");
+            var doc = System.Text.Json.JsonDocument.Parse(File.ReadAllText(settingsPath));
+            var root = new Dictionary<string, string>();
+            if (doc.RootElement.TryGetProperty("lastFolder", out var folder))
+                root["lastFolder"] = folder.GetString() ?? "";
+            root["language"] = culture;
+            Directory.CreateDirectory(Path.GetDirectoryName(settingsPath)!);
+            File.WriteAllText(settingsPath, System.Text.Json.JsonSerializer.Serialize(root));
+        }
+        catch { /* best-effort */ }
+    }
 
     // ── Drag & Drop ────────────────────────────────────────
 
@@ -91,7 +131,7 @@ public partial class MainWindow : Window
         SetActiveNav(NavAbout, NavAboutIndicator, NavAboutText, false);
 
         // Show extraction content
-        PageTitle.Text = "Extraction";
+        PageTitle.Text = TranslationSource.Get("NavPageExtraction");
         // Could show/hide different panels here if we had About/Settings pages
     }
 
@@ -101,7 +141,7 @@ public partial class MainWindow : Window
         SetActiveNav(NavSettings, NavSettingsIndicator, NavSettingsText, true);
         SetActiveNav(NavAbout, NavAboutIndicator, NavAboutText, false);
 
-        PageTitle.Text = "Configuration";
+        PageTitle.Text = TranslationSource.Get("NavPageSettings");
         // Open Gemini setup dialog
         ViewModel.ToggleSettingsCommand.Execute(null);
         // Return to extraction after settings
@@ -114,11 +154,11 @@ public partial class MainWindow : Window
         SetActiveNav(NavSettings, NavSettingsIndicator, NavSettingsText, false);
         SetActiveNav(NavAbout, NavAboutIndicator, NavAboutText, true);
 
-        PageTitle.Text = "À propos";
+        PageTitle.Text = TranslationSource.Get("NavPageAbout");
         // Show a brief about state
         MessageBox.Show(
-            "HOTIX — Extraction de Factures\n\nVersion 1.0.0\n\nMoteurs : PaddleOCR (local), Gemini Vision (cloud)",
-            "À propos",
+            TranslationSource.Get("AboutMessage"),
+            TranslationSource.Get("AboutTitle"),
             MessageBoxButton.OK,
             MessageBoxImage.Information);
         // Return to extraction

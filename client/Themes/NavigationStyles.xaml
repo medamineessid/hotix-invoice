@@ -78,8 +78,7 @@
     </Style>
 
     <!-- Sidebar section label -->
-    <Style x:Key="SidebarSectionLabel" TargetType="TextBlock">
-        <Setter Property="Style" Value="{StaticResource TextMetadata}" />
+    <Style x:Key="SidebarSectionLabel" TargetType="TextBlock" BasedOn="{StaticResource TextMetadata}">
         <Setter Property="Padding" Value="16,24,16,8" />
     </Style>
 
@@ -92,16 +91,14 @@
     </Style>
 
     <!-- Inspirational quote -->
-    <Style x:Key="SidebarQuoteStyle" TargetType="TextBlock">
-        <Setter Property="Style" Value="{StaticResource TextCaption}" />
+    <Style x:Key="SidebarQuoteStyle" TargetType="TextBlock" BasedOn="{StaticResource TextCaption}">
         <Setter Property="TextWrapping" Value="Wrap" />
         <Setter Property="FontStyle" Value="Italic" />
         <Setter Property="Opacity" Value="0.6" />
     </Style>
 
     <!-- Sidebar footer -->
-    <Style x:Key="SidebarFooterStyle" TargetType="TextBlock">
-        <Setter Property="Style" Value="{StaticResource TextMetadata}" />
+    <Style x:Key="SidebarFooterStyle" TargetType="TextBlock" BasedOn="{StaticResource TextMetadata}">
         <Setter Property="Opacity" Value="0.4" />
     </Style>
 

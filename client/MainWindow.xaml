@@ -3,7 +3,8 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
         xmlns:controls="clr-namespace:Hotix.InvoiceClient.Controls"
-        Title="HOTIX — Extraction de Factures"
+        xmlns:ui="clr-namespace:Hotix.InvoiceClient"
+        Title="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[MainWindowTitle]}"
         Icon="pack://application:,,,/hotix_icon.ico"
         Width="1280"
         Height="820"
@@ -72,15 +73,15 @@
                             Background="{StaticResource BrushAccent}"
                             CornerRadius="8"
                             Margin="0,0,0,16" />
-                    <TextBlock Text="HOTIX" Style="{StaticResource SidebarLogoStyle}" />
-                    <TextBlock Text="Extraction de Factures"
+                    <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[AppTitle]}" Style="{StaticResource SidebarLogoStyle}" />
+                    <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[SplashSubtitle]}"
                                Style="{StaticResource TextCaption}"
                                Margin="0,4,0,0" />
                 </StackPanel>
 
                 <!-- ── Navigation ── -->
                 <StackPanel Grid.Row="1" Margin="12,0,12,0">
-                    <TextBlock Text="Navigation" Style="{StaticResource SidebarSectionLabel}" />
+                    <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[SidebarNavigation]}" Style="{StaticResource SidebarSectionLabel}" />
 
                     <!-- Extraction Nav Item (selected by default) -->
                     <Border x:Name="NavExtraction" Style="{StaticResource NavItemStyle}" MouseLeftButtonDown="NavExtraction_Click">
@@ -103,7 +104,7 @@
 
                             <!-- Text -->
                             <TextBlock Grid.Column="1" x:Name="NavExtractionText"
-                                       Text="Extraction" Style="{StaticResource NavTextSelectedStyle}" />
+                                       Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[SidebarExtraction]}" Style="{StaticResource NavTextSelectedStyle}" />
 
                             <!-- Red square accent -->
                             <Border Grid.Column="2" Style="{StaticResource NavRedSquareStyle}" />
@@ -128,7 +129,7 @@
 
                             <TextBlock Grid.Column="0" Text="◈" Style="{StaticResource NavIconStyle}" Margin="16,0,12,0" />
                             <TextBlock Grid.Column="1" x:Name="NavSettingsText"
-                                       Text="Configuration" Style="{StaticResource NavTextStyle}" />
+                                       Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[SidebarSettings]}" Style="{StaticResource NavTextStyle}" />
                         </Grid>
                     </Border>
 
@@ -150,7 +151,7 @@
 
                             <TextBlock Grid.Column="0" Text="○" Style="{StaticResource NavIconStyle}" Margin="16,0,12,0" />
                             <TextBlock Grid.Column="1" x:Name="NavAboutText"
-                                       Text="À propos" Style="{StaticResource NavTextStyle}" />
+                                       Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[SidebarAbout]}" Style="{StaticResource NavTextStyle}" />
                         </Grid>
                     </Border>
                 </StackPanel>
@@ -158,17 +159,51 @@
                 <!-- ── Inspirational Quote ── -->
                 <StackPanel Grid.Row="2" Margin="24,0,24,32">
                     <Border Height="1" Background="{StaticResource BrushBorder}" Margin="0,0,0,16" />
-                    <TextBlock Text="« La clarté est la seule beauté. »"
+                    <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[SidebarQuote]}"
                                Style="{StaticResource SidebarQuoteStyle}" />
-                    <TextBlock Text="— Kazimir Malevich"
+                    <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[SidebarQuoteAttr]}"
                                Style="{StaticResource TextMetadata}"
                                Margin="0,4,0,0" />
                 </StackPanel>
 
                 <!-- ── Footer ── -->
                 <StackPanel Grid.Row="3" Margin="24,0,24,20">
-                    <TextBlock Text="v1.0.0" Style="{StaticResource SidebarFooterStyle}" />
+                    <!-- Server status indicator -->
+                    <DockPanel Margin="0,0,0,12"
+                               ToolTip="{Binding ServerStatusTooltip}">
+                        <Border Width="6" Height="6"
+                                CornerRadius="3"
+                                VerticalAlignment="Center"
+                                Background="{Binding ServerStatusDotColor, Converter={StaticResource StringToColorBrushConverter}}"
+                                DockPanel.Dock="Left" />
+                        <TextBlock Text="{Binding ServerStatusText}"
+                                   Style="{StaticResource TextMetadata}"
+                                   Margin="8,0,0,0"
+                                   VerticalAlignment="Center" />
+                    </DockPanel>
+
+                    <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[SidebarVersion]}" Style="{StaticResource SidebarFooterStyle}" />
                     <TextBlock Text="HOTIX" Style="{StaticResource SidebarFooterStyle}" Margin="0,2,0,0" />
+
+                    <!-- Language selector -->
+                    <StackPanel Margin="0,16,0,0">
+                        <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[LangLabel]}"
+                                   Style="{StaticResource TextMetadata}"
+                                   Margin="0,0,0,4" />
+                        <StackPanel Orientation="Horizontal">
+                            <RadioButton x:Name="LangFrenchRadio"
+                                         Content="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[LangFrench]}"
+                                         GroupName="Language"
+                                         Style="{StaticResource CheckBoxStyle}"
+                                         Margin="0,0,12,0"
+                                         Checked="LangFrench_Checked" />
+                            <RadioButton x:Name="LangEnglishRadio"
+                                         Content="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[LangEnglish]}"
+                                         GroupName="Language"
+                                         Style="{StaticResource CheckBoxStyle}"
+                                         Checked="LangEnglish_Checked" />
+                        </StackPanel>
+                    </StackPanel>
                 </StackPanel>
             </Grid>
         </Border>
@@ -195,7 +230,7 @@
 
                     <TextBlock Grid.Column="0"
                                Style="{StaticResource TextCaption}"
-                               Text="HOTIX — Extraction de Factures"
+                               Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[MainWindowTitle]}"
                                VerticalAlignment="Center"
                                Margin="32,0,0,0" />
 
@@ -223,7 +258,7 @@
 
                     <!-- ══ PAGE TITLE ══ -->
                     <StackPanel Grid.Row="0" Margin="0,0,0,32">
-                        <TextBlock x:Name="PageTitle" Text="Extraction" Style="{StaticResource TextPageTitle}" />
+                        <TextBlock x:Name="PageTitle" Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[SidebarExtraction]}" Style="{StaticResource TextPageTitle}" />
                         <!-- Geometric underline: small black square + horizontal line -->
                         <Grid Margin="0,12,0,0">
                             <Grid.ColumnDefinitions>
@@ -255,22 +290,22 @@
 
                             <!-- Folder Picker -->
                             <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,16,0">
-                                <TextBlock Text="Dossier source" Style="{StaticResource CardLabelStyle}" />
+                                <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ControlSourceFolder]}" Style="{StaticResource CardLabelStyle}" />
                                 <DockPanel>
                                     <TextBox Text="{Binding SelectedFolder}"
                                              Style="{StaticResource TextBoxReadOnlyStyle}"
-                                             ToolTip="Vous pouvez aussi glisser-déposer un dossier ici" />
+                                             ToolTip="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ControlDropTooltip]}" />
                                     <Button x:Name="AddButton"
-                                            Content="Ajouter"
+                                            Content="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ControlAddBtn]}"
                                             Style="{StaticResource ButtonPrimaryStyle}"
                                             Width="100"
                                             Margin="12,0,0,0"
                                             Click="AddButton_Click"
-                                            ToolTip="Ajouter des factures (fichiers ou dossier)">
+                                            ToolTip="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ControlAddTooltip]}">
                                         <Button.ContextMenu>
                                             <ContextMenu>
-                                                <MenuItem Header="Ajouter des fichiers..." Command="{Binding BrowseFilesCommand}" />
-                                                <MenuItem Header="Ajouter un dossier..."  Command="{Binding BrowseFolderCommand}" />
+                                                <MenuItem Header="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ControlAddFiles]}" Command="{Binding BrowseFilesCommand}" />
+                                                <MenuItem Header="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ControlAddFolder]}"  Command="{Binding BrowseFolderCommand}" />
                                             </ContextMenu>
                                         </Button.ContextMenu>
                                     </Button>
@@ -279,32 +314,32 @@
 
                             <!-- Engine Picker -->
                             <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0">
-                                <TextBlock Text="Moteur d'extraction" Style="{StaticResource CardLabelStyle}" />
+                                <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ControlEngineLabel]}" Style="{StaticResource CardLabelStyle}" />
                                 <StackPanel Orientation="Horizontal">
                                     <ComboBox Style="{StaticResource ComboBoxStyle}"
                                               Width="180"
                                               SelectedValuePath="Tag"
                                               SelectedValue="{Binding SelectedEngine}">
-                                        <ComboBoxItem Content="Automatique (Gemini → OCR)" Tag="auto" />
-                                        <ComboBoxItem Content="Gemini Vision (cloud)" Tag="gemini">
+                                        <ComboBoxItem Content="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ControlEngineAuto]}" Tag="auto" />
+                                        <ComboBoxItem Content="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ControlEngineGemini]}" Tag="gemini">
                                             <ComboBoxItem.Style>
                                                 <Style TargetType="ComboBoxItem">
                                                     <Style.Triggers>
                                                         <DataTrigger Binding="{Binding GeminiAvailable}" Value="False">
                                                             <Setter Property="Foreground" Value="{StaticResource BrushTextMuted}" />
-                                                            <Setter Property="ToolTip" Value="Clé API Gemini non configurée" />
+                                                            <Setter Property="ToolTip" Value="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ControlEngineNoKey]}" />
                                                         </DataTrigger>
                                                     </Style.Triggers>
                                                 </Style>
                                             </ComboBoxItem.Style>
                                         </ComboBoxItem>
-                                        <ComboBoxItem Content="OCR local (PaddleOCR)" Tag="ocr" />
+                                        <ComboBoxItem Content="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ControlEngineOcr]}" Tag="ocr" />
                                     </ComboBox>
                                     <Button Content="⚙"
                                             Style="{StaticResource ButtonIconStyle}"
                                             Margin="8,0,0,0"
                                             Command="{Binding ToggleSettingsCommand}"
-                                            ToolTip="Configurer la clé API Gemini" />
+                                            ToolTip="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ControlSettingsTooltip]}" />
                                 </StackPanel>
                             </StackPanel>
 
@@ -313,15 +348,15 @@
                                 <Button Style="{StaticResource ButtonPrimaryStyle}"
                                         Width="200"
                                         Command="{Binding StartExtractionCommand}"
-                                        ToolTip="Lancer l'extraction (F5)">
+                                        ToolTip="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ControlRunTooltip]}">
                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                                        <TextBlock Text="Lancer l'extraction" VerticalAlignment="Center" />
+                                        <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ControlRunBtn]}" VerticalAlignment="Center" />
                                     </StackPanel>
                                 </Button>
                                 <Button Width="200" Height="32"
                                         Margin="0,8,0,0"
                                         Command="{Binding CancelExtractionCommand}"
-                                        ToolTip="Annuler l'extraction en cours (Échap)">
+                                        ToolTip="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ControlCancelTooltip]}">
                                     <Button.Style>
                                         <Style TargetType="Button" BasedOn="{StaticResource ButtonDangerStyle}">
                                             <Setter Property="Visibility" Value="Collapsed" />
@@ -332,7 +367,7 @@
                                             </Style.Triggers>
                                         </Style>
                                     </Button.Style>
-                                    <TextBlock Text="Annuler" VerticalAlignment="Center" />
+                                    <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ControlCancelBtn]}" VerticalAlignment="Center" />
                                 </Button>
                             </StackPanel>
 
@@ -368,7 +403,7 @@
                                            Style="{StaticResource TextCaption}"
                                            DockPanel.Dock="Left"
                                            VerticalAlignment="Center" />
-                                <CheckBox Content="Tout sélectionner"
+                                <CheckBox Content="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ControlSelectAll]}"
                                           Style="{StaticResource CheckBoxStyle}"
                                           IsChecked="{Binding AllFilesSelected}"
                                           Command="{Binding ToggleAllFilesCommand}"
@@ -415,11 +450,11 @@
                                        TextWrapping="Wrap"
                                        VerticalAlignment="Center" />
                             <Button Grid.Column="1"
-                                    Content="Relancer les erreurs"
+                                    Content="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[BtnRerunErrors]}"
                                     Style="{StaticResource ButtonSecondaryStyle}"
                                     Margin="16,0,0,0"
                                     Command="{Binding RerunAllErrorsCommand}"
-                                    ToolTip="Relancer l'extraction uniquement pour les fichiers en erreur"
+                                    ToolTip="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[BtnRerunErrorsTooltip]}"
                                     Visibility="{Binding HasErrors, Converter={StaticResource BooleanToVisibilityConverter}}" />
                         </Grid>
                     </Border>
@@ -459,7 +494,7 @@
                                             Cursor="Hand"
                                             MouseLeftButtonDown="TabResults_Click">
                                         <StackPanel Orientation="Vertical">
-                                            <TextBlock Text="Résultats"
+                                            <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[TabResults]}"
                                                        Style="{StaticResource TextBody}"
                                                        x:Name="TabResultsText"
                                                        FontWeight="{StaticResource FontWeightMedium}" />
@@ -475,7 +510,7 @@
                                             Cursor="Hand"
                                             MouseLeftButtonDown="TabIncomplete_Click">
                                         <StackPanel Orientation="Vertical">
-                                            <TextBlock Text="Extractions Incomplètes"
+                                            <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[TabIncomplete]}"
                                                        Style="{StaticResource TextBody}"
                                                        x:Name="TabIncompleteText"
                                                        Foreground="{StaticResource BrushTextMuted}" />
@@ -497,23 +532,23 @@
 
                                     <!-- Confidence Legend -->
                                     <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="24,8,24,12">
-                                        <TextBlock Text="Confiance"
+                                        <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[LegendConfidence]}"
                                                    Style="{StaticResource TextMetadata}"
                                                    VerticalAlignment="Center"
                                                    Margin="0,0,16,0" />
                                         <Border Background="{StaticResource BrushConfidenceHigh}"
                                                 CornerRadius="4" Padding="8,2" Margin="0,0,8,0">
-                                            <TextBlock Text="Élevée (≥75%)" Foreground="{StaticResource BrushTextInverse}"
+                                            <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[LegendHigh]}" Foreground="{StaticResource BrushTextInverse}"
                                                        FontSize="11" FontWeight="{StaticResource FontWeightMedium}" />
                                         </Border>
                                         <Border Background="{StaticResource BrushConfidenceMedium}"
                                                 CornerRadius="4" Padding="8,2" Margin="0,0,8,0">
-                                            <TextBlock Text="Moyenne (40-75%)" Foreground="{StaticResource BrushTextInverse}"
+                                            <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[LegendMedium]}" Foreground="{StaticResource BrushTextInverse}"
                                                        FontSize="11" FontWeight="{StaticResource FontWeightMedium}" />
                                         </Border>
                                         <Border Background="{StaticResource BrushConfidenceLow}"
                                                 CornerRadius="4" Padding="8,2">
-                                            <TextBlock Text="Basse (&lt;40%)" Foreground="{StaticResource BrushTextInverse}"
+                                            <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[LegendLow]}" Foreground="{StaticResource BrushTextInverse}"
                                                        FontSize="11" FontWeight="{StaticResource FontWeightMedium}" />
                                         </Border>
                                     </StackPanel>
@@ -528,7 +563,7 @@
                                               LoadingRow="ResultsGrid_LoadingRow">
                                         <DataGrid.Resources>
                                             <ContextMenu x:Key="RowContextMenu">
-                                                <MenuItem Header="Relancer l'extraction" Command="{Binding DataContext.RerunCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}" CommandParameter="{Binding}" />
+                                                <MenuItem Header="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ContextMenuRerun]}" Command="{Binding DataContext.RerunCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}" CommandParameter="{Binding}" />
                                             </ContextMenu>
                                         </DataGrid.Resources>
                                         <DataGrid.Columns>
@@ -549,7 +584,7 @@
                                                 </DataGridTemplateColumn.CellTemplate>
                                             </DataGridTemplateColumn>
 
-                                            <DataGridTextColumn Header="N° Facture" Binding="{Binding NumeroFacture, Converter={StaticResource NullToPlaceholderConverter}}"
+                                            <DataGridTextColumn Header="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ColumnInvoiceNo]}" Binding="{Binding NumeroFacture, Converter={StaticResource NullToPlaceholderConverter}}"
                                                                 MinWidth="100" MaxWidth="180">
                                                 <DataGridTextColumn.ElementStyle>
                                                     <Style TargetType="TextBlock">
@@ -565,7 +600,7 @@
                                                 </DataGridTextColumn.ElementStyle>
                                             </DataGridTextColumn>
 
-                                            <DataGridTextColumn Header="Date" Binding="{Binding Date, Converter={StaticResource NullToPlaceholderConverter}}"
+                                            <DataGridTextColumn Header="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ColumnDate]}" Binding="{Binding Date, Converter={StaticResource NullToPlaceholderConverter}}"
                                                                 MinWidth="80" MaxWidth="120">
                                                 <DataGridTextColumn.ElementStyle>
                                                     <Style TargetType="TextBlock">
@@ -579,7 +614,7 @@
                                                 </DataGridTextColumn.ElementStyle>
                                             </DataGridTextColumn>
 
-                                            <DataGridTextColumn Header="Fournisseur" Binding="{Binding Fournisseur, Converter={StaticResource NullToPlaceholderConverter}}"
+                                            <DataGridTextColumn Header="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ColumnSupplier]}" Binding="{Binding Fournisseur, Converter={StaticResource NullToPlaceholderConverter}}"
                                                                 MinWidth="100" MaxWidth="200">
                                                 <DataGridTextColumn.ElementStyle>
                                                     <Style TargetType="TextBlock">
@@ -593,7 +628,7 @@
                                                 </DataGridTextColumn.ElementStyle>
                                             </DataGridTextColumn>
 
-                                            <DataGridTextColumn Header="Client" Binding="{Binding Client, Converter={StaticResource NullToPlaceholderConverter}}"
+                                            <DataGridTextColumn Header="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ColumnClient]}" Binding="{Binding Client, Converter={StaticResource NullToPlaceholderConverter}}"
                                                                 MinWidth="80" MaxWidth="160">
                                                 <DataGridTextColumn.ElementStyle>
                                                     <Style TargetType="TextBlock">
@@ -605,9 +640,7 @@
                                                         </Style.Triggers>
                                                     </Style>
                                                 </DataGridTextColumn.ElementStyle>
-                                            </DataGridTextColumn>
-
-                                            <DataGridTextColumn Header="Montant HT" Binding="{Binding MontantHt, Converter={StaticResource NullToPlaceholderConverter}}"
+                                            </DataGridTextColumn>                                            <DataGridTextColumn Header="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ColumnAmountExcl]}"  Binding="{Binding MontantHt, Converter={StaticResource NullToPlaceholderConverter}}"
                                                                 MinWidth="80" MaxWidth="120" />
 
                                             <DataGridTextColumn Header="TVA" Binding="{Binding MontantTva, Converter={StaticResource NullToPlaceholderConverter}}"
@@ -635,7 +668,7 @@
                                                             <Border Style="{StaticResource EngineBadgeStyle}"
                                                                     Margin="8,0,0,0"
                                                                     Visibility="{Binding IsLocalOcr, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                                                <TextBlock Text="Local (hors ligne)"
+                                                                <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[BadgeLocalOcr]}"
                                                                            Foreground="{StaticResource BrushTextMuted}"
                                                                            FontSize="10" />
                                                             </Border>
@@ -644,7 +677,7 @@
                                                 </DataGridTemplateColumn.CellTemplate>
                                             </DataGridTemplateColumn>
 
-                                            <DataGridTextColumn Header="Fichier" Binding="{Binding FileDisplay}" MinWidth="120" />
+                                            <DataGridTextColumn Header="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ColumnFile]}" Binding="{Binding FileDisplay}" MinWidth="120" />
                                         </DataGrid.Columns>
                                     </DataGrid>
 
@@ -678,11 +711,11 @@
                                                         HorizontalAlignment="Center"
                                                         VerticalAlignment="Center" />
                                             </Grid>
-                                            <TextBlock Text="Aucune facture traitée"
+                                            <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[EmptyResultsTitle]}"
                                                        Style="{StaticResource TextBody}"
                                                        Foreground="{StaticResource BrushTextSecondary}"
                                                        HorizontalAlignment="Center" />
-                                            <TextBlock Text="Sélectionnez un dossier et lancez l'extraction"
+                                            <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[EmptyResultsDesc]}"
                                                        Style="{StaticResource TextCaption}"
                                                        HorizontalAlignment="Center"
                                                        Margin="0,4,0,0" />
@@ -698,7 +731,7 @@
                                     </Grid.RowDefinitions>
 
                                     <TextBlock Grid.Row="0"
-                                               Text="Ces factures nécessitent une vérification manuelle"
+                                               Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[IncompleteDescription]}"
                                                Style="{StaticResource TextCaption}"
                                                Foreground="{StaticResource BrushAccent}"
                                                Margin="24,8,24,12" />
@@ -709,7 +742,7 @@
                                               SelectedItem="{Binding SelectedRow}">
                                         <DataGrid.Resources>
                                             <ContextMenu x:Key="RowContextMenu">
-                                                <MenuItem Header="Relancer l'extraction" Command="{Binding DataContext.RerunCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}" CommandParameter="{Binding}" />
+                                                <MenuItem Header="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ContextMenuRerun]}" Command="{Binding DataContext.RerunCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}" CommandParameter="{Binding}" />
                                             </ContextMenu>
                                         </DataGrid.Resources>
                                         <DataGrid.Columns>
@@ -729,14 +762,13 @@
                                                 </DataGridTemplateColumn.CellTemplate>
                                             </DataGridTemplateColumn>
 
-                                            <DataGridTextColumn Header="N° Facture" Binding="{Binding NumeroFacture, Converter={StaticResource NullToPlaceholderConverter}}" MinWidth="100" MaxWidth="180" />
-                                            <DataGridTextColumn Header="Date"        Binding="{Binding Date,          Converter={StaticResource NullToPlaceholderConverter}}" MinWidth="80"  MaxWidth="120" />
+                                            <DataGridTextColumn Header="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ColumnInvoiceNo]}" Binding="{Binding NumeroFacture, Converter={StaticResource NullToPlaceholderConverter}}" MinWidth="100" MaxWidth="180" />                                            <DataGridTextColumn Header="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ColumnDate]}" Binding="{Binding Date, Converter={StaticResource NullToPlaceholderConverter}}" MinWidth="80"  MaxWidth="120" />
                                             <DataGridTextColumn Header="Fournisseur" Binding="{Binding Fournisseur,   Converter={StaticResource NullToPlaceholderConverter}}" MinWidth="100" MaxWidth="200" />
                                             <DataGridTextColumn Header="Client"      Binding="{Binding Client,        Converter={StaticResource NullToPlaceholderConverter}}" MinWidth="80"  MaxWidth="160" />
                                             <DataGridTextColumn Header="Montant HT"  Binding="{Binding MontantHt,     Converter={StaticResource NullToPlaceholderConverter}}" MinWidth="80"  MaxWidth="120" />
-                                            <DataGridTextColumn Header="TVA"         Binding="{Binding MontantTva,    Converter={StaticResource NullToPlaceholderConverter}}" MinWidth="60"  MaxWidth="100" />
-                                            <DataGridTextColumn Header="Taxe"        Binding="{Binding MontantTaxe,   Converter={StaticResource NullToPlaceholderConverter}}" MinWidth="60"  MaxWidth="100" />
-                                            <DataGridTextColumn Header="TTC"         Binding="{Binding MontantTtc,    Converter={StaticResource NullToPlaceholderConverter}}" MinWidth="60"  MaxWidth="100" />
+                                            <DataGridTextColumn Header="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ColumnVat]}"         Binding="{Binding MontantTva,    Converter={StaticResource NullToPlaceholderConverter}}" MinWidth="60"  MaxWidth="100" />
+                                            <DataGridTextColumn Header="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ColumnTax]}"        Binding="{Binding MontantTaxe,   Converter={StaticResource NullToPlaceholderConverter}}" MinWidth="60"  MaxWidth="100" />
+                                            <DataGridTextColumn Header="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ColumnTotalIncl]}"         Binding="{Binding MontantTtc,    Converter={StaticResource NullToPlaceholderConverter}}" MinWidth="60"  MaxWidth="100" />
 
                                             <DataGridTemplateColumn Header="Confiance" Width="160" CanUserSort="True" SortMemberPath="Confidence">
                                                 <DataGridTemplateColumn.CellTemplate>
@@ -753,7 +785,7 @@
                                                             <Border Style="{StaticResource EngineBadgeStyle}"
                                                                     Margin="8,0,0,0"
                                                                     Visibility="{Binding IsLocalOcr, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                                                <TextBlock Text="Local (hors ligne)"
+                                                                <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[BadgeLocalOcr]}"
                                                                            Foreground="{StaticResource BrushTextMuted}"
                                                                            FontSize="10" />
                                                             </Border>
@@ -762,7 +794,7 @@
                                                 </DataGridTemplateColumn.CellTemplate>
                                             </DataGridTemplateColumn>
 
-                                            <DataGridTextColumn Header="Fichier" Binding="{Binding FileDisplay}" MinWidth="120" />
+                                            <DataGridTextColumn Header="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ColumnFile]}" Binding="{Binding FileDisplay}" MinWidth="120" />
                                         </DataGrid.Columns>
                                     </DataGrid>
 
@@ -782,7 +814,7 @@
                                                     Background="{StaticResource BrushGeometricFill}"
                                                     CornerRadius="20"
                                                     Margin="0,0,0,16" />
-                                            <TextBlock Text="Aucune extraction incomplète"
+                                            <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[EmptyIncompleteTitle]}"
                                                        Style="{StaticResource TextBody}"
                                                        Foreground="{StaticResource BrushTextSecondary}"
                                                        HorizontalAlignment="Center" />
@@ -855,6 +887,13 @@
                     <StackPanel VerticalAlignment="Center">
                         <TextBlock Text="{Binding SummaryText}" Style="{StaticResource TextMetadata}" />
 
+                        <!-- Server starting status -->
+                        <TextBlock Text="{Binding ServerStartingStatus}"
+                                   Style="{StaticResource TextCaption}"
+                                   Foreground="{StaticResource BrushAccent}"
+                                   Visibility="{Binding IsServerStarting, Converter={StaticResource BooleanToVisibilityConverter}}" />
+
+                        <!-- Save confirmation -->
                         <StackPanel Orientation="Horizontal"
                                     Visibility="{Binding ShowSaveConfirmation, Converter={StaticResource BooleanToVisibilityConverter}}">
                             <TextBlock Text="{Binding SaveConfirmationText}"
@@ -862,7 +901,7 @@
                                        Foreground="{StaticResource BrushSuccess}"
                                        VerticalAlignment="Center"
                                        Margin="0,0,8,0" />
-                            <TextBlock Text="Ouvrir le dossier"
+                            <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[OpenFolderLink]}"
                                        Style="{StaticResource TextCaption}"
                                        Foreground="{StaticResource BrushAccent}"
                                        Cursor="Hand"
@@ -876,25 +915,25 @@
                     </StackPanel>
 
                     <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                        <Button Content="Exporter en Excel"
+                        <Button Content="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[BtnExportExcel]}"
                                 Style="{StaticResource ButtonPrimaryStyle}"
                                 Margin="0,0,12,0"
                                 Command="{Binding ExportExcelCommand}"
-                                ToolTip="Exporter les résultats vers Excel (Ctrl+E)" />
-                        <Button Content="Effacer"
+                                ToolTip="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[BtnExportTooltip]}" />
+                        <Button Content="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[BtnClear]}"
                                 Style="{StaticResource ButtonSecondaryStyle}"
                                 Command="{Binding ClearCommand}"
-                                ToolTip="Effacer tous les résultats" />
+                                ToolTip="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[BtnClearTooltip]}" />
                     </StackPanel>
                 </Grid>
             </Border>
         </Grid>
 
-        <!-- ══ SERVER DIED OVERLAY ══ -->
+        <!-- ══ SERVER OVERLAY (crashed / starting) ══ -->
         <Border Grid.ColumnSpan="2"
                 Background="{StaticResource BrushOverlay}"
                 Panel.ZIndex="1000"
-                Visibility="{Binding IsServerRunning, Converter={StaticResource InverseBooleanToVisibilityConverter}}">
+                Visibility="{Binding ShowServerDiedOverlay, Converter={StaticResource BooleanToVisibilityConverter}}">
             <Border Style="{StaticResource DialogStyle}"
                     Width="440"
                     VerticalAlignment="Center">
@@ -910,19 +949,51 @@
                                 HorizontalAlignment="Center"
                                 VerticalAlignment="Center" />
                     </Grid>
-                    <TextBlock Text="Le serveur OCR s'est arrêté"
+
+                    <!-- Title changes based on state -->
+                    <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ServerDiedTitle]}"
                                Style="{StaticResource TextSectionHeading}"
-                               HorizontalAlignment="Center" />
-                    <TextBlock Text="Veuillez redémarrer l'application pour continuer."
+                               HorizontalAlignment="Center"
+                               Visibility="{Binding IsServerStarting, Converter={StaticResource InverseBooleanToVisibilityConverter}}" />
+                    <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ServerDiedRestarting]}"
+                               Style="{StaticResource TextSectionHeading}"
+                               HorizontalAlignment="Center"
+                               Visibility="{Binding IsServerStarting, Converter={StaticResource BooleanToVisibilityConverter}}" />
+
+                    <!-- Status description -->
+                    <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ServerDiedDescription]}"
                                Style="{StaticResource TextBody}"
                                Foreground="{StaticResource BrushTextSecondary}"
                                TextAlignment="Center"
+                               TextWrapping="Wrap"
                                HorizontalAlignment="Center"
-                               Margin="0,8,0,32" />
-                    <Button Content="Fermer l'application"
-                            Style="{StaticResource ButtonPrimaryStyle}"
-                            Width="200"
-                            Click="CloseButton_Click" />
+                               Margin="0,8,0,0"
+                               Visibility="{Binding IsServerStarting, Converter={StaticResource InverseBooleanToVisibilityConverter}}" />
+
+                    <!-- Starting progress status -->
+                    <TextBlock Text="{Binding ServerStartingStatus}"
+                               Style="{StaticResource TextBody}"
+                               Foreground="{StaticResource BrushAccent}"
+                               TextAlignment="Center"
+                               HorizontalAlignment="Center"
+                               Margin="0,8,0,0"
+                               Visibility="{Binding IsServerStarting, Converter={StaticResource BooleanToVisibilityConverter}}" />
+
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,32,0,0">
+                        <!-- Retry button (hidden while starting) -->
+                        <Button Content="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ServerDiedRestartBtn]}"
+                                Style="{StaticResource ButtonPrimaryStyle}"
+                                Width="180"
+                                Margin="0,0,12,0"
+                                Command="{Binding RetryServerCommand}"
+                                ToolTip="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ServerDiedRestartTooltip]}"
+                                Visibility="{Binding IsServerStarting, Converter={StaticResource InverseBooleanToVisibilityConverter}}" />
+                        <!-- Close button -->
+                        <Button Content="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ServerDiedCloseBtn]}"
+                                Style="{StaticResource ButtonDangerStyle}"
+                                Width="180"
+                                Click="CloseButton_Click" />
+                    </StackPanel>
                 </StackPanel>
             </Border>
         </Border>

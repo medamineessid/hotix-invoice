@@ -1,9 +1,20 @@
 <Window x:Class="Hotix.InvoiceClient.GeminiSetupWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Configuration Gemini" Height="380" Width="520"
+        xmlns:ui="clr-namespace:Hotix.InvoiceClient"
+        Title="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[GeminiTitle]}"
+        Height="380" Width="520"
         WindowStyle="None" AllowsTransparency="True" Background="Transparent"
         WindowStartupLocation="CenterScreen" ShowInTaskbar="True" Topmost="True">
+
+    <Window.Resources>
+        <Storyboard x:Key="SpinnerStoryboard" RepeatBehavior="Forever">
+            <DoubleAnimation Storyboard.TargetName="SpinnerRotate"
+                             Storyboard.TargetProperty="Angle"
+                             From="0" To="360"
+                             Duration="0:0:1.2" />
+        </Storyboard>
+    </Window.Resources>
 
     <Window.RenderTransform>
         <TransformGroup>
@@ -27,9 +38,9 @@
 
                 <!-- Header -->
                 <StackPanel Grid.Row="0" Margin="0,0,0,16">
-                    <TextBlock Text="Configuration optionnelle"
+                    <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[GeminiHeader]}"
                                Style="{StaticResource TextSectionHeading}" />
-                    <TextBlock Text="Clé API Gemini"
+                    <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[GeminiSubheader]}"
                                Style="{StaticResource TextBody}"
                                Foreground="{StaticResource BrushTextSecondary}"
                                Margin="0,4,0,0" />
@@ -40,33 +51,89 @@
                     <TextBlock Style="{StaticResource TextBody}"
                                Foreground="{StaticResource BrushTextSecondary}"
                                TextWrapping="Wrap"
-                               Margin="0,0,0,24">
-                        Pour une meilleure précision d'extraction, vous pouvez configurer une clé API Gemini gratuite. Sans clé, l'extraction locale (OCR) reste entièrement disponible.
-                    </TextBlock>
+                               Margin="0,0,0,24"
+                               Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[GeminiDescription]}" />
 
-                    <TextBlock Text="Clé API Gemini" Style="{StaticResource CardLabelStyle}" />
+                    <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[GeminiSubheader]}"
+                               Style="{StaticResource CardLabelStyle}" />
                     <PasswordBox x:Name="GeminiKeyBox"
-                                 Style="{StaticResource PasswordBoxStyle}"
-                                 Tag="Collez votre clé ici..." />
+                                 Style="{StaticResource PasswordBoxStyle}">
+                        <PasswordBox.Resources>
+                            <!-- Placeholder via attached behavior or Tag -->
+                        </PasswordBox.Resources>
+                    </PasswordBox>
 
-                    <TextBlock x:Name="MessageLabel"
-                               Style="{StaticResource TextCaption}"
-                               Margin="0,12,0,0" />
+                    <Grid Margin="0,12,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+
+                        <!-- Spinning indicator -->
+                        <Grid x:Name="SpinnerIndicator"
+                              Grid.Column="0"
+                              Width="16" Height="16"
+                              Visibility="Collapsed"
+                              Margin="0,0,8,0"
+                              VerticalAlignment="Center">
+                            <Ellipse Width="16" Height="16"
+                                     Stroke="{StaticResource BrushAccent}"
+                                     StrokeThickness="2"
+                                     Opacity="0.2" />
+                            <Path x:Name="SpinnerArc"
+                                  Width="16" Height="16"
+                                  Stretch="None"
+                                  Stroke="{StaticResource BrushAccent}"
+                                  StrokeThickness="2"
+                                  StrokeStartLineCap="Round"
+                                  StrokeEndLineCap="Round"
+                                  RenderTransformOrigin="0.5,0.5">
+                                <Path.RenderTransform>
+                                    <RotateTransform x:Name="SpinnerRotate" />
+                                </Path.RenderTransform>
+                                <Path.Data>
+                                    <PathGeometry>
+                                        <PathFigure StartPoint="8,2" IsClosed="False">
+                                            <ArcSegment Point="8,14"
+                                                        Size="6,6"
+                                                        SweepDirection="Clockwise"
+                                                        IsLargeArc="True" />
+                                        </PathFigure>
+                                    </PathGeometry>
+                                </Path.Data>
+                            </Path>
+                        </Grid>
+
+                        <!-- Status / error message -->
+                        <TextBlock x:Name="MessageLabel"
+                                   Grid.Column="1"
+                                   Style="{StaticResource TextCaption}"
+                                   VerticalAlignment="Center" />
+                    </Grid>
                 </StackPanel>
 
                 <!-- Buttons -->
                 <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,24,0,0">
-                    <Button Content="Obtenir une clé gratuite"
+                    <Button x:Name="GetKeyButton"
+                            Content="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[GeminiGetKeyBtn]}"
                             Style="{StaticResource ButtonSecondaryStyle}"
                             Width="170"
                             Margin="0,0,12,0"
                             Click="GetApiKey_Click" />
-                    <Button Content="Ignorer"
+                    <Button x:Name="ClearKeyButton"
+                            Content="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[GeminiClearBtn]}"
+                            Style="{StaticResource ButtonDangerStyle}"
+                            Width="110"
+                            Margin="0,0,12,0"
+                            Click="ClearKey_Click" />
+                    <Button x:Name="IgnoreButton"
+                            Content="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[GeminiIgnoreBtn]}"
                             Style="{StaticResource ButtonSecondaryStyle}"
                             Width="90"
                             Margin="0,0,12,0"
                             Click="Ignore_Click" />
-                    <Button Content="Enregistrer"
+                    <Button x:Name="SaveButton"
+                            Content="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[GeminiSaveBtn]}"
                             Style="{StaticResource ButtonPrimaryStyle}"
                             Width="120"
                             Click="Save_Click" />
