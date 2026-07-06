@@ -28,7 +28,7 @@
             <ContentPresenter x:Name="Content"
                               HorizontalAlignment="Center"
                               VerticalAlignment="Center"
-                              Margin="24,12"
+                              Margin="{TemplateBinding Padding}"
                               RecognizesAccessKey="True" />
         </Border>
         <ControlTemplate.Triggers>
@@ -64,6 +64,7 @@
         <Setter Property="Cursor" Value="Hand" />
         <Setter Property="FontFamily" Value="{StaticResource FontPrimary}" />
         <Setter Property="FontSize"   Value="{StaticResource FontSizeBody}" />
+        <Setter Property="Padding" Value="24,12" />
         <Setter Property="FontWeight" Value="{StaticResource FontWeightMedium}" />
         <Setter Property="Template"   Value="{StaticResource TemplateButtonBase}" />
         <Setter Property="RenderTransform">
@@ -90,6 +91,7 @@
         <Setter Property="Cursor" Value="Hand" />
         <Setter Property="FontFamily" Value="{StaticResource FontPrimary}" />
         <Setter Property="FontSize"   Value="{StaticResource FontSizeBody}" />
+        <Setter Property="Padding" Value="24,12" />
         <Setter Property="FontWeight" Value="{StaticResource FontWeightMedium}" />
         <Setter Property="Template"   Value="{StaticResource TemplateButtonBase}" />
         <Setter Property="RenderTransform">
@@ -116,6 +118,7 @@
         <Setter Property="Cursor" Value="Hand" />
         <Setter Property="FontFamily" Value="{StaticResource FontPrimary}" />
         <Setter Property="FontSize"   Value="{StaticResource FontSizeBody}" />
+        <Setter Property="Padding" Value="24,12" />
         <Setter Property="FontWeight" Value="{StaticResource FontWeightMedium}" />
         <Setter Property="Template"   Value="{StaticResource TemplateButtonBase}" />
         <Setter Property="RenderTransform">

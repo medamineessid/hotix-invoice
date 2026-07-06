@@ -25,18 +25,10 @@
          Reusable Storyboards
          ═══════════════════════════════════════════════ -->
 
-    <!-- Window Fade-In (220ms, scale 0.98→1.0) -->
+    <!-- Window Fade-In (220ms) -->
     <Storyboard x:Key="StoryboardWindowFadeIn">
         <DoubleAnimation Storyboard.TargetProperty="Opacity"
                          From="0" To="1"
-                         Duration="{StaticResource DurationDialog}"
-                         EasingFunction="{StaticResource EaseOut}" />
-        <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleX)"
-                         From="0.98" To="1"
-                         Duration="{StaticResource DurationDialog}"
-                         EasingFunction="{StaticResource EaseOut}" />
-        <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleY)"
-                         From="0.98" To="1"
                          Duration="{StaticResource DurationDialog}"
                          EasingFunction="{StaticResource EaseOut}" />
     </Storyboard>

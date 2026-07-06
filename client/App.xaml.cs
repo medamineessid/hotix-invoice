@@ -113,12 +113,9 @@ public partial class App : Application
         var mainVm = new ViewModels.MainViewModel();
         await mainVm.InitializeAsync();
 
-        if (IsFirstRun())
-        {
-            var wizard = new GeminiSetupWindow { DataContext = mainVm };
-            wizard.Owner = splash;
-            wizard.ShowDialog();
-        }
+        // No longer shows the Gemini setup dialog on first run — it would
+        // block the user from using the application. The user can configure
+        // Gemini at any time via the ⚙ button in the main window's toolbar.
 
         // 4. Create and set the real main window BEFORE closing splash
         //    This ensures Application.Current.Windows is never empty

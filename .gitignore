@@ -31,3 +31,12 @@ Desktop.ini
 client/publish/
 client/bin/
 client/obj/
+
+# Logs & debug artifacts
+crash.log
+server_stdout.log
+nul
+
+# Test files
+test_invoice.png
+test_venv312/

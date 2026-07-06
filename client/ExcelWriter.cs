@@ -15,6 +15,9 @@ public sealed class ExcelWriter
     private static readonly string[] Headers =
         { "N° Facture", "Date", "Fournisseur", "Client", "Montant HT", "TVA", "Taxe", "TTC", "Confiance", "Fichier", "Moteur" };
 
+    /// <summary>
+    /// Creates a brand-new workbook with Results and Incomplete Results sheets.
+    /// </summary>
     public void Write(string outputPath, IReadOnlyList<InvoiceRowViewModel> rows)
     {
         string directory = Path.GetDirectoryName(outputPath) ?? Directory.GetCurrentDirectory();
@@ -26,11 +29,74 @@ public sealed class ExcelWriter
         workbook.SaveAs(outputPath);
     }
 
+    /// <summary>
+    /// Appends invoice data to an existing workbook. If a sheet with a known name
+    /// ("Résultats" or the specified sheetName) exists, data is appended below its
+    /// last populated row. Otherwise, a new sheet is created.
+    /// </summary>
+    public void AppendToExisting(string outputPath, IReadOnlyList<InvoiceRowViewModel> rows, string? targetSheetName = null)
+    {
+        using var workbook = new XLWorkbook(outputPath);
+
+        // Main results sheet
+        string mainSheet = targetSheetName ?? "Résultats";
+        var resultsWs = workbook.Worksheets.FirstOrDefault(w => string.Equals(w.Name, mainSheet, StringComparison.OrdinalIgnoreCase));
+
+        if (resultsWs != null)
+        {
+            int lastRow = resultsWs.LastRowUsed()?.RowNumber() ?? 1;
+            AppendRows(resultsWs, rows, lastRow + 1, highlightMissing: false, includeHeaders: false);
+        }
+        else
+        {
+            resultsWs = workbook.Worksheets.Add(mainSheet);
+            WriteHeaders(resultsWs);
+            AppendRows(resultsWs, rows, 2, highlightMissing: false, includeHeaders: false);
+        }
+
+        // Incomplete extractions sheet
+        var incompleteRows = rows.Where(r => r.IsIncomplete).ToList();
+        string incompleteSheetName = "Extractions Incomplètes";
+        var incWs = workbook.Worksheets.FirstOrDefault(w => string.Equals(w.Name, incompleteSheetName, StringComparison.OrdinalIgnoreCase));
+
+        if (incWs != null)
+        {
+            int lastRow = incWs.LastRowUsed()?.RowNumber() ?? 1;
+            AppendRows(incWs, incompleteRows, lastRow + 1, highlightMissing: true, includeHeaders: false);
+        }
+        else
+        {
+            incWs = workbook.Worksheets.Add(incompleteSheetName);
+            WriteHeaders(incWs);
+            AppendRows(incWs, incompleteRows, 2, highlightMissing: true, includeHeaders: false);
+        }
+
+        workbook.Save();
+    }
+
+    /// <summary>
+    /// Returns the list of worksheet names in an existing workbook for selection.
+    /// </summary>
+    public static List<string> GetWorksheetNames(string filePath)
+    {
+        var names = new List<string>();
+        using var workbook = new XLWorkbook(filePath);
+        foreach (var ws in workbook.Worksheets)
+            names.Add(ws.Name);
+        return names;
+    }
+
     private static void WriteSheet(XLWorkbook workbook, string sheetName, IEnumerable<InvoiceRowViewModel> rows, bool highlightMissing)
     {
         IXLWorksheet ws = workbook.Worksheets.Add(sheetName);
+        WriteHeaders(ws);
+        AppendRows(ws, rows, 2, highlightMissing, includeHeaders: false);
+        ws.Columns().AdjustToContents();
+        ws.SheetView.FreezeRows(1);
+    }
 
-        // Header row
+    private static void WriteHeaders(IXLWorksheet ws)
+    {
         for (int c = 0; c < Headers.Length; c++)
         {
             var cell = ws.Cell(1, c + 1);
@@ -39,8 +105,18 @@ public sealed class ExcelWriter
             cell.Style.Font.FontColor = White;
             cell.Style.Fill.BackgroundColor = HeaderBg;
         }
+    }
 
-        int rowIndex = 2;
+    private static void AppendRows(IXLWorksheet ws, IEnumerable<InvoiceRowViewModel> rows, int startRow, bool highlightMissing, bool includeHeaders)
+    {
+        int rowIndex = startRow;
+
+        if (includeHeaders)
+        {
+            WriteHeaders(ws);
+            rowIndex++;
+        }
+
         foreach (var row in rows)
         {
             XLColor rowBg = rowIndex % 2 == 0 ? Row2Bg : Row1Bg;
@@ -69,8 +145,12 @@ public sealed class ExcelWriter
             rowIndex++;
         }
 
-        ws.Columns().AdjustToContents();
-        ws.SheetView.FreezeRows(1);
+        // Only adjust column widths for new sheets; preserve existing widths when appending
+        if (startRow == 2)
+        {
+            ws.Columns().AdjustToContents();
+            ws.SheetView.FreezeRows(1);
+        }
     }
 
     private static void SetCell(IXLWorksheet ws, int row, int col, string? value, XLColor rowBg, bool highlight)

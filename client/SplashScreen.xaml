@@ -3,7 +3,8 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:ui="clr-namespace:Hotix.InvoiceClient"
         Title="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[SplashTitle]}"
-        Height="280" Width="440"
+        SizeToContent="WidthAndHeight"
+        MaxHeight="500" MaxWidth="600"
         WindowStyle="None" AllowsTransparency="True" Background="Transparent"
         WindowStartupLocation="CenterScreen" ShowInTaskbar="False" Topmost="True">
 

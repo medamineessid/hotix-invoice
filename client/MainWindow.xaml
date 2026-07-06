@@ -4,12 +4,14 @@
         xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
         xmlns:controls="clr-namespace:Hotix.InvoiceClient.Controls"
         xmlns:ui="clr-namespace:Hotix.InvoiceClient"
+        xmlns:sys="clr-namespace:System;assembly=mscorlib"
         Title="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[MainWindowTitle]}"
         Icon="pack://application:,,,/hotix_icon.ico"
         Width="1280"
         Height="820"
         MinWidth="960"
         MinHeight="640"
+        MaxHeight="{x:Static SystemParameters.MaximizedPrimaryScreenHeight}"
         Background="{StaticResource BrushBackground}"
         Foreground="{StaticResource BrushTextPrimary}"
         FontFamily="{StaticResource FontPrimary}"
@@ -18,6 +20,7 @@
         ResizeMode="CanResize"
         AllowsTransparency="False"
         AllowDrop="True"
+        UseLayoutRounding="True"
         Drop="Window_Drop"
         DragOver="Window_DragOver">
 
@@ -35,13 +38,7 @@
         <KeyBinding Key="E"      Modifiers="Ctrl" Command="{Binding ExportExcelCommand}" />
     </Window.InputBindings>
 
-    <!-- Window Fade-In on Load -->
-    <Window.RenderTransform>
-        <TransformGroup>
-            <ScaleTransform ScaleX="1" ScaleY="1" />
-            <TranslateTransform />
-        </TransformGroup>
-    </Window.RenderTransform>
+    <!-- Window Fade-In on Load (targets root Grid opacity via storyboard) -->
     <Window.Triggers>
         <EventTrigger RoutedEvent="Loaded">
             <BeginStoryboard Storyboard="{StaticResource StoryboardWindowFadeIn}" />
@@ -63,7 +60,6 @@
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />   <!-- Logo -->
                     <RowDefinition Height="*" />       <!-- Navigation -->
-                    <RowDefinition Height="Auto" />    <!-- Quote -->
                     <RowDefinition Height="Auto" />    <!-- Footer -->
                 </Grid.RowDefinitions>
 
@@ -156,18 +152,8 @@
                     </Border>
                 </StackPanel>
 
-                <!-- ── Inspirational Quote ── -->
-                <StackPanel Grid.Row="2" Margin="24,0,24,32">
-                    <Border Height="1" Background="{StaticResource BrushBorder}" Margin="0,0,0,16" />
-                    <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[SidebarQuote]}"
-                               Style="{StaticResource SidebarQuoteStyle}" />
-                    <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[SidebarQuoteAttr]}"
-                               Style="{StaticResource TextMetadata}"
-                               Margin="0,4,0,0" />
-                </StackPanel>
-
                 <!-- ── Footer ── -->
-                <StackPanel Grid.Row="3" Margin="24,0,24,20">
+                <StackPanel Grid.Row="2" Margin="24,0,24,20">
                     <!-- Server status indicator -->
                     <DockPanel Margin="0,0,0,12"
                                ToolTip="{Binding ServerStatusTooltip}">
@@ -194,13 +180,13 @@
                             <RadioButton x:Name="LangFrenchRadio"
                                          Content="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[LangFrench]}"
                                          GroupName="Language"
-                                         Style="{StaticResource CheckBoxStyle}"
+                                         Style="{StaticResource RadioButtonStyle}"
                                          Margin="0,0,12,0"
                                          Checked="LangFrench_Checked" />
                             <RadioButton x:Name="LangEnglishRadio"
                                          Content="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[LangEnglish]}"
                                          GroupName="Language"
-                                         Style="{StaticResource CheckBoxStyle}"
+                                         Style="{StaticResource RadioButtonStyle}"
                                          Checked="LangEnglish_Checked" />
                         </StackPanel>
                     </StackPanel>
@@ -259,21 +245,21 @@
                     <!-- ══ PAGE TITLE ══ -->
                     <StackPanel Grid.Row="0" Margin="0,0,0,32">
                         <TextBlock x:Name="PageTitle" Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[SidebarExtraction]}" Style="{StaticResource TextPageTitle}" />
-                        <!-- Geometric underline: small black square + horizontal line -->
-                        <Grid Margin="0,12,0,0">
+                        <!-- Refined geometric accent: thin accent bar + horizontal rule -->
+                        <Grid Margin="0,12,0,0" Height="2">
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="32" />
                                 <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
                             <Border Grid.Column="0"
-                                    Width="6" Height="6"
+                                    Height="2"
                                     Background="{StaticResource BrushAccent}"
                                     CornerRadius="1"
                                     VerticalAlignment="Center" />
                             <Border Grid.Column="1"
                                     Height="1"
                                     Background="{StaticResource BrushBorder}"
-                                    Margin="12,0,0,0"
+                                    Margin="0,0,0,0"
                                     VerticalAlignment="Center" />
                         </Grid>
                     </StackPanel>
@@ -281,25 +267,30 @@
                     <!-- ══ CONTROL CARD ══ -->
                     <Border Grid.Row="1" Style="{StaticResource CardStyle}" Margin="0,0,0,16">
                         <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="2*" />
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="1.5*" />
-                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
 
-                            <!-- Folder Picker -->
-                            <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,16,0">
-                                <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ControlSourceFolder]}" Style="{StaticResource CardLabelStyle}" />
-                                <DockPanel>
-                                    <TextBox Text="{Binding SelectedFolder}"
-                                             Style="{StaticResource TextBoxReadOnlyStyle}"
-                                             ToolTip="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ControlDropTooltip]}" />
+                            <!-- ── Row 0: Folder Section ── -->
+                            <Grid Grid.Row="0" Margin="0,0,0,20">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+
+                                <TextBlock Grid.Row="0"
+                                           Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ControlSourceFolder]}"
+                                           Style="{StaticResource CardLabelStyle}" />
+
+                                <DockPanel Grid.Row="1">
                                     <Button x:Name="AddButton"
                                             Content="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ControlAddBtn]}"
                                             Style="{StaticResource ButtonPrimaryStyle}"
-                                            Width="100"
+                                            MinWidth="80"
+                                            Padding="16,10"
                                             Margin="12,0,0,0"
+                                            DockPanel.Dock="Right"
                                             Click="AddButton_Click"
                                             ToolTip="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ControlAddTooltip]}">
                                         <Button.ContextMenu>
@@ -309,13 +300,28 @@
                                             </ContextMenu>
                                         </Button.ContextMenu>
                                     </Button>
+                                    <TextBox Text="{Binding SelectedFolder}"
+                                             Style="{StaticResource TextBoxReadOnlyStyle}"
+                                             ToolTip="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ControlDropTooltip]}" />
                                 </DockPanel>
-                            </StackPanel>
+                            </Grid>
 
-                            <!-- Engine Picker -->
-                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0">
-                                <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ControlEngineLabel]}" Style="{StaticResource CardLabelStyle}" />
-                                <StackPanel Orientation="Horizontal">
+                            <!-- ── Row 1: Controls Section ── -->
+                            <Grid Grid.Row="1">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+
+                                <!-- Engine picker -->
+                                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                                    <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ControlEngineLabel]}"
+                                               Style="{StaticResource CardLabelStyle}"
+                                               VerticalAlignment="Center"
+                                               Margin="0,0,12,0" />
                                     <ComboBox Style="{StaticResource ComboBoxStyle}"
                                               Width="180"
                                               SelectedValuePath="Tag"
@@ -334,6 +340,18 @@
                                             </ComboBoxItem.Style>
                                         </ComboBoxItem>
                                         <ComboBoxItem Content="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ControlEngineOcr]}" Tag="ocr" />
+                                        <ComboBoxItem Content="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ControlEngineGrok]}" Tag="grok">
+                                            <ComboBoxItem.Style>
+                                                <Style TargetType="ComboBoxItem">
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding GrokAvailable}" Value="False">
+                                                            <Setter Property="Foreground" Value="{StaticResource BrushTextMuted}" />
+                                                            <Setter Property="ToolTip" Value="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ControlEngineNoKey]}" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </ComboBoxItem.Style>
+                                        </ComboBoxItem>
                                     </ComboBox>
                                     <Button Content="⚙"
                                             Style="{StaticResource ButtonIconStyle}"
@@ -341,20 +359,38 @@
                                             Command="{Binding ToggleSettingsCommand}"
                                             ToolTip="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ControlSettingsTooltip]}" />
                                 </StackPanel>
-                            </StackPanel>
 
-                            <!-- Run / Cancel -->
-                            <StackPanel Grid.Column="2" HorizontalAlignment="Center" Margin="24,0">
-                                <Button Style="{StaticResource ButtonPrimaryStyle}"
-                                        Width="200"
+                                <!-- Progress indicator (inline, visible during extraction) -->
+                                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center"
+                                            Margin="24,0"
+                                            Visibility="{Binding IsProgressVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                    <controls:ProgressRing x:Name="ProgressRingControl"
+                                                           Width="36" Height="36"
+                                                           Percentage="{Binding ProgressPercentage}"
+                                                           StrokeThickness="3"
+                                                           TrackColor="{StaticResource BrushBorderLight}"
+                                                           ProgressColor="{StaticResource BrushAccent}" />
+                                    <StackPanel VerticalAlignment="Center" Margin="12,0,0,0">
+                                        <TextBlock Text="{Binding ProgressText}"
+                                                   Style="{StaticResource TextMetadata}" />
+                                        <TextBlock Text="{Binding ExtractionStatusText}"
+                                                   Style="{StaticResource TextCaption}"
+                                                   Foreground="{StaticResource BrushTextSecondary}"
+                                                   TextTrimming="CharacterEllipsis" />
+                                    </StackPanel>
+                                </StackPanel>
+
+                                <!-- Run / Cancel buttons -->
+                                <Button Grid.Column="3"
+                                        Style="{StaticResource ButtonPrimaryStyle}"
+                                        MinWidth="110"
                                         Command="{Binding StartExtractionCommand}"
                                         ToolTip="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ControlRunTooltip]}">
-                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                                        <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ControlRunBtn]}" VerticalAlignment="Center" />
-                                    </StackPanel>
+                                    <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ControlRunBtn]}" VerticalAlignment="Center" />
                                 </Button>
-                                <Button Width="200" Height="32"
-                                        Margin="0,8,0,0"
+                                <Button Grid.Column="4"
+                                        MinWidth="90"
+                                        Margin="8,0,0,0"
                                         Command="{Binding CancelExtractionCommand}"
                                         ToolTip="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ControlCancelTooltip]}">
                                     <Button.Style>
@@ -369,23 +405,7 @@
                                     </Button.Style>
                                     <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ControlCancelBtn]}" VerticalAlignment="Center" />
                                 </Button>
-                            </StackPanel>
-
-                            <!-- Progress → Circular Ring -->
-                            <StackPanel Grid.Column="3" VerticalAlignment="Center" Margin="24,0,0,0" Orientation="Horizontal"
-                                        Visibility="{Binding IsProgressVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                <controls:ProgressRing x:Name="ProgressRingControl"
-                                                       Width="36" Height="36"
-                                                       Percentage="{Binding ProgressPercentage}"
-                                                       StrokeThickness="3"
-                                                       TrackColor="{StaticResource BrushBorderLight}"
-                                                       ProgressColor="{StaticResource BrushAccent}"
-                                                       VerticalAlignment="Center" />
-                                <TextBlock Text="{Binding ProgressText}"
-                                           Style="{StaticResource TextMetadata}"
-                                           VerticalAlignment="Center"
-                                           Margin="12,0,0,0" />
-                            </StackPanel>
+                            </Grid>
                         </Grid>
                     </Border>
 
@@ -906,9 +926,20 @@
                                        Foreground="{StaticResource BrushAccent}"
                                        Cursor="Hand"
                                        TextDecorations="Underline"
-                                       VerticalAlignment="Center">
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,12,0">
                                 <TextBlock.InputBindings>
                                     <MouseBinding MouseAction="LeftClick" Command="{Binding OpenSavedFolderCommand}" />
+                                </TextBlock.InputBindings>
+                            </TextBlock>
+                            <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ExportOpenWorkbook]}"
+                                       Style="{StaticResource TextCaption}"
+                                       Foreground="{StaticResource BrushAccent}"
+                                       Cursor="Hand"
+                                       TextDecorations="Underline"
+                                       VerticalAlignment="Center">
+                                <TextBlock.InputBindings>
+                                    <MouseBinding MouseAction="LeftClick" Command="{Binding OpenSavedFileCommand}" />
                                 </TextBlock.InputBindings>
                             </TextBlock>
                         </StackPanel>

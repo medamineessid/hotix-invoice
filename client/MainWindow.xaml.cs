@@ -81,13 +81,19 @@ public partial class MainWindow : Window
             string settingsPath = Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
                 "Hotix", "settings.json");
-            var doc = System.Text.Json.JsonDocument.Parse(File.ReadAllText(settingsPath));
-            var root = new Dictionary<string, string>();
-            if (doc.RootElement.TryGetProperty("lastFolder", out var folder))
-                root["lastFolder"] = folder.GetString() ?? "";
-            root["language"] = culture;
+            var settings = new Dictionary<string, string> { ["language"] = culture };
+
+            // Preserve any existing engine preference when saving language
+            try
+            {
+                var existing = System.Text.Json.JsonDocument.Parse(File.ReadAllText(settingsPath));
+                if (existing.RootElement.TryGetProperty("engine", out var engine))
+                    settings["engine"] = engine.GetString() ?? "auto";
+            }
+            catch { /* file may not exist yet */ }
+
             Directory.CreateDirectory(Path.GetDirectoryName(settingsPath)!);
-            File.WriteAllText(settingsPath, System.Text.Json.JsonSerializer.Serialize(root));
+            File.WriteAllText(settingsPath, System.Text.Json.JsonSerializer.Serialize(settings));
         }
         catch { /* best-effort */ }
     }

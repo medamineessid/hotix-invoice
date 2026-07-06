@@ -43,10 +43,12 @@
 
     <!-- Row heights -->
     <GridLength x:Key="RowHeightNavItem">48</GridLength>
+    <sys:Double x:Key="NavItemHeightPx">48</sys:Double>
     <GridLength x:Key="RowHeightInput">44</GridLength>
     <GridLength x:Key="RowHeightStatusBar">44</GridLength>
 
     <!-- Sidebar width -->
     <GridLength x:Key="SidebarWidth">260</GridLength>
+    <sys:Double x:Key="SidebarWidthPx">260</sys:Double>
 
 </ResourceDictionary>

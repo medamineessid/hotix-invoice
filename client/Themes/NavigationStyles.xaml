@@ -18,13 +18,13 @@
     <!-- Sidebar container -->
     <Style x:Key="SidebarStyle" TargetType="Border">
         <Setter Property="Background" Value="{StaticResource BrushSidebar}" />
-        <Setter Property="Width"      Value="{StaticResource SidebarWidth}" />
+        <Setter Property="Width"      Value="{StaticResource SidebarWidthPx}" />
         <Setter Property="Effect"     Value="{StaticResource ShadowSidebar}" />
     </Style>
 
     <!-- Nav item container -->
     <Style x:Key="NavItemStyle" TargetType="Border">
-        <Setter Property="Height"          Value="{StaticResource RowHeightNavItem}" />
+        <Setter Property="Height"          Value="{StaticResource NavItemHeightPx}" />
         <Setter Property="CornerRadius"    Value="{StaticResource RadiusMedium}" />
         <Setter Property="Padding"         Value="{StaticResource PaddingNavItem}" />
         <Setter Property="Background"      Value="Transparent" />
