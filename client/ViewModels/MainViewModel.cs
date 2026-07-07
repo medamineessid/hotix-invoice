@@ -60,7 +60,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
 
     // Grok (xAI) REST API endpoint
     private const string GrokApiBase = "https://api.x.ai/v1/chat/completions";
-    private const string GrokModel = "grok-2";
+    private const string GrokModel = "grok-4.3";
 
     public MainViewModel()
     {
@@ -454,49 +454,10 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             catch { /* server not reachable */ }
         }
 
-        // Fallback: check Gemini directly
-        string? geminiKey = LoadGeminiApiKey();
-        if (!string.IsNullOrEmpty(geminiKey) && _internetAvailable)
-        {
-            try
-            {
-                using var testClient = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
-                var testBody = new { contents = new[] { new { parts = new[] { new { text = "ping" } } } } };
-                var testResponse = await testClient.PostAsJsonAsync(
-                    $"{GeminiApiBase}?key={geminiKey}", testBody);
-                GeminiAvailable = testResponse.IsSuccessStatusCode;
-            }
-            catch
-            {
-                GeminiAvailable = false;
-            }
-        }
-        else
-        {
-            GeminiAvailable = false;
-        }
-
-        // Fallback: check Grok directly
-        string? grokKey = LoadGrokApiKey();
-        if (!string.IsNullOrEmpty(grokKey) && _internetAvailable)
-        {
-            try
-            {
-                using var testClient = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
-                testClient.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", grokKey);
-                var testBody = new { model = GrokModel, messages = new[] { new { role = "user", content = "ping" } }, max_tokens = 1 };
-                var testResponse = await testClient.PostAsJsonAsync(GrokApiBase, testBody);
-                GrokAvailable = testResponse.IsSuccessStatusCode;
-            }
-            catch
-            {
-                GrokAvailable = false;
-            }
-        }
-        else
-        {
-            GrokAvailable = false;
-        }
+        // If server is not running, we cannot determine engine status
+        // Do NOT make live API calls to Gemini/Grok to avoid burning quota
+        GeminiAvailable = false;
+        GrokAvailable = false;
     }
 
     private static async Task<bool> CheckInternetAsync()
@@ -802,9 +763,11 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
 
         if (!response.IsSuccessStatusCode)
         {
+            // Log the exact response body for all non-2xx responses to avoid misclassifying real errors as quota
+            string errorDetail = responseBody.Length > 500 ? responseBody[..500] + "..." : responseBody;
             if ((int)response.StatusCode == 429)
-                throw new GeminiQuotaExceededException(TranslationSource.Fmt("GrokApiError", 429, ResponseBodySummary(responseBody)));
-            throw new GeminiApiException(TranslationSource.Fmt("GrokApiError", (int)response.StatusCode, responseBody));
+                throw new GeminiQuotaExceededException(TranslationSource.Fmt("GrokApiError", 429, errorDetail));
+            throw new GeminiApiException(TranslationSource.Fmt("GrokApiError", (int)response.StatusCode, errorDetail));
         }
 
         // Parse OpenAI-compatible response
