@@ -218,7 +218,6 @@ public partial class GeminiSetupWindow : Window
             // ── Auto-close after successful save ──
             // Allow a brief moment for the user to register the success, then close.
             await Task.Delay(400);
-            DialogResult = true;
             Close();
         }
         catch (Exception ex)

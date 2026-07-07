@@ -232,6 +232,8 @@
             <ScrollViewer Grid.Row="1" 
                           VerticalScrollBarVisibility="Auto"
                           HorizontalScrollBarVisibility="Disabled"
+                          PanningMode="VerticalOnly"
+                          PanningDeceleration="0.003"
                           BorderThickness="0">
                 <Grid Margin="32,48,32,32">
                     <Grid.RowDefinitions>
@@ -697,7 +699,7 @@
                                                 </DataGridTemplateColumn.CellTemplate>
                                             </DataGridTemplateColumn>
 
-                                            <DataGridTextColumn Header="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ColumnFile]}" Binding="{Binding FileDisplay}" MinWidth="120" />
+                                            <DataGridTextColumn Header="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ColumnFile]}" Binding="{Binding FileDisplay, Mode=OneWay}" MinWidth="120" />
                                         </DataGrid.Columns>
                                     </DataGrid>
 
@@ -814,7 +816,7 @@
                                                 </DataGridTemplateColumn.CellTemplate>
                                             </DataGridTemplateColumn>
 
-                                            <DataGridTextColumn Header="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ColumnFile]}" Binding="{Binding FileDisplay}" MinWidth="120" />
+                                            <DataGridTextColumn Header="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ColumnFile]}" Binding="{Binding FileDisplay, Mode=OneWay}" MinWidth="120" />
                                         </DataGrid.Columns>
                                     </DataGrid>
 

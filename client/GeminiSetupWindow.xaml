@@ -43,11 +43,16 @@
 
     <Border Background="{StaticResource BrushOverlay}">
         <Border Style="{StaticResource DialogStyle}"
-                Width="560"
+                MinWidth="420" MaxWidth="600"
                 VerticalAlignment="Center"
                 HorizontalAlignment="Center"
                 Margin="32">
-            <Grid>
+            <ScrollViewer VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Disabled"
+                          PanningMode="VerticalOnly"
+                          PanningDeceleration="0.003"
+                          BorderThickness="0">
+            <Grid MinHeight="200">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
@@ -55,10 +60,11 @@
                 </Grid.RowDefinitions>
 
                 <!-- Header -->
-                <StackPanel Grid.Row="0" Margin="0,0,0,20">
+                <StackPanel Grid.Row="0" Margin="28,28,28,20">
                     <TextBlock x:Name="HeaderTitle"
                                Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[GeminiHeader]}"
                                Style="{StaticResource TextSectionHeading}"
+                               TextWrapping="Wrap"
                                Margin="0,0,0,8" />
                     <TextBlock x:Name="HeaderDescription"
                                Style="{StaticResource TextBody}"
@@ -68,7 +74,7 @@
                 </StackPanel>
 
                 <!-- Body -->
-                <StackPanel Grid.Row="1">
+                <StackPanel Grid.Row="1" Margin="28,0,28,0">
                     <!-- Provider selector -->
                     <StackPanel Orientation="Horizontal" Margin="0,0,0,20">
                         <Border Padding="4,2"
@@ -96,7 +102,8 @@
                     <!-- Key label (changes based on provider) -->
                     <TextBlock x:Name="KeyLabel"
                                Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[GeminiSubheader]}"
-                               Style="{StaticResource CardLabelStyle}" />
+                               Style="{StaticResource CardLabelStyle}"
+                               TextWrapping="Wrap" />
                     <PasswordBox x:Name="GeminiKeyBox"
                                  Style="{StaticResource PasswordBoxStyle}" />
 
@@ -112,7 +119,7 @@
                               Width="16" Height="16"
                               Visibility="Collapsed"
                               Margin="0,0,8,0"
-                              VerticalAlignment="Center">
+                              VerticalAlignment="Top">
                             <Ellipse Width="16" Height="16"
                                      Stroke="{StaticResource BrushAccent}"
                                      StrokeThickness="2"
@@ -146,12 +153,13 @@
                                    Grid.Column="1"
                                    Style="{StaticResource TextCaption}"
                                    TextWrapping="Wrap"
-                                   VerticalAlignment="Center" />
+                                   VerticalAlignment="Center"
+                                   MaxHeight="120" />
                     </Grid>
                 </StackPanel>
 
                 <!-- Buttons (intentional order: low→high importance) -->
-                <Border Grid.Row="2" Margin="0,24,0,0">
+                <Border Grid.Row="2" Margin="28,20,28,28">
                     <Grid HorizontalAlignment="Right">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto" />
@@ -186,6 +194,7 @@
                     </Grid>
                 </Border>
             </Grid>
+            </ScrollViewer>
         </Border>
     </Border>
 </Window>

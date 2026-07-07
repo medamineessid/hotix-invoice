@@ -209,5 +209,6 @@
 
   "ExtractionPreparing": "Préparation de l'extraction...",
   "ExtractionProcessing": "Traitement : {0}",
-  "ExtractionNoFiles": "Aucun fichier sélectionné pour l'extraction."
+  "ExtractionNoFiles": "Aucun fichier sélectionné pour l'extraction.",
+  "ErrorTimeout": "Le traitement du fichier a expiré après {0}s. Vérifiez votre connexion et l'état de l'API."
 }
