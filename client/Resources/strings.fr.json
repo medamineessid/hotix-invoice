@@ -209,6 +209,7 @@
 
   "ExtractionPreparing": "Préparation de l'extraction...",
   "ExtractionProcessing": "Traitement : {0}",
+  "ExtractionProcessingElapsed": "Traitement : {0} — {1}m {2}s écoulées",
   "ExtractionNoFiles": "Aucun fichier sélectionné pour l'extraction.",
   "ErrorTimeout": "Le traitement du fichier a expiré après {0}s. Vérifiez votre connexion et l'état de l'API."
 }

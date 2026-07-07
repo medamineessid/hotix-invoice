@@ -34,6 +34,8 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     private string _grokKeyInput = string.Empty;
     private bool _isSettingsPanelOpen;
     private DispatcherTimer? _engineStatusTimer;
+    private DispatcherTimer? _processingTimer;
+    private readonly Stopwatch _processingStopwatch = new();
     private bool _isServerRunning = true;
     private bool _isServerStarted;
     private bool _isServerStarting;
@@ -1264,7 +1266,23 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                 OnPropertyChanged(nameof(ExtractionStatusText));
                 LogPipeline($"Processing file [{ProcessedFiles + 1}/{TotalFiles}]: {fileName}");
 
+                // Start elapsed-time indicator so the user sees progress during long calls
+                _processingStopwatch.Restart();
+                _processingTimer?.Stop();
+                _processingTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+                _processingTimer.Tick += (s, e) =>
+                {
+                    var elapsed = _processingStopwatch.Elapsed;
+                    _extractionStatusText = TranslationSource.Fmt("ExtractionProcessingElapsed",
+                        fileName, (int)elapsed.TotalMinutes, elapsed.Seconds);
+                    OnPropertyChanged(nameof(ExtractionStatusText));
+                };
+                _processingTimer.Start();
+
                 InvoiceRowViewModel row;
+
+                try
+                {
 
                 if (selectedEngine == "grok" && hasGrok)
                 {
@@ -1378,7 +1396,13 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                     row = await ExtractViaServerAsync(file);
                 }
 
-                LogPipeline($"Row created: success={!row.HasError}, engine={row.EngineUsed}");
+                    LogPipeline($"Row created: success={!row.HasError}, engine={row.EngineUsed}");
+                }
+                finally
+                {
+                    _processingTimer?.Stop();
+                    _processingTimer = null;
+                }
 
                 InvoiceRowViewModel captured = row;
                 await Application.Current.Dispatcher.InvokeAsync(() =>
@@ -1442,7 +1466,14 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         }
         catch (OperationCanceledException)
         {
-            throw;
+            // If this was a real user cancellation, propagate it up to the pipeline
+            if (_extractionCts?.Token.IsCancellationRequested == true)
+                throw;
+
+            // Otherwise it was an HTTP timeout (TaskCanceledException inherits from
+            // OperationCanceledException when the HttpClient's Timeout fires).
+            return InvoiceRowViewModel.FromError(file,
+                TranslationSource.Fmt("ErrorTimeout", (int)_apiHttpClient.Timeout.TotalSeconds));
         }
         catch (InvoiceExtractionException ex)
         {

@@ -209,6 +209,7 @@
 
   "ExtractionPreparing": "Preparing extraction...",
   "ExtractionProcessing": "Processing: {0}",
+  "ExtractionProcessingElapsed": "Processing: {0} — {1}m {2}s elapsed",
   "ExtractionNoFiles": "No files selected for extraction.",
   "ErrorTimeout": "File processing timed out after {0}s. Check your connection and API status."
 }

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 import tempfile
@@ -60,6 +61,15 @@ SUPPORTED_SUFFIXES = {".pdf", ".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff"}
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     app.state.ocr_engine = PaddleOcrEngine()
+
+    # Pre-warm PaddleOCR so model loading doesn't block the first real request
+    logger.info("Pre-warming PaddleOCR model...")
+    try:
+        await asyncio.to_thread(lambda: app.state.ocr_engine.ocr)
+        logger.info("PaddleOCR model warmed up successfully")
+    except Exception as exc:
+        logger.warning("Failed to pre-warm PaddleOCR model: %s", exc)
+
     logger.info("HOTIX extraction service started")
     yield
     logger.info("HOTIX extraction service stopped")
@@ -213,7 +223,7 @@ async def extract(
                 return res
 
         # --- OCR Path ---
-        return _run_ocr_extraction(pages, filename, ocr_engine)
+        return await asyncio.to_thread(_run_ocr_extraction, pages, filename, ocr_engine)
 
     except (IngestionError, OcrEngineError) as exc:
         logger.exception("Extraction failed for %s", filename)
