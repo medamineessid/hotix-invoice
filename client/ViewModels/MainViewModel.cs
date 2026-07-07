@@ -1620,8 +1620,17 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
 
             if (!saveDialog.ShowDialog().GetValueOrDefault()) return;
 
-            new ExcelWriter().Write(saveDialog.FileName, rowsToExport);
-            SaveConfirmationPath = saveDialog.FileName;
+            try
+            {
+                new ExcelWriter().Write(saveDialog.FileName, rowsToExport);
+                SaveConfirmationPath = saveDialog.FileName;
+            }
+            catch (IOException ex)
+            {
+                var msg = TranslationSource.Fmt("ExportErrorFileOpen", ex.Message);
+                MessageBox.Show(msg, TranslationSource.Get("ExportTitle"), MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
         }
         else
         {
@@ -1638,7 +1647,17 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             string existingPath = openDialog.FileName;
 
             // Check if the file has multiple worksheets
-            var sheetNames = ExcelWriter.GetWorksheetNames(existingPath);
+            List<string> sheetNames;
+            try
+            {
+                sheetNames = ExcelWriter.GetWorksheetNames(existingPath);
+            }
+            catch (IOException ex)
+            {
+                var msg = TranslationSource.Fmt("ExportErrorFileOpen", ex.Message);
+                MessageBox.Show(msg, TranslationSource.Get("ExportTitle"), MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
 
             string? targetSheet = null;
 
@@ -1666,8 +1685,17 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
 
             _lastExportSheetName = targetSheet;
 
-            new ExcelWriter().AppendToExisting(existingPath, rowsToExport, targetSheet);
-            SaveConfirmationPath = existingPath;
+            try
+            {
+                new ExcelWriter().AppendToExisting(existingPath, rowsToExport, targetSheet);
+                SaveConfirmationPath = existingPath;
+            }
+            catch (IOException ex)
+            {
+                var msg = TranslationSource.Fmt("ExportErrorFileOpen", ex.Message);
+                MessageBox.Show(msg, TranslationSource.Get("ExportTitle"), MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
         }
     }
 

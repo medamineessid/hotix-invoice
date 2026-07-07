@@ -206,6 +206,7 @@
   "ExportSheetPickerTitle": "Select Worksheet",
   "ExportSheetPickerLabel": "Choose a worksheet to append to:",
   "ExportOpenWorkbook": "Open workbook",
+  "ExportErrorFileOpen": "Cannot write to the file. It may be open in another application (e.g. Excel).\n\n{0}",
 
   "ExtractionPreparing": "Preparing extraction...",
   "ExtractionProcessing": "Processing: {0}",

@@ -206,6 +206,7 @@
   "ExportSheetPickerTitle": "Choisir une feuille",
   "ExportSheetPickerLabel": "Choisissez une feuille de calcul :",
   "ExportOpenWorkbook": "Ouvrir le classeur",
+  "ExportErrorFileOpen": "Impossible d'écrire dans le fichier. Il est peut-être ouvert dans une autre application (ex: Excel).\n\n{0}",
 
   "ExtractionPreparing": "Préparation de l'extraction...",
   "ExtractionProcessing": "Traitement : {0}",
