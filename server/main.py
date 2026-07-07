@@ -52,9 +52,10 @@ if sentry_dsn:
         traces_sample_rate=0.1,
         environment=os.getenv("HOTIX_ENV", "production"),
     )
-    logger.info("Sentry initialized with DSN: %s", sentry_dsn[:20] + "...")
+    logger.info("Sentry error tracking initialized")
 
 SUPPORTED_SUFFIXES = {".pdf", ".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff"}
+MAX_UPLOAD_BYTES = 50 * 1024 * 1024  # 50 MB
 
 
 @asynccontextmanager
@@ -65,11 +66,15 @@ async def lifespan(_: FastAPI):
     logger.info("HOTIX extraction service stopped")
 
 
+_is_production = os.getenv("HOTIX_ENV", "production") == "production"
+
 app = FastAPI(
     title="HOTIX Invoice Extraction API",
     version="1.0.0",
     description="Extract invoice fields from scanned PDFs and images using OCR",
     lifespan=lifespan,
+    docs_url=None if _is_production else "/docs",
+    redoc_url=None if _is_production else "/redoc",
 )
 
 app.add_middleware(
@@ -77,7 +82,7 @@ app.add_middleware(
     allow_origins=["http://127.0.0.1:8000", "http://localhost:8000"],
     allow_credentials=True,
     allow_methods=["GET", "POST"],
-    allow_headers=["*"],
+    allow_headers=["Content-Type", "Accept"],
 )
 
 
@@ -191,7 +196,7 @@ async def extract(
 ) -> InvoiceExtractionResponse:
     """Extract invoice fields from an uploaded PDF or image file."""
 
-    filename = file.filename or ""
+    filename = Path(file.filename or "").name  # strip directory components
     raw_suffix = Path(filename).suffix.lower()
     if raw_suffix not in SUPPORTED_SUFFIXES:
         raise HTTPException(status_code=400, detail=f"Unsupported file type: {raw_suffix}")
@@ -200,6 +205,11 @@ async def extract(
 
     try:
         file_bytes = await file.read()
+        if len(file_bytes) > MAX_UPLOAD_BYTES:
+            raise HTTPException(
+                status_code=413,
+                detail=f"File too large ({len(file_bytes)} bytes). Maximum allowed: {MAX_UPLOAD_BYTES} bytes",
+            )
         poppler_path = os.getenv("POPPLER_PATH")
         pages = load_invoice_images(file_bytes, filename, poppler_path=poppler_path)
         

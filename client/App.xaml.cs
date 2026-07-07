@@ -18,10 +18,14 @@ public partial class App : Application
 
     public App()
     {
-        SentrySdk.Init(o =>
+        string? sentryDsn = Environment.GetEnvironmentVariable("SENTRY_DSN");
+        if (!string.IsNullOrEmpty(sentryDsn))
         {
-            o.Dsn = "https://154c8274aa22e3a02b159304b92a5df6@o4511656088567808.ingest.de.sentry.io/4511656096497744";
-        });
+            SentrySdk.Init(o =>
+            {
+                o.Dsn = sentryDsn;
+            });
+        }
     }
 
     protected override async void OnStartup(StartupEventArgs e)
@@ -54,7 +58,11 @@ public partial class App : Application
             // Log crash with basic System.IO only (no TranslationSource dependency)
             try
             {
-                File.WriteAllText(@"C:\hotix-invoice\crash.log",
+                string crashDir = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                    "Hotix");
+                Directory.CreateDirectory(crashDir);
+                File.WriteAllText(Path.Combine(crashDir, "crash.log"),
                     $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {ex.GetType().FullName}: {ex.Message}\n{ex.StackTrace}");
             }
             catch { }

@@ -15,6 +15,9 @@ build/
 .env
 .env.*
 
+# Settings (may contain API keys)
+server/appsettings.json
+
 # .NET / C#
 client/bin/
 client/obj/
