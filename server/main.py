@@ -17,10 +17,6 @@ import sentry_sdk
 from sentry_sdk.integrations.fastapi import FastApiIntegration
 from sentry_sdk.integrations.logging import LoggingIntegration
 
-from google import genai
-from google.genai import errors as genai_errors
-from google.genai import types as genai_types
-
 from .models import InvoiceExtractionResponse
 from .ingestion import IngestionError, load_invoice_images
 from .ocr_engine import PaddleOcrEngine, OcrEngineError
@@ -98,27 +94,17 @@ async def health() -> dict[str, str]:
 
 @app.get("/engine-status")
 async def engine_status() -> dict[str, bool]:
-    """Check availability of extraction engines."""
+    """Check availability of extraction engines.
+
+    NOTE: gemini_available is inferred from key presence rather than a live API
+    call, because the client polls this endpoint every 45 seconds and a real
+    generate_content call would burn quota on every poll.
+    """
     key = load_gemini_api_key()
     gemini_key_configured = bool(key)
-    
-    gemini_available = False
-    if gemini_key_configured:
-        try:
-            client = genai.Client(api_key=key)
-            client.models.generate_content(
-                model="gemini-3.5-flash",
-                contents="ping",
-                config=genai_types.GenerateContentConfig(),
-            )
-            gemini_available = True
-        except genai_errors.APIError:
-            gemini_available = False
-        except Exception:
-            gemini_available = False
 
     return {
-        "gemini_available": gemini_available,
+        "gemini_available": gemini_key_configured,
         "gemini_key_configured": gemini_key_configured,
         "ocr_available": hasattr(app.state, "ocr_engine") and app.state.ocr_engine is not None,
     }

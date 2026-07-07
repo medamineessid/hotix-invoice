@@ -45,11 +45,11 @@ Réponds uniquement avec le JSON."""
 
     try:
         response = client.models.generate_content(
-            model="gemini-3.5-flash",
-            contents=[
-                prompt,
-                types.Part.from_bytes(data=image_data, mime_type=mime_type),
-            ],
+        model="gemini-2.5-flash",
+        contents=[
+            prompt,
+            types.Part.from_bytes(data=image_data, mime_type=mime_type),
+        ],
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
             ),
