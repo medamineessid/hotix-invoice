@@ -57,7 +57,10 @@ public partial class App : Application
                 File.WriteAllText(@"C:\hotix-invoice\crash.log",
                     $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {ex.GetType().FullName}: {ex.Message}\n{ex.StackTrace}");
             }
-            catch { }
+            catch (Exception logEx)
+            {
+                Debug.WriteLine($"[Hotix] Failed to write crash log: {logEx.GetType().Name}: {logEx.Message}");
+            }
             throw; // re-throw to be caught by HandleGlobalException
         }
     }
@@ -153,7 +156,10 @@ public partial class App : Application
                     return true;
                 }
             }
-            catch { /* server not ready yet, will wait below */ }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[Hotix] Server health check failed (will retry): {ex.GetType().Name}: {ex.Message}");
+            }
         }
 
         if (string.IsNullOrEmpty(_pythonPath) || string.IsNullOrEmpty(_workingDir))
@@ -199,17 +205,22 @@ public partial class App : Application
                         return true;
                     }
                 }
-                catch { /* still polling */ }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"[Hotix] Server health poll attempt failed: {ex.GetType().Name}: {ex.Message}");
+                }
 
                 await Task.Delay(500);
             }
 
             // Timeout — clean up
+            Debug.WriteLine("[Hotix] Server startup timed out after 30 seconds");
             CleanupServer();
             return false;
         }
-        catch
+        catch (Exception ex)
         {
+            Debug.WriteLine($"[Hotix] Server startup failed: {ex.GetType().Name}: {ex.Message}");
             CleanupServer();
             return false;
         }
@@ -225,7 +236,10 @@ public partial class App : Application
             ServerProcess.Kill();
             ServerProcess.WaitForExit(3000);
         }
-        catch { /* ignored */ }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[Hotix] Server cleanup failed: {ex.GetType().Name}: {ex.Message}");
+        }
     }
 
     private void HandleGlobalException(Exception ex)
@@ -247,6 +261,10 @@ public partial class App : Application
                 return string.IsNullOrWhiteSpace(el.GetString());
             return true;
         }
-        catch { return true; }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[Hotix] IsFirstRun check failed, assuming first run: {ex.GetType().Name}: {ex.Message}");
+            return true;
+        }
     }
 }

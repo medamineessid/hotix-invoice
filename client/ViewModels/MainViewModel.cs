@@ -451,7 +451,18 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                     return;
                 }
             }
-            catch { /* server not reachable */ }
+            catch (HttpRequestException ex)
+            {
+                Debug.WriteLine($"[Hotix] Engine status check failed (server not reachable): {ex.Message}");
+            }
+            catch (TaskCanceledException ex)
+            {
+                Debug.WriteLine($"[Hotix] Engine status check timed out: {ex.Message}");
+            }
+            catch (JsonException ex)
+            {
+                Debug.WriteLine($"[Hotix] Engine status response parse error: {ex.Message}");
+            }
         }
 
         // If server is not running, we cannot determine engine status
@@ -507,7 +518,10 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                 }
             }
         }
-        catch { /* best-effort */ }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[Hotix] Failed to load Gemini API key from appsettings.json: {ex.GetType().Name}: {ex.Message}");
+        }
 
         return null;
     }
@@ -539,7 +553,10 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                 }
             }
         }
-        catch { /* best-effort */ }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[Hotix] Failed to load Grok API key from appsettings.json: {ex.GetType().Name}: {ex.Message}");
+        }
 
         return null;
     }
@@ -1057,9 +1074,9 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                     SelectedEngine = engineEl.GetString() ?? "auto";
             }
         }
-        catch
+        catch (Exception ex)
         {
-            // Intentionally ignored: loading settings is best-effort.
+            Debug.WriteLine($"[Hotix] Failed to load provider keys from appsettings.json: {ex.GetType().Name}: {ex.Message}");
         }
     }
 
@@ -1317,9 +1334,9 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                                 LogPipeline("Grok fallback succeeded");
                                 row = InvoiceRowViewModel.FromSuccess(file, result);
                             }
-                            catch
+                            catch (Exception grokEx)
                             {
-                                LogPipeline("Grok fallback also failed — trying OCR server");
+                                LogPipeline($"Grok fallback also failed ({grokEx.GetType().Name}: {grokEx.Message}) — trying OCR server");
                                 await EnsureServerReadyAsync();
                                 row = await ExtractViaServerAsync(file);
                             }
@@ -1401,6 +1418,10 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         catch (Exception ex)
         {
             LogPipeline($"UNHANDLED EXCEPTION in extraction pipeline: {ex.GetType().Name}: {ex.Message}");
+            Debug.WriteLine($"[Hotix] Extraction pipeline error stack trace: {ex.StackTrace}");
+            SummaryBannerText = TranslationSource.Fmt("ErrorUnexpected", ex.Message);
+            SummaryBannerColor = "#C0392B";
+            ShowSummaryBanner = true;
         }
         finally
         {
@@ -1817,7 +1838,10 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                     _selectedEngine = engine;
             }
         }
-        catch { /* settings are best-effort */ }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[Hotix] Failed to load user settings: {ex.GetType().Name}: {ex.Message}");
+        }
     }
 
     private void SaveSettings()
@@ -1831,9 +1855,9 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                 engine = SelectedEngine,
             }));
         }
-        catch
+        catch (Exception ex)
         {
-            // Intentionally ignored: saving settings is best-effort.
+            Debug.WriteLine($"[Hotix] Failed to save user settings: {ex.GetType().Name}: {ex.Message}");
         }
     }
 

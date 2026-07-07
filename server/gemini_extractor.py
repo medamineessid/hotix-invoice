@@ -2,7 +2,7 @@ import os
 import json
 import logging
 from pathlib import Path
-from typing import Optional, Dict, Any
+from typing import Optional, Dict
 from google import genai
 from google.genai import errors as genai_errors
 from google.genai import types
@@ -25,8 +25,8 @@ def load_gemini_api_key() -> Optional[str]:
             with open(settings_path, 'r', encoding='utf-8') as f:
                 data = json.load(f)
                 return data.get("gemini_api_key")
-        except Exception as e:
-            logger.warning(f"Failed to read appsettings.json for Gemini key: {e}")
+        except (json.JSONDecodeError, OSError) as exc:
+            logger.warning("Failed to read appsettings.json for Gemini key: %s", exc)
     return None
 
 def extract_with_gemini(image_data: bytes, mime_type: str) -> Dict[str, Optional[str]]:
@@ -79,11 +79,15 @@ Réponds uniquement avec le JSON."""
 
     except genai_errors.APIError as exc:
         if getattr(exc, "code", None) == 429:
-            raise GeminiExtractionError("Quota d'API Gemini dépassé (429)")
-        raise GeminiExtractionError(f"Erreur API Gemini: {exc}")
-    except json.JSONDecodeError:
-        raise GeminiExtractionError("Échec de l'analyse du JSON renvoyé par Gemini")
-    except Exception as e:
-        if "timeout" in str(e).lower():
-            raise GeminiExtractionError("Délai d'attente dépassé pour Gemini")
-        raise GeminiExtractionError(f"Erreur inattendue lors de l'extraction Gemini: {e}")
+            raise GeminiExtractionError("Quota d'API Gemini dépassé (429)") from exc
+        raise GeminiExtractionError(f"Erreur API Gemini: {exc}") from exc
+    except json.JSONDecodeError as exc:
+        logger.warning("Gemini returned unparseable JSON: %s", exc)
+        raise GeminiExtractionError("Échec de l'analyse du JSON renvoyé par Gemini") from exc
+    except GeminiExtractionError:
+        raise
+    except Exception as exc:
+        logger.warning("Unexpected error during Gemini extraction: %s", exc)
+        if "timeout" in str(exc).lower():
+            raise GeminiExtractionError("Délai d'attente dépassé pour Gemini") from exc
+        raise GeminiExtractionError(f"Erreur inattendue lors de l'extraction Gemini: {exc}") from exc

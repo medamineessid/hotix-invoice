@@ -4,13 +4,11 @@ from __future__ import annotations
 
 import logging
 import os
-import tempfile
 from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
 
 import sentry_sdk
 from sentry_sdk.integrations.fastapi import FastApiIntegration
@@ -102,9 +100,11 @@ async def engine_status() -> dict[str, bool]:
                 config=genai_types.GenerateContentConfig(),
             )
             gemini_available = True
-        except genai_errors.APIError:
+        except genai_errors.APIError as exc:
+            logger.warning("Gemini API check failed: %s", exc)
             gemini_available = False
-        except Exception:
+        except Exception as exc:
+            logger.warning("Gemini availability check failed unexpectedly: %s", exc)
             gemini_available = False
 
     return {

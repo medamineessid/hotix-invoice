@@ -93,8 +93,8 @@ class PaddleOcrEngine:
 
         try:
             box = BoundingBox.from_points(box_points)
-        except Exception as exc:
-            logger.debug("Skipping malformed bounding box on page %s: %s", page_index, exc)
+        except (ValueError, TypeError, IndexError) as exc:
+            logger.warning("Skipping malformed bounding box on page %d: %s", page_index + 1, exc)
             return None
 
         return OCRLine(
