@@ -153,10 +153,11 @@ def extract_amount(text: str) -> Optional[str]:
 
     try:
         amount = Decimal(value)
+        result = amount.quantize(Decimal('0.001'))
     except InvalidOperation:
         return None
 
-    return f"{amount.quantize(Decimal('0.001')):.3f}"
+    return f"{result:.3f}"
 
 
 def clean_amount(text: str) -> Optional[str]:
