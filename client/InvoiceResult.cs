@@ -1,9 +1,38 @@
+using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace Hotix.InvoiceClient;
 
 public sealed class InvoiceResult
 {
+    /// <summary>
+    /// Builds an <see cref="InvoiceResult"/> from a JSON field dictionary as
+    /// returned by the cloud extraction engines (Gemini / Grok).
+    /// </summary>
+    public static InvoiceResult FromFieldDictionary(
+        Dictionary<string, JsonElement> fields, double confidence, string rawText, string engineUsed)
+    {
+        static string? Get(Dictionary<string, JsonElement> dict, string key) =>
+            dict.TryGetValue(key, out var el) && el.ValueKind != JsonValueKind.Null
+                ? el.GetString()
+                : null;
+
+        return new InvoiceResult
+        {
+            NumeroFacture = Get(fields, "numero_facture"),
+            Date          = Get(fields, "date"),
+            Fournisseur   = Get(fields, "fournisseur"),
+            Client        = Get(fields, "client"),
+            MontantHt     = Get(fields, "montant_ht"),
+            MontantTva    = Get(fields, "montant_tva"),
+            MontantTaxe   = Get(fields, "montant_taxe"),
+            MontantTtc    = Get(fields, "montant_ttc"),
+            Confidence    = confidence,
+            RawText       = rawText,
+            EngineUsed    = engineUsed,
+        };
+    }
+
     [JsonPropertyName("numero_facture")]
     public string? NumeroFacture { get; set; }
 

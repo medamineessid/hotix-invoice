@@ -75,6 +75,17 @@ class OCRLine:
     line_index: int = 0
 
 
+INVOICE_FIELD_NAMES: tuple[str, ...] = (
+    "numero_facture",
+    "date",
+    "fournisseur",
+    "client",
+    "montant_ht",
+    "montant_tva",
+    "montant_taxe",
+    "montant_ttc",
+)
+
 STRIP_CHARS = " :-\t\r\n"
 AMOUNT_CLEANER = re.compile(r"[^\d,\.\-]")
 MULTISPACE = re.compile(r"\s+")

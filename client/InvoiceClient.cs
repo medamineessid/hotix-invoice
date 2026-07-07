@@ -24,7 +24,7 @@ public sealed class InvoiceClient
 
         await using FileStream fileStream = File.OpenRead(filePath);
         using var fileContent = new StreamContent(fileStream);
-        fileContent.Headers.ContentType = new MediaTypeHeaderValue(GetContentType(filePath));
+        fileContent.Headers.ContentType = new MediaTypeHeaderValue(ExtractionUtils.GetMimeType(filePath));
 
         using var form = new MultipartFormDataContent();
         form.Add(fileContent, "file", Path.GetFileName(filePath));
@@ -41,19 +41,6 @@ public sealed class InvoiceClient
 
         return result;
     }
-
-    private static string GetContentType(string filePath) =>
-        Path.GetExtension(filePath).ToLowerInvariant() switch
-        {
-            ".pdf"  => "application/pdf",
-            ".jpg"  => "image/jpeg",
-            ".jpeg" => "image/jpeg",
-            ".png"  => "image/png",
-            ".bmp"  => "image/bmp",
-            ".tif"  => "image/tiff",
-            ".tiff" => "image/tiff",
-            _       => "application/octet-stream",
-        };
 }
 
 public sealed class InvoiceExtractionException(HttpStatusCode statusCode, string responseBody)

@@ -7,6 +7,8 @@ from google import genai
 from google.genai import errors as genai_errors
 from google.genai import types
 
+from .utils import INVOICE_FIELD_NAMES
+
 logger = logging.getLogger(__name__)
 
 class GeminiExtractionError(Exception):
@@ -69,13 +71,12 @@ Réponds uniquement avec le JSON."""
         data = json.loads(content)
         
         # Verify required keys
-        required_keys = ["numero_facture", "date", "fournisseur", "client", "montant_ht", "montant_tva", "montant_taxe", "montant_ttc"]
-        for key in required_keys:
+        for key in INVOICE_FIELD_NAMES:
             if key not in data:
                  raise GeminiExtractionError(f"Clé manquante dans la réponse JSON: {key}")
 
         # Return the fields, non-string values to None
-        return {k: (str(v) if v is not None else None) for k, v in data.items() if k in required_keys}
+        return {k: (str(v) if v is not None else None) for k, v in data.items() if k in INVOICE_FIELD_NAMES}
 
     except genai_errors.APIError as exc:
         if getattr(exc, "code", None) == 429:

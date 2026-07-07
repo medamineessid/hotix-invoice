@@ -520,13 +520,15 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     // ── Gemini Direct API (client-side) ───────────────────────────────────
 
     /// <summary>
-    /// Loads the Gemini API key from memory or appsettings.json.
+    /// Loads a provider API key from the in-memory cache, falling back to the
+    /// given property in appsettings.json. Caches the resolved value back into
+    /// <paramref name="cachedInput"/>.
     /// </summary>
-    private string? LoadGeminiApiKey()
+    private string? LoadProviderApiKey(string jsonKey, ref string cachedInput)
     {
         // 1. Try in-memory input first (set during this session)
-        if (!string.IsNullOrEmpty(_geminiKeyInput))
-            return _geminiKeyInput;
+        if (!string.IsNullOrEmpty(cachedInput))
+            return cachedInput;
 
         // 2. Fallback to appsettings.json
         try
@@ -535,12 +537,12 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             if (File.Exists(path))
             {
                 var doc = JsonDocument.Parse(File.ReadAllText(path));
-                if (doc.RootElement.TryGetProperty("gemini_api_key", out var el))
+                if (doc.RootElement.TryGetProperty(jsonKey, out var el))
                 {
                     string? key = el.GetString();
                     if (!string.IsNullOrEmpty(key))
                     {
-                        _geminiKeyInput = key;
+                        cachedInput = key;
                         return key;
                     }
                 }
@@ -551,37 +553,11 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         return null;
     }
 
-    /// <summary>
-    /// Loads the Grok API key from memory or appsettings.json.
-    /// </summary>
-    private string? LoadGrokApiKey()
-    {
-        // 1. Try in-memory input first (set during this session)
-        if (!string.IsNullOrEmpty(_grokKeyInput))
-            return _grokKeyInput;
+    /// <summary>Loads the Gemini API key from memory or appsettings.json.</summary>
+    private string? LoadGeminiApiKey() => LoadProviderApiKey("gemini_api_key", ref _geminiKeyInput);
 
-        // 2. Fallback to appsettings.json
-        try
-        {
-            string path = ResolveAppSettingsPath();
-            if (File.Exists(path))
-            {
-                var doc = JsonDocument.Parse(File.ReadAllText(path));
-                if (doc.RootElement.TryGetProperty("grok_api_key", out var el))
-                {
-                    string? key = el.GetString();
-                    if (!string.IsNullOrEmpty(key))
-                    {
-                        _grokKeyInput = key;
-                        return key;
-                    }
-                }
-            }
-        }
-        catch { /* best-effort */ }
-
-        return null;
-    }
+    /// <summary>Loads the Grok API key from memory or appsettings.json.</summary>
+    private string? LoadGrokApiKey() => LoadProviderApiKey("grok_api_key", ref _grokKeyInput);
 
     /// <summary>
     /// Tests whether a Gemini API key is valid by making a minimal API call.
@@ -690,7 +666,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     {
         byte[] fileBytes = await File.ReadAllBytesAsync(filePath);
         string base64Data = Convert.ToBase64String(fileBytes);
-        string mimeType = GetMimeType(filePath);
+        string mimeType = ExtractionUtils.GetMimeType(filePath);
 
         var requestBody = new
         {
@@ -733,37 +709,12 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         if (string.IsNullOrEmpty(text))
             throw new GeminiApiException(TranslationSource.Get("GeminiEmptyResponse"));
 
-        // Strip markdown fences if present
-        text = text.Trim();
-        if (text.StartsWith("```json")) text = text[7..];
-        if (text.EndsWith("```")) text = text[..^3];
-        text = text.Trim();
-
-        var fields = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(text);
+        var fields = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(ExtractionUtils.StripJsonFences(text));
         if (fields == null)
             throw new GeminiApiException(TranslationSource.Get("GeminiParseError"));
 
-        static string? GetStringField(Dictionary<string, JsonElement> dict, string key)
-        {
-            return dict.TryGetValue(key, out var el) && el.ValueKind != JsonValueKind.Null
-                ? el.GetString()
-                : null;
-        }
-
-        return new InvoiceResult
-        {
-            NumeroFacture = GetStringField(fields, "numero_facture"),
-            Date = GetStringField(fields, "date"),
-            Fournisseur = GetStringField(fields, "fournisseur"),
-            Client = GetStringField(fields, "client"),
-            MontantHt = GetStringField(fields, "montant_ht"),
-            MontantTva = GetStringField(fields, "montant_tva"),
-            MontantTaxe = GetStringField(fields, "montant_taxe"),
-            MontantTtc = GetStringField(fields, "montant_ttc"),
-            Confidence = 0.95,
-            RawText = TranslationSource.Get("GeminiDirectExtraction"),
-            EngineUsed = "gemini",
-        };
+        return InvoiceResult.FromFieldDictionary(
+            fields, 0.95, TranslationSource.Get("GeminiDirectExtraction"), "gemini");
     }
 
     /// <summary>
@@ -773,7 +724,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     {
         byte[] fileBytes = await File.ReadAllBytesAsync(filePath);
         string base64Data = Convert.ToBase64String(fileBytes);
-        string mimeType = GetMimeType(filePath);
+        string mimeType = ExtractionUtils.GetMimeType(filePath);
         string dataUri = $"data:{mimeType};base64,{base64Data}";
 
         var requestBody = new
@@ -818,37 +769,12 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         if (string.IsNullOrEmpty(text))
             throw new GeminiApiException(TranslationSource.Get("GrokEmptyResponse"));
 
-        // Strip markdown fences if present
-        text = text.Trim();
-        if (text.StartsWith("```json")) text = text[7..];
-        if (text.EndsWith("```")) text = text[..^3];
-        text = text.Trim();
-
-        var fields = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(text);
+        var fields = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(ExtractionUtils.StripJsonFences(text));
         if (fields == null)
             throw new GeminiApiException(TranslationSource.Get("GrokParseError"));
 
-        static string? GetStringField(Dictionary<string, JsonElement> dict, string key)
-        {
-            return dict.TryGetValue(key, out var el) && el.ValueKind != JsonValueKind.Null
-                ? el.GetString()
-                : null;
-        }
-
-        return new InvoiceResult
-        {
-            NumeroFacture = GetStringField(fields, "numero_facture"),
-            Date = GetStringField(fields, "date"),
-            Fournisseur = GetStringField(fields, "fournisseur"),
-            Client = GetStringField(fields, "client"),
-            MontantHt = GetStringField(fields, "montant_ht"),
-            MontantTva = GetStringField(fields, "montant_tva"),
-            MontantTaxe = GetStringField(fields, "montant_taxe"),
-            MontantTtc = GetStringField(fields, "montant_ttc"),
-            Confidence = 0.95,
-            RawText = TranslationSource.Get("GrokDirectExtraction"),
-            EngineUsed = "grok",
-        };
+        return InvoiceResult.FromFieldDictionary(
+            fields, 0.95, TranslationSource.Get("GrokDirectExtraction"), "grok");
     }
 
     /// <summary>
@@ -875,19 +801,6 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         // Truncate raw body to a reasonable length
         return body.Length > 200 ? body[..200] + "…" : body;
     }
-
-    private static string GetMimeType(string filePath) =>
-        Path.GetExtension(filePath).ToLowerInvariant() switch
-        {
-            ".pdf"  => "application/pdf",
-            ".jpg"  => "image/jpeg",
-            ".jpeg" => "image/jpeg",
-            ".png"  => "image/png",
-            ".bmp"  => "image/bmp",
-            ".tif"  => "image/tiff",
-            ".tiff" => "image/tiff",
-            _       => "application/octet-stream",
-        };
 
     // ── Lazy Server Startup ──────────────────────────────────────────────
 
@@ -1003,70 +916,46 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
 
     // ── Key Management ────────────────────────────────────────────────────
 
+    /// <summary>
+    /// Persists both provider keys and the selected engine to appsettings.json.
+    /// Shows a localized error dialog (keyed by <paramref name="errorKey"/>) on failure.
+    /// </summary>
+    private async Task WriteProviderKeysAsync(string geminiKey, string grokKey, string errorKey)
+    {
+        try
+        {
+            string appSettingsPath = ResolveAppSettingsPath();
+            var settings = new { gemini_api_key = geminiKey, grok_api_key = grokKey, default_engine = SelectedEngine };
+            await File.WriteAllTextAsync(appSettingsPath, JsonSerializer.Serialize(settings, new JsonSerializerOptions { WriteIndented = true }));
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(TranslationSource.Fmt(errorKey, $"{ex.GetType().Name}: {ex.Message}"), TranslationSource.Get("ErrorFatalTitle"), MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
     private async Task ClearGeminiKeyAsync()
     {
         GeminiKeyInput = string.Empty;
         GeminiAvailable = false;
-
-        try
-        {
-            // Clear from appsettings.json
-            string appSettingsPath = ResolveAppSettingsPath();
-            var settings = new { gemini_api_key = "", grok_api_key = _grokKeyInput, default_engine = SelectedEngine };
-            await File.WriteAllTextAsync(appSettingsPath, JsonSerializer.Serialize(settings, new JsonSerializerOptions { WriteIndented = true }));
-        }
-        catch (Exception ex)
-        {
-            MessageBox.Show(TranslationSource.Fmt("ErrorClearKey", $"{ex.GetType().Name}: {ex.Message}"), TranslationSource.Get("ErrorFatalTitle"), MessageBoxButton.OK, MessageBoxImage.Error);
-        }
+        await WriteProviderKeysAsync("", _grokKeyInput, "ErrorClearKey");
     }
 
     private async Task SaveGeminiKeyAsync()
     {
-        try
-        {
-            // Save to appsettings.json
-            string appSettingsPath = ResolveAppSettingsPath();
-            var settings = new { gemini_api_key = GeminiKeyInput, grok_api_key = _grokKeyInput, default_engine = SelectedEngine };
-            await File.WriteAllTextAsync(appSettingsPath, JsonSerializer.Serialize(settings, new JsonSerializerOptions { WriteIndented = true }));
-        }
-        catch (Exception ex)
-        {
-            MessageBox.Show(TranslationSource.Fmt("ErrorSaveKey", $"{ex.GetType().Name}: {ex.Message}"), TranslationSource.Get("ErrorFatalTitle"), MessageBoxButton.OK, MessageBoxImage.Error);
-        }
+        await WriteProviderKeysAsync(GeminiKeyInput, _grokKeyInput, "ErrorSaveKey");
     }
 
     private async Task ClearGrokKeyAsync()
     {
         GrokKeyInput = string.Empty;
         GrokAvailable = false;
-
-        try
-        {
-            // Clear from appsettings.json
-            string appSettingsPath = ResolveAppSettingsPath();
-            var settings = new { gemini_api_key = _geminiKeyInput, grok_api_key = "", default_engine = SelectedEngine };
-            await File.WriteAllTextAsync(appSettingsPath, JsonSerializer.Serialize(settings, new JsonSerializerOptions { WriteIndented = true }));
-        }
-        catch (Exception ex)
-        {
-            MessageBox.Show(TranslationSource.Fmt("ErrorClearKey", $"{ex.GetType().Name}: {ex.Message}"), TranslationSource.Get("ErrorFatalTitle"), MessageBoxButton.OK, MessageBoxImage.Error);
-        }
+        await WriteProviderKeysAsync(_geminiKeyInput, "", "ErrorClearKey");
     }
 
     private async Task SaveGrokKeyAsync()
     {
-        try
-        {
-            // Save to appsettings.json
-            string appSettingsPath = ResolveAppSettingsPath();
-            var settings = new { gemini_api_key = _geminiKeyInput, grok_api_key = GrokKeyInput, default_engine = SelectedEngine };
-            await File.WriteAllTextAsync(appSettingsPath, JsonSerializer.Serialize(settings, new JsonSerializerOptions { WriteIndented = true }));
-        }
-        catch (Exception ex)
-        {
-            MessageBox.Show(TranslationSource.Fmt("ErrorSaveKey", $"{ex.GetType().Name}: {ex.Message}"), TranslationSource.Get("ErrorFatalTitle"), MessageBoxButton.OK, MessageBoxImage.Error);
-        }
+        await WriteProviderKeysAsync(_geminiKeyInput, GrokKeyInput, "ErrorSaveKey");
     }
 
     private void LoadProviderKeysFromAppSettings()

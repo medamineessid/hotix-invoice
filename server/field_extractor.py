@@ -5,19 +5,19 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Mapping, Optional, Sequence
 
-from .utils import OCRLine, clean_amount, clean_date, collapse_text, looks_like_latin_text, normalize_text, normalize_text_for_output
-
-
-FIELD_ORDER = (
-    "numero_facture",
-    "date",
-    "fournisseur",
-    "client",
-    "montant_ht",
-    "montant_tva",
-    "montant_taxe",
-    "montant_ttc",
+from .utils import (
+    INVOICE_FIELD_NAMES,
+    OCRLine,
+    clean_amount,
+    clean_date,
+    collapse_text,
+    looks_like_latin_text,
+    normalize_text,
+    normalize_text_for_output,
 )
+
+
+FIELD_ORDER = INVOICE_FIELD_NAMES
 
 FIELD_ALIASES: dict[str, tuple[str, ...]] = {
     "numero_facture": (
