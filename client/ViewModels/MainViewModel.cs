@@ -51,6 +51,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     private int _totalFiles;
     private bool _allFilesSelected;
     private bool _allRowsSelected;
+    private bool _quotaFallbackBannerShown;
     private bool _showSummaryBanner;
     private string _summaryBannerText = string.Empty;
     private string _summaryBannerColor = "#2ECC71";
@@ -1329,9 +1330,34 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                     }
                     catch (GeminiQuotaExceededException)
                     {
-                        LogPipeline("Gemini quota exceeded — switching to OCR fallback");
-                        needServerFallback = true;
-                        row = await ExtractViaServerAsync(file);
+                        LogPipeline("Gemini quota exceeded");
+
+                        // Try Grok first when in auto mode, just like other
+                        // Gemini failures do — Grok doesn't share quota with
+                        // Gemini so it may still succeed.
+                        if (selectedEngine == "auto" && hasGrok)
+                        {
+                            LogPipeline("Gemini quota — trying Grok before OCR");
+                            try
+                            {
+                                InvoiceResult grokResult = await CallGrokDirectlyAsync(file, grokKey!);
+                                LogPipeline("Grok succeeded after Gemini quota");
+                                row = InvoiceRowViewModel.FromSuccess(file, grokResult);
+                            }
+                            catch
+                            {
+                                LogPipeline("Grok also failed after Gemini quota — falling back to OCR");
+                                ShowQuotaFallbackBanner();
+                                needServerFallback = true;
+                                row = await ExtractViaServerAsync(file);
+                            }
+                        }
+                        else
+                        {
+                            ShowQuotaFallbackBanner();
+                            needServerFallback = true;
+                            row = await ExtractViaServerAsync(file);
+                        }
                     }
                     catch (Exception) when (selectedEngine == "auto")
                     {
@@ -1449,6 +1475,28 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             ShowExtractionSummary();
             LogPipeline($"Extraction complete — {Results.Count} results, {IncompleteResults.Count} incomplete");
         }
+    }
+
+    /// <summary>
+    /// Shows a warning banner mid-batch when quota fallback activates, and updates
+    /// the per-file progress text so the user knows remaining files will use local OCR.
+    /// Only fires once per batch to avoid banner thrashing.
+    /// </summary>
+    private void ShowQuotaFallbackBanner()
+    {
+        if (_quotaFallbackBannerShown) return;
+        _quotaFallbackBannerShown = true;
+
+        SummaryBannerText = TranslationSource.Get("QuotaFallbackBanner");
+        SummaryBannerColor = "#E67E22"; // Orange — warning, not error
+        ShowSummaryBanner = true;
+        OnPropertyChanged(nameof(SummaryBannerText));
+        OnPropertyChanged(nameof(SummaryBannerColor));
+        OnPropertyChanged(nameof(ShowSummaryBanner));
+
+        // Update the in-progress status text next to the progress ring
+        _extractionStatusText = TranslationSource.Get("ExtractionQuotaFallback");
+        OnPropertyChanged(nameof(ExtractionStatusText));
     }
 
     /// <summary>Shows an error banner immediately without waiting for extraction to complete.</summary>

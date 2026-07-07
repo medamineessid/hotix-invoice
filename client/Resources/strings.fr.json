@@ -212,5 +212,7 @@
   "ExtractionProcessing": "Traitement : {0}",
   "ExtractionProcessingElapsed": "Traitement : {0} — {1}m {2}s écoulées",
   "ExtractionNoFiles": "Aucun fichier sélectionné pour l'extraction.",
+  "ExtractionQuotaFallback": "Quota Gemini dépassé — passage en OCR local pour les fichiers restants",
+  "QuotaFallbackBanner": "Quota de l'API Gemini atteint. Les fichiers restants seront traités par OCR local. Utilisez le moteur Grok ou réessayez plus tard.",
   "ErrorTimeout": "Le traitement du fichier a expiré après {0}s. Vérifiez votre connexion et l'état de l'API."
 }
