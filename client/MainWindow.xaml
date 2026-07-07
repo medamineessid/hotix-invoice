@@ -5,7 +5,7 @@
         xmlns:controls="clr-namespace:Hotix.InvoiceClient.Controls"
         xmlns:ui="clr-namespace:Hotix.InvoiceClient"
         xmlns:sys="clr-namespace:System;assembly=mscorlib"
-        Title="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[MainWindowTitle]}"
+        Title="{Binding WindowTitle}"
         Icon="pack://application:,,,/hotix_icon.ico"
         Width="1280"
         Height="820"

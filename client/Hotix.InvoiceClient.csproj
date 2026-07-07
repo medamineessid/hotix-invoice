@@ -11,6 +11,33 @@
     <PublishSingleFile>false</PublishSingleFile>
   </PropertyGroup>
 
+  <!-- ── Pre-build: embed git commit hash (or fallback timestamp) ── -->
+  <!-- Inputs/Outputs intentionally omitted: git hash must be regenerated on every build,
+       not cached against .csproj changes alone. -->
+  <Target Name="GenerateBuildInfo" BeforeTargets="CoreCompile">
+    <Exec Command="git rev-parse --short HEAD" ConsoleToMSBuild="true" IgnoreExitCode="true" StandardOutputImportance="Low">
+      <Output TaskParameter="ConsoleOutput" PropertyName="_GitHash" />
+    </Exec>
+    <PropertyGroup>
+      <_BuildHash Condition="'$(_GitHash)' != ''">$(_GitHash.Trim())</_BuildHash>
+      <_BuildHash Condition="'$(_GitHash)' == ''">$([System.DateTime]::UtcNow.ToString("yyyyMMdd-HHmmss"))</_BuildHash>
+      <_BuildTimestamp>$([System.DateTime]::UtcNow.ToString("yyyy-MM-dd HH:mm:ss UTC"))</_BuildTimestamp>
+    </PropertyGroup>
+    <ItemGroup>
+      <_BuildInfoLines Include="// &lt;auto-generated&gt; by GenerateBuildInfo target&lt;/auto-generated&gt;" />
+      <_BuildInfoLines Include="namespace Hotix.InvoiceClient%3B" />
+      <_BuildInfoLines Include="internal static class BuildInfo" />
+      <_BuildInfoLines Include="{" />
+      <_BuildInfoLines Include="    public const string CommitHash = &quot;$(_BuildHash)&quot;%3B" />
+      <_BuildInfoLines Include="    public const string BuildTimestamp = &quot;$(_BuildTimestamp)&quot;%3B" />
+      <_BuildInfoLines Include="}" />
+    </ItemGroup>
+    <WriteLinesToFile File="$(IntermediateOutputPath)BuildInfo.g.cs" Lines="@(_BuildInfoLines, '%0A')" Overwrite="true" />
+    <ItemGroup>
+      <Compile Include="$(IntermediateOutputPath)BuildInfo.g.cs" />
+    </ItemGroup>
+  </Target>
+
   <Target Name="CopyAssets" AfterTargets="Build">
     <ItemGroup>
       <ServerFiles Include="$(ProjectDir)..\server\*.py" />

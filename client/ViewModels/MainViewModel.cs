@@ -121,6 +121,13 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
 
         // Initial connectivity check
         _ = CheckEngineStatusAsync();
+
+        // Re-evaluate WindowTitle when the UI language changes
+        TranslationSource.Instance.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == "Item[]")
+                OnPropertyChanged(nameof(WindowTitle));
+        };
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -425,6 +432,9 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         : TranslationSource.Get("PreviewFileNameDefault");
 
     public bool HasErrors => Results.Any(r => r.HasError);
+
+    /// <summary>Window title including the build commit hash for build-identification.</summary>
+    public string WindowTitle => $"{TranslationSource.Get("MainWindowTitle")} — {BuildInfo.CommitHash}";
 
     public async Task InitializeAsync()
     {
