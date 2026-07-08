@@ -23,5 +23,5 @@ if errorlevel 1 (
 )
 
 echo Build succeeded. Launching application...
-cd publish
+cd bin\Debug\net8.0-windows
 start Hotix.InvoiceClient.exe
