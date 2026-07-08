@@ -157,7 +157,7 @@ public partial class GeminiSetupWindow : Window
 
     private async void Save_Click(object sender, RoutedEventArgs e)
     {
-        string key = GeminiKeyBox.Password;
+        string key = GeminiKeyBox.Password.Trim();
         if (string.IsNullOrWhiteSpace(key))
         {
             string enterKey = _isGeminiProvider ? "GeminiEnterKey" : "GrokEnterKey";
