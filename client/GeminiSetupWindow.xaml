@@ -43,7 +43,7 @@
 
     <Border Background="{StaticResource BrushOverlay}">
         <Border Style="{StaticResource DialogStyle}"
-                MinWidth="420" MaxWidth="600"
+                MinWidth="420" MaxWidth="720"
                 VerticalAlignment="Center"
                 HorizontalAlignment="Center"
                 Margin="32">
@@ -60,18 +60,36 @@
                 </Grid.RowDefinitions>
 
                 <!-- Header -->
-                <StackPanel Grid.Row="0" Margin="28,28,28,20">
-                    <TextBlock x:Name="HeaderTitle"
-                               Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[GeminiHeader]}"
-                               Style="{StaticResource TextSectionHeading}"
-                               TextWrapping="Wrap"
-                               Margin="0,0,0,8" />
-                    <TextBlock x:Name="HeaderDescription"
-                               Style="{StaticResource TextBody}"
-                               Foreground="{StaticResource BrushTextSecondary}"
-                               TextWrapping="Wrap"
-                               Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[GeminiDescription]}" />
-                </StackPanel>
+                <Grid Grid.Row="0" Margin="28,28,28,20">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Grid.Column="0">
+                        <TextBlock x:Name="HeaderTitle"
+                                   Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[GeminiHeader]}"
+                                   Style="{StaticResource TextSectionHeading}"
+                                   TextWrapping="Wrap"
+                                   Margin="0,0,0,8" />
+                        <TextBlock x:Name="HeaderDescription"
+                                   Style="{StaticResource TextBody}"
+                                   Foreground="{StaticResource BrushTextSecondary}"
+                                   TextWrapping="Wrap"
+                                   Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[GeminiDescription]}" />
+                    </StackPanel>
+
+                    <Button Grid.Column="1"
+                            x:Name="CloseButton"
+                            Style="{StaticResource ButtonIconStyle}"
+                            Width="32" Height="32"
+                            VerticalAlignment="Top"
+                            Content="✕"
+                            FontSize="14"
+                            Click="CloseButton_Click"
+                            Margin="16,0,0,0"
+                            ToolTip="Close" />
+                </Grid>
 
                 <!-- Body -->
                 <StackPanel Grid.Row="1" Margin="28,0,28,0">
@@ -160,38 +178,34 @@
 
                 <!-- Buttons (intentional order: low→high importance) -->
                 <Border Grid.Row="2" Margin="28,20,28,28">
-                    <Grid HorizontalAlignment="Right">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="12" />
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="12" />
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="12" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
+                    <WrapPanel HorizontalAlignment="Right"
+                               Orientation="Horizontal">
 
-                        <Button x:Name="IgnoreButton" Grid.Column="0"
+                        <Button x:Name="IgnoreButton"
                                 Content="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[GeminiIgnoreBtn]}"
                                 Style="{StaticResource ButtonSecondaryStyle}"
                                 MinWidth="80"
+                                Margin="0,0,8,8"
                                 Click="Ignore_Click" />
-                        <Button x:Name="ClearKeyButton" Grid.Column="2"
+                        <Button x:Name="ClearKeyButton"
                                 Content="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[GeminiClearBtn]}"
                                 Style="{StaticResource ButtonDangerStyle}"
                                 MinWidth="100"
+                                Margin="0,0,8,8"
                                 Click="ClearKey_Click" />
-                        <Button x:Name="GetKeyButton" Grid.Column="4"
+                        <Button x:Name="GetKeyButton"
                                 Content="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[GeminiGetKeyBtn]}"
                                 Style="{StaticResource ButtonSecondaryStyle}"
                                 MinWidth="130"
+                                Margin="0,0,8,8"
                                 Click="GetApiKey_Click" />
-                        <Button x:Name="SaveButton" Grid.Column="6"
+                        <Button x:Name="SaveButton"
                                 Content="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[GeminiSaveBtn]}"
                                 Style="{StaticResource ButtonPrimaryStyle}"
                                 MinWidth="100"
+                                Margin="0,0,0,8"
                                 Click="Save_Click" />
-                    </Grid>
+                    </WrapPanel>
                 </Border>
             </Grid>
             </ScrollViewer>

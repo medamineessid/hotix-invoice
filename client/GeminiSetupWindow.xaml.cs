@@ -116,6 +116,11 @@ public partial class GeminiSetupWindow : Window
         Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
     }
 
+    private void CloseButton_Click(object sender, RoutedEventArgs e)
+    {
+        Close();
+    }
+
     private void Ignore_Click(object sender, RoutedEventArgs e)
     {
         Close();
