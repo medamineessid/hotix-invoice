@@ -8,9 +8,10 @@
     </ResourceDictionary.MergedDictionaries>
 
     <!-- ═══════════════════════════════════════════════
-         HOTIX Dialog Styles
+         HOTIX Dialog Styles — Premium
          Open: fade + scale 0.95→1.0 (250ms)
          Close: reverse (180ms)
+         Radius 16 to match cards
          ═══════════════════════════════════════════════ -->
 
     <Style x:Key="DialogOverlayStyle" TargetType="Border">

@@ -7,10 +7,9 @@
     </ResourceDictionary.MergedDictionaries>
 
     <!-- ═══════════════════════════════════════════════
-         HOTIX Input Styles
-         Large, comfortable, radius 14
-         Minimal border, traditional labels above
-         Black border on focus with small red accent line
+         HOTIX Input Styles — Premium
+         Height 44px, radius 12, subtle border
+         Red focus ring, soft hover
          ═══════════════════════════════════════════════ -->
 
     <!-- ═══ TextBox ═══ -->
@@ -19,12 +18,12 @@
         <Setter Property="Foreground"         Value="{StaticResource BrushTextPrimary}" />
         <Setter Property="BorderBrush"        Value="{StaticResource BrushInputBorder}" />
         <Setter Property="BorderThickness"    Value="1" />
-        <Setter Property="Padding"            Value="14,12" />
+        <Setter Property="Padding"            Value="12,11" />
         <Setter Property="MinHeight"          Value="44" />
         <Setter Property="FontFamily"         Value="{StaticResource FontPrimary}" />
         <Setter Property="FontSize"           Value="{StaticResource FontSizeBody}" />
         <Setter Property="VerticalContentAlignment" Value="Center" />
-        <Setter Property="CaretBrush"         Value="{StaticResource BrushTextPrimary}" />
+        <Setter Property="CaretBrush"         Value="{StaticResource BrushInputCaret}" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="TextBox">
@@ -33,19 +32,9 @@
                             BorderBrush="{TemplateBinding BorderBrush}"
                             BorderThickness="{TemplateBinding BorderThickness}"
                             CornerRadius="{StaticResource RadiusMedium}">
-                        <Grid>
-                            <ScrollViewer x:Name="PART_ContentHost"
-                                          Margin="{TemplateBinding Padding}"
-                                          VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
-                            <Border x:Name="AccentLine"
-                                    Height="2"
-                                    Width="24"
-                                    HorizontalAlignment="Left"
-                                    VerticalAlignment="Bottom"
-                                    Background="{StaticResource BrushAccent}"
-                                    Opacity="0"
-                                    Margin="14,0,0,0" />
-                        </Grid>
+                        <ScrollViewer x:Name="PART_ContentHost"
+                                      Margin="{TemplateBinding Padding}"
+                                      VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
@@ -53,7 +42,7 @@
                         </Trigger>
                         <Trigger Property="IsFocused" Value="True">
                             <Setter TargetName="Border" Property="BorderBrush" Value="{StaticResource BrushInputBorderFocus}" />
-                            <Setter TargetName="AccentLine" Property="Opacity" Value="1" />
+                            <Setter TargetName="Border" Property="BorderThickness" Value="1.5" />
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
                             <Setter Property="Opacity" Value="0.45" />
@@ -76,7 +65,7 @@
         <Setter Property="Foreground"         Value="{StaticResource BrushTextPrimary}" />
         <Setter Property="BorderBrush"        Value="{StaticResource BrushInputBorder}" />
         <Setter Property="BorderThickness"    Value="1" />
-        <Setter Property="Padding"            Value="14,12" />
+        <Setter Property="Padding"            Value="12,11" />
         <Setter Property="MinHeight"          Value="44" />
         <Setter Property="FontFamily"         Value="{StaticResource FontPrimary}" />
         <Setter Property="FontSize"           Value="{StaticResource FontSizeBody}" />
@@ -89,19 +78,9 @@
                             BorderBrush="{TemplateBinding BorderBrush}"
                             BorderThickness="{TemplateBinding BorderThickness}"
                             CornerRadius="{StaticResource RadiusMedium}">
-                        <Grid>
-                            <ScrollViewer x:Name="PART_ContentHost"
-                                          Margin="{TemplateBinding Padding}"
-                                          VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
-                            <Border x:Name="AccentLine"
-                                    Height="2"
-                                    Width="24"
-                                    HorizontalAlignment="Left"
-                                    VerticalAlignment="Bottom"
-                                    Background="{StaticResource BrushAccent}"
-                                    Opacity="0"
-                                    Margin="14,0,0,0" />
-                        </Grid>
+                        <ScrollViewer x:Name="PART_ContentHost"
+                                      Margin="{TemplateBinding Padding}"
+                                      VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
@@ -109,7 +88,7 @@
                         </Trigger>
                         <Trigger Property="IsFocused" Value="True">
                             <Setter TargetName="Border" Property="BorderBrush" Value="{StaticResource BrushInputBorderFocus}" />
-                            <Setter TargetName="AccentLine" Property="Opacity" Value="1" />
+                            <Setter TargetName="Border" Property="BorderThickness" Value="1.5" />
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
                             <Setter Property="Opacity" Value="0.45" />
@@ -126,7 +105,7 @@
         <Setter Property="Foreground"         Value="{StaticResource BrushTextPrimary}" />
         <Setter Property="BorderBrush"        Value="{StaticResource BrushInputBorder}" />
         <Setter Property="BorderThickness"    Value="1" />
-        <Setter Property="Padding"            Value="14,12" />
+        <Setter Property="Padding"            Value="12,11" />
         <Setter Property="MinHeight"          Value="44" />
         <Setter Property="FontFamily"         Value="{StaticResource FontPrimary}" />
         <Setter Property="FontSize"           Value="{StaticResource FontSizeBody}" />
@@ -151,19 +130,10 @@
                                                   Content="{TemplateBinding SelectionBoxItem}"
                                                   ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
                                                   ContentTemplateSelector="{TemplateBinding ItemTemplateSelector}" />
-                                <TextBlock Grid.Column="1" Text="▾" 
+                                <TextBlock Grid.Column="1" Text="▾"
                                            Foreground="{StaticResource BrushTextMuted}"
-                                           FontSize="10" Margin="0,0,14,0"
+                                           FontSize="10" Margin="0,0,12,0"
                                            VerticalAlignment="Center" />
-                                <Border x:Name="AccentLine"
-                                        Grid.ColumnSpan="2"
-                                        Height="2"
-                                        Width="24"
-                                        HorizontalAlignment="Left"
-                                        VerticalAlignment="Bottom"
-                                        Background="{StaticResource BrushAccent}"
-                                        Opacity="0"
-                                        Margin="14,0,0,0" />
                             </Grid>
                         </Border>
                         <Popup x:Name="PART_Popup"
@@ -171,14 +141,15 @@
                                Placement="Bottom"
                                AllowsTransparency="True"
                                Focusable="False"
-                               PopupAnimation="None">
+                               PopupAnimation="Fade">
                             <Border Background="{StaticResource BrushSurface}"
                                     BorderBrush="{StaticResource BrushBorder}"
                                     BorderThickness="1"
                                     CornerRadius="{StaticResource RadiusMedium}"
                                     Effect="{StaticResource ShadowCard}"
-                                    Margin="0,4,0,0">
-                                <ScrollViewer>
+                                    Margin="0,4,0,0"
+                                    Padding="4">
+                                <ScrollViewer MaxHeight="240">
                                     <ItemsPresenter />
                                 </ScrollViewer>
                             </Border>
@@ -190,7 +161,7 @@
                         </Trigger>
                         <Trigger Property="IsFocused" Value="True">
                             <Setter TargetName="Border" Property="BorderBrush" Value="{StaticResource BrushInputBorderFocus}" />
-                            <Setter TargetName="AccentLine" Property="Opacity" Value="1" />
+                            <Setter TargetName="Border" Property="BorderThickness" Value="1.5" />
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
                             <Setter Property="Opacity" Value="0.45" />
@@ -218,7 +189,7 @@
                         </Grid.ColumnDefinitions>
                         <Border x:Name="CheckBoxBorder"
                                 Width="18" Height="18"
-                                CornerRadius="4"
+                                CornerRadius="{StaticResource RadiusSmall}"
                                 BorderThickness="1.5"
                                 BorderBrush="{StaticResource BrushInputBorder}"
                                 Background="Transparent"
@@ -252,12 +223,13 @@
         </Setter>
     </Style>
 
-    <!-- ═══ RadioButton (same visual as CheckBox) ═══ -->
+    <!-- ═══ RadioButton ═══ -->
     <Style x:Key="RadioButtonStyle" TargetType="RadioButton">
         <Setter Property="Foreground"        Value="{StaticResource BrushTextPrimary}" />
         <Setter Property="FontFamily"        Value="{StaticResource FontPrimary}" />
         <Setter Property="FontSize"          Value="{StaticResource FontSizeBody}" />
         <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="Cursor" Value="Hand" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="RadioButton">
@@ -266,21 +238,18 @@
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
-                        <Border x:Name="CheckBoxBorder"
+                        <Border x:Name="RadioBorder"
                                 Width="18" Height="18"
-                                CornerRadius="4"
+                                CornerRadius="9"
                                 BorderThickness="1.5"
                                 BorderBrush="{StaticResource BrushInputBorder}"
                                 Background="Transparent"
                                 VerticalAlignment="Center">
-                            <Path x:Name="CheckMark"
-                                  Data="M4,9 L7.5,12.5 L14,5"
-                                  Stroke="{StaticResource BrushSurface}"
-                                  StrokeThickness="2"
-                                  StrokeEndLineCap="Round"
-                                  StrokeStartLineCap="Round"
-                                  StrokeLineJoin="Round"
-                                  Opacity="0" />
+                            <Border x:Name="RadioDot"
+                                    Width="8" Height="8"
+                                    CornerRadius="4"
+                                    Background="{StaticResource BrushAccent}"
+                                    Opacity="0" />
                         </Border>
                         <ContentPresenter Grid.Column="1"
                                           Margin="10,0,0,0"
@@ -289,12 +258,11 @@
                     </Grid>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsChecked" Value="True">
-                            <Setter TargetName="CheckBoxBorder" Property="Background" Value="{StaticResource BrushAccent}" />
-                            <Setter TargetName="CheckBoxBorder" Property="BorderBrush" Value="{StaticResource BrushAccent}" />
-                            <Setter TargetName="CheckMark" Property="Opacity" Value="1" />
+                            <Setter TargetName="RadioBorder" Property="BorderBrush" Value="{StaticResource BrushAccent}" />
+                            <Setter TargetName="RadioDot" Property="Opacity" Value="1" />
                         </Trigger>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="CheckBoxBorder" Property="BorderBrush" Value="{StaticResource BrushInputBorderHover}" />
+                            <Setter TargetName="RadioBorder" Property="BorderBrush" Value="{StaticResource BrushInputBorderHover}" />
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>

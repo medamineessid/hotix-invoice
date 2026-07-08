@@ -4,10 +4,10 @@
 
     <!-- ═══════════════════════════════════════════════
          HOTIX Spacing — 8-Point Grid System
-         Allowed: 8, 12, 16, 24, 32, 48, 64, 96
+         Allowed: 4, 8, 12, 16, 24, 32, 40, 48
          ═══════════════════════════════════════════════ -->
 
-    <!-- Base spacing units -->
+    <!-- Base spacing units (thickness) -->
     <Thickness x:Key="Spacing0">0</Thickness>
     <Thickness x:Key="Spacing4">4</Thickness>
     <Thickness x:Key="Spacing8">8</Thickness>
@@ -15,25 +15,24 @@
     <Thickness x:Key="Spacing16">16</Thickness>
     <Thickness x:Key="Spacing24">24</Thickness>
     <Thickness x:Key="Spacing32">32</Thickness>
+    <Thickness x:Key="Spacing40">40</Thickness>
     <Thickness x:Key="Spacing48">48</Thickness>
-    <Thickness x:Key="Spacing64">64</Thickness>
-    <Thickness x:Key="Spacing96">96</Thickness>
 
     <!-- Padding presets -->
     <Thickness x:Key="PaddingCard">24</Thickness>
     <Thickness x:Key="PaddingCardCompact">16</Thickness>
-    <Thickness x:Key="PaddingButton">14,10</Thickness>
-    <Thickness x:Key="PaddingButtonWide">24,14</Thickness>
-    <Thickness x:Key="PaddingInput">14,12</Thickness>
-    <Thickness x:Key="PaddingNavItem">16</Thickness>
-    <Thickness x:Key="PaddingDialog">32</Thickness>
+    <Thickness x:Key="PaddingButton">12,10</Thickness>
+    <Thickness x:Key="PaddingButtonWide">20,12</Thickness>
+    <Thickness x:Key="PaddingInput">12,11</Thickness>
+    <Thickness x:Key="PaddingNavItem">12</Thickness>
+    <Thickness x:Key="PaddingDialog">28</Thickness>
 
-    <!-- Corner radii -->
+    <!-- Corner radii — Unified system -->
     <CornerRadius x:Key="RadiusNone">0</CornerRadius>
     <CornerRadius x:Key="RadiusSmall">8</CornerRadius>
-    <CornerRadius x:Key="RadiusMedium">14</CornerRadius>
-    <CornerRadius x:Key="RadiusLarge">20</CornerRadius>
-    <CornerRadius x:Key="RadiusFull">9999</CornerRadius>
+    <CornerRadius x:Key="RadiusMedium">12</CornerRadius>
+    <CornerRadius x:Key="RadiusLarge">16</CornerRadius>
+    <CornerRadius x:Key="RadiusPill">9999</CornerRadius>
 
     <!-- Margins -->
     <Thickness x:Key="MarginWindowEdge">32</Thickness>
@@ -42,11 +41,11 @@
     <Thickness x:Key="MarginInline">12</Thickness>
 
     <!-- Row heights -->
-    <GridLength x:Key="RowHeightNavItem">48</GridLength>
+    <GridLength x:Key="RowHeightNavItem">44</GridLength>
     <GridLength x:Key="RowHeightInput">44</GridLength>
     <GridLength x:Key="RowHeightStatusBar">44</GridLength>
 
     <!-- Sidebar width -->
-    <GridLength x:Key="SidebarWidth">260</GridLength>
+    <GridLength x:Key="SidebarWidth">240</GridLength>
 
 </ResourceDictionary>

@@ -9,9 +9,10 @@ public sealed class ConfidenceToColorConverter : IValueConverter
     private const double HighThreshold   = 0.75;
     private const double MediumThreshold = 0.40;
 
-    private static readonly Brush HighBrush   = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#2ECC71"));
-    private static readonly Brush MediumBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#E67E22"));
-    private static readonly Brush LowBrush    = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#C0392B"));
+    // Pastel background colors
+    private static readonly Brush HighBrush   = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#E8F5E9"));
+    private static readonly Brush MediumBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#FFF3E0"));
+    private static readonly Brush LowBrush    = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#FFEBEE"));
 
     public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
     {

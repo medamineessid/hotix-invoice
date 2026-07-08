@@ -8,11 +8,11 @@
     </ResourceDictionary.MergedDictionaries>
 
     <!-- ═══════════════════════════════════════════════
-         HOTIX Button Styles
-         Radius: 14 | Padding: 14x24
-         Primary: Black fill, White text
+         HOTIX Button Styles — Premium
+         Radius: 12 | Hover lift 1px | Press scale 0.97
+         Primary: Red fill, White text
          Secondary: White fill, Gray border
-         Danger: Suprematist Red fill, White text
+         Danger: Red outline, Red text
          ═══════════════════════════════════════════════ -->
 
     <!-- Base button template with animations -->
@@ -21,10 +21,8 @@
                 Background="{TemplateBinding Background}"
                 BorderBrush="{TemplateBinding BorderBrush}"
                 BorderThickness="{TemplateBinding BorderThickness}"
-                CornerRadius="{StaticResource RadiusMedium}">
-            <Border.Effect>
-                <DropShadowEffect ShadowDepth="1" Direction="270" BlurRadius="4" Opacity="0.08" Color="#000000" />
-            </Border.Effect>
+                CornerRadius="{StaticResource RadiusMedium}"
+                Effect="{StaticResource ShadowButton}">
             <ContentPresenter x:Name="Content"
                               HorizontalAlignment="Center"
                               VerticalAlignment="Center"
@@ -55,16 +53,16 @@
         </ControlTemplate.Triggers>
     </ControlTemplate>
 
-    <!-- ═══ Primary Button — Black ═══ -->
+    <!-- ═══ Primary Button — Red Accent ═══ -->
     <Style x:Key="ButtonPrimaryStyle" TargetType="Button">
         <Setter Property="Background"  Value="{StaticResource BrushButtonPrimary}" />
-        <Setter Property="Foreground"  Value="{StaticResource BrushTextInverse}" />
+        <Setter Property="Foreground"  Value="{StaticResource BrushButtonPrimaryText}" />
         <Setter Property="BorderBrush" Value="{StaticResource BrushButtonPrimary}" />
         <Setter Property="BorderThickness" Value="1" />
         <Setter Property="Cursor" Value="Hand" />
         <Setter Property="FontFamily" Value="{StaticResource FontPrimary}" />
         <Setter Property="FontSize"   Value="{StaticResource FontSizeBody}" />
-        <Setter Property="Padding" Value="24,12" />
+        <Setter Property="Padding" Value="20,10" />
         <Setter Property="FontWeight" Value="{StaticResource FontWeightMedium}" />
         <Setter Property="Template"   Value="{StaticResource TemplateButtonBase}" />
         <Setter Property="RenderTransform">
@@ -78,20 +76,24 @@
         <Style.Triggers>
             <Trigger Property="IsMouseOver" Value="True">
                 <Setter Property="Background" Value="{StaticResource BrushButtonPrimaryHover}" />
+                <Setter Property="BorderBrush" Value="{StaticResource BrushButtonPrimaryHover}" />
+            </Trigger>
+            <Trigger Property="IsPressed" Value="True">
+                <Setter Property="Background" Value="{StaticResource BrushButtonPrimaryPressed}" />
             </Trigger>
         </Style.Triggers>
     </Style>
 
-    <!-- ═══ Secondary Button — White ═══ -->
+    <!-- ═══ Secondary Button — White + Border ═══ -->
     <Style x:Key="ButtonSecondaryStyle" TargetType="Button">
         <Setter Property="Background"  Value="{StaticResource BrushButtonSecondary}" />
-        <Setter Property="Foreground"  Value="{StaticResource BrushTextPrimary}" />
+        <Setter Property="Foreground"  Value="{StaticResource BrushButtonSecondaryText}" />
         <Setter Property="BorderBrush" Value="{StaticResource BrushButtonSecondaryStroke}" />
         <Setter Property="BorderThickness" Value="1" />
         <Setter Property="Cursor" Value="Hand" />
         <Setter Property="FontFamily" Value="{StaticResource FontPrimary}" />
         <Setter Property="FontSize"   Value="{StaticResource FontSizeBody}" />
-        <Setter Property="Padding" Value="24,12" />
+        <Setter Property="Padding" Value="20,10" />
         <Setter Property="FontWeight" Value="{StaticResource FontWeightMedium}" />
         <Setter Property="Template"   Value="{StaticResource TemplateButtonBase}" />
         <Setter Property="RenderTransform">
@@ -109,16 +111,16 @@
         </Style.Triggers>
     </Style>
 
-    <!-- ═══ Danger Button — Suprematist Red ═══ -->
+    <!-- ═══ Danger Button — Outlined Red ═══ -->
     <Style x:Key="ButtonDangerStyle" TargetType="Button">
         <Setter Property="Background"  Value="{StaticResource BrushButtonDanger}" />
-        <Setter Property="Foreground"  Value="{StaticResource BrushTextInverse}" />
-        <Setter Property="BorderBrush" Value="{StaticResource BrushButtonDanger}" />
-        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Foreground"  Value="{StaticResource BrushButtonDangerText}" />
+        <Setter Property="BorderBrush" Value="{StaticResource BrushButtonDangerStroke}" />
+        <Setter Property="BorderThickness" Value="1.5" />
         <Setter Property="Cursor" Value="Hand" />
         <Setter Property="FontFamily" Value="{StaticResource FontPrimary}" />
         <Setter Property="FontSize"   Value="{StaticResource FontSizeBody}" />
-        <Setter Property="Padding" Value="24,12" />
+        <Setter Property="Padding" Value="20,10" />
         <Setter Property="FontWeight" Value="{StaticResource FontWeightMedium}" />
         <Setter Property="Template"   Value="{StaticResource TemplateButtonBase}" />
         <Setter Property="RenderTransform">
@@ -143,6 +145,8 @@
         <Setter Property="Padding" Value="0" />
         <Setter Property="BorderThickness" Value="0" />
         <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Foreground" Value="{StaticResource BrushTextSecondary}" />
+        <Setter Property="Effect" Value="{x:Null}" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
@@ -165,7 +169,7 @@
         </Setter>
     </Style>
 
-    <!-- ═══ Default Button (applied to all Button elements) ═══ -->
+    <!-- ═══ Default Button ═══ -->
     <Style TargetType="Button" BasedOn="{StaticResource ButtonSecondaryStyle}" />
 
 </ResourceDictionary>

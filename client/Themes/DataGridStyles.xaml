@@ -9,43 +9,24 @@
     </ResourceDictionary.MergedDictionaries>
 
     <!-- ═══════════════════════════════════════════════
-         HOTIX DataGrid Styles
+         HOTIX DataGrid Styles — Premium
          Minimal grid lines, generous row height
          Soft hover, subtle neutral selection
+         Sticky header, pastel confidence badges
          ═══════════════════════════════════════════════ -->
 
     <Style x:Key="DataGridColumnHeaderStyle" TargetType="DataGridColumnHeader">
-        <Setter Property="Background"      Value="Transparent" />
+        <Setter Property="Background"      Value="{StaticResource BrushAltBackground}" />
         <Setter Property="Foreground"      Value="{StaticResource BrushTextSecondary}" />
         <Setter Property="FontFamily"      Value="{StaticResource FontPrimary}" />
-        <Setter Property="FontSize"        Value="{StaticResource FontSizeCaption}" />
+        <Setter Property="FontSize"        Value="{StaticResource FontSizeMetadata}" />
         <Setter Property="FontWeight"      Value="{StaticResource FontWeightMedium}" />
         <Setter Property="Padding"         Value="16,12" />
-        <Setter Property="BorderThickness" Value="0,0,1,0" />
-        <Setter Property="BorderBrush"     Value="Transparent" />
-        <Setter Property="SeparatorBrush"  Value="{StaticResource BrushBorder}" />
+        <Setter Property="BorderThickness" Value="0,0,0,1" />
+        <Setter Property="BorderBrush"     Value="{StaticResource BrushBorder}" />
+        <Setter Property="SeparatorBrush"  Value="Transparent" />
         <Setter Property="SeparatorVisibility" Value="Collapsed" />
         <Setter Property="HorizontalContentAlignment" Value="Left" />
-        <Setter Property="Template">
-            <Setter.Value>
-                <ControlTemplate TargetType="DataGridColumnHeader">
-                    <Grid>
-                        <Border x:Name="HeaderBorder"
-                                Background="{TemplateBinding Background}"
-                                BorderBrush="{TemplateBinding SeparatorBrush}"
-                                BorderThickness="0,0,0,0"
-                                Padding="{TemplateBinding Padding}">
-                            <ContentPresenter VerticalAlignment="Center" 
-                                              RecognizesAccessKey="True"
-                                              SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}" />
-                        </Border>
-                        <Border Height="1"
-                                VerticalAlignment="Bottom"
-                                Background="{StaticResource BrushBorder}" />
-                    </Grid>
-                </ControlTemplate>
-            </Setter.Value>
-        </Setter>
     </Style>
 
     <Style x:Key="DataGridCellStyle" TargetType="DataGridCell">
@@ -53,27 +34,9 @@
         <Setter Property="Foreground"      Value="{StaticResource BrushTextPrimary}" />
         <Setter Property="FontFamily"      Value="{StaticResource FontPrimary}" />
         <Setter Property="FontSize"        Value="{StaticResource FontSizeBody}" />
-        <Setter Property="Padding"         Value="16,14" />
+        <Setter Property="Padding"         Value="16,12" />
         <Setter Property="BorderThickness" Value="0" />
         <Setter Property="VerticalAlignment" Value="Center" />
-        <Setter Property="Template">
-            <Setter.Value>
-                <ControlTemplate TargetType="DataGridCell">
-                    <Border x:Name="CellBorder"
-                            Background="{TemplateBinding Background}"
-                            BorderThickness="0"
-                            Padding="{TemplateBinding Padding}">
-                        <ContentPresenter VerticalAlignment="Center" />
-                    </Border>
-                </ControlTemplate>
-            </Setter.Value>
-        </Setter>
-        <Style.Triggers>
-            <Trigger Property="IsSelected" Value="True">
-                <Setter Property="Background" Value="Transparent" />
-                <Setter Property="Foreground" Value="{StaticResource BrushTextPrimary}" />
-            </Trigger>
-        </Style.Triggers>
     </Style>
 
     <Style x:Key="DataGridRowStyle" TargetType="DataGridRow">
@@ -81,48 +44,14 @@
         <Setter Property="MinHeight"       Value="48" />
         <Setter Property="BorderThickness" Value="0" />
         <Setter Property="VerticalAlignment" Value="Center" />
-        <Setter Property="Template">
-            <Setter.Value>
-                <ControlTemplate TargetType="DataGridRow">
-                    <Border x:Name="RowBorder"
-                            Background="{TemplateBinding Background}"
-                            BorderThickness="0"
-                            SnapsToDevicePixels="True">
-                        <Grid>
-                            <Border Height="1"
-                                    VerticalAlignment="Top"
-                                    Background="{StaticResource BrushBorderLight}"
-                                    Opacity="0.5" />
-                            <SelectiveScrollingGrid x:Name="selectiveScrollingGrid"
-                                                    SelectiveScrollingOrientation="{Binding RelativeSource={RelativeSource AncestorType=DataGrid}, Path=AreRowDetailsFrozen, Converter={x:Null}}"
-                                                    Margin="0">
-                                <SelectiveScrollingGrid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto" />
-                                    <ColumnDefinition Width="*" />
-                                </SelectiveScrollingGrid.ColumnDefinitions>
-                                <DataGridCellsPresenter Grid.Column="1"
-                                                        ItemsPanel="{TemplateBinding ItemsPanel}"
-                                                        SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}" />
-                                <DataGridDetailsPresenter Grid.Column="1"
-                                                          SelectiveScrollingGrid.SelectiveScrollingOrientation="{Binding RelativeSource={RelativeSource AncestorType=DataGrid}, Path=AreRowDetailsFrozen, Converter={x:Null}}"
-                                                          Visibility="Collapsed" />
-                                <DataGridRowHeader Grid.Column="0"
-                                                   SelectiveScrollingGrid.SelectiveScrollingOrientation="Vertical"
-                                                   Visibility="Collapsed" />
-                            </SelectiveScrollingGrid>
-                        </Grid>
-                    </Border>
-                    <ControlTemplate.Triggers>
-                        <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="RowBorder" Property="Background" Value="{StaticResource BrushHover}" />
-                        </Trigger>
-                        <Trigger Property="IsSelected" Value="True">
-                            <Setter TargetName="RowBorder" Property="Background" Value="{StaticResource BrushSelected}" />
-                        </Trigger>
-                    </ControlTemplate.Triggers>
-                </ControlTemplate>
-            </Setter.Value>
-        </Setter>
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Background" Value="{StaticResource BrushHover}" />
+            </Trigger>
+            <Trigger Property="IsSelected" Value="True">
+                <Setter Property="Background" Value="{StaticResource BrushSelected}" />
+            </Trigger>
+        </Style.Triggers>
     </Style>
 
     <Style x:Key="ResultGridStyle" TargetType="DataGrid">
@@ -152,16 +81,15 @@
         <Setter Property="EnableRowVirtualization"                    Value="True" />
     </Style>
 
-    <!-- Confidence badge styles -->
+    <!-- Pastel confidence badge styles -->
     <Style x:Key="ConfidenceBadgeStyle" TargetType="Border">
-        <Setter Property="CornerRadius" Value="6" />
+        <Setter Property="CornerRadius" Value="{StaticResource RadiusPill}" />
         <Setter Property="Padding"      Value="10,4" />
-        <Setter Property="Effect"       Value="{x:Null}" />
     </Style>
 
     <Style x:Key="EngineBadgeStyle" TargetType="Border">
-        <Setter Property="CornerRadius" Value="4" />
-        <Setter Property="Padding"      Value="8,2" />
+        <Setter Property="CornerRadius" Value="{StaticResource RadiusSmall}" />
+        <Setter Property="Padding"      Value="8,3" />
         <Setter Property="Background"   Value="{StaticResource BrushAltBackground}" />
         <Setter Property="BorderBrush"  Value="{StaticResource BrushBorder}" />
         <Setter Property="BorderThickness" Value="1" />

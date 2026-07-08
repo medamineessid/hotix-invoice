@@ -132,108 +132,51 @@ public partial class MainWindow : Window
 
     private void NavExtraction_Click(object sender, MouseButtonEventArgs e)
     {
-        SetActiveNav(NavExtraction, NavExtractionIndicator, NavExtractionText, true);
-        SetActiveNav(NavSettings, NavSettingsIndicator, NavSettingsText, false);
-        SetActiveNav(NavAbout, NavAboutIndicator, NavAboutText, false);
+        SetActiveNav(NavExtraction, NavExtractionIcon, NavExtractionText, true);
+        SetActiveNav(NavSettings, NavSettingsIcon, NavSettingsText, false);
+        SetActiveNav(NavAbout, NavAboutIcon, NavAboutText, false);
 
-        // Show extraction content
         PageTitle.Text = TranslationSource.Get("NavPageExtraction");
-        // Could show/hide different panels here if we had About/Settings pages
     }
 
     private void NavSettings_Click(object sender, MouseButtonEventArgs e)
     {
-        SetActiveNav(NavExtraction, NavExtractionIndicator, NavExtractionText, false);
-        SetActiveNav(NavSettings, NavSettingsIndicator, NavSettingsText, true);
-        SetActiveNav(NavAbout, NavAboutIndicator, NavAboutText, false);
+        SetActiveNav(NavExtraction, NavExtractionIcon, NavExtractionText, false);
+        SetActiveNav(NavSettings, NavSettingsIcon, NavSettingsText, true);
+        SetActiveNav(NavAbout, NavAboutIcon, NavAboutText, false);
 
         PageTitle.Text = TranslationSource.Get("NavPageSettings");
-        // Open Gemini setup dialog
         ViewModel.ToggleSettingsCommand.Execute(null);
-        // Return to extraction after settings
         NavExtraction_Click(sender, e);
     }
 
     private void NavAbout_Click(object sender, MouseButtonEventArgs e)
     {
-        SetActiveNav(NavExtraction, NavExtractionIndicator, NavExtractionText, false);
-        SetActiveNav(NavSettings, NavSettingsIndicator, NavSettingsText, false);
-        SetActiveNav(NavAbout, NavAboutIndicator, NavAboutText, true);
+        SetActiveNav(NavExtraction, NavExtractionIcon, NavExtractionText, false);
+        SetActiveNav(NavSettings, NavSettingsIcon, NavSettingsText, false);
+        SetActiveNav(NavAbout, NavAboutIcon, NavAboutText, true);
 
         PageTitle.Text = TranslationSource.Get("NavPageAbout");
-        // Show a brief about state
         MessageBox.Show(
             TranslationSource.Get("AboutMessage"),
             TranslationSource.Get("AboutTitle"),
             MessageBoxButton.OK,
             MessageBoxImage.Information);
-        // Return to extraction
         NavExtraction_Click(sender, e);
     }
 
-    private static void SetActiveNav(Border navItem, Border indicator, TextBlock text, bool active)
+    private static void SetActiveNav(Border navItem, TextBlock icon, TextBlock text, bool active)
     {
         if (active)
         {
-            // Smooth transition: background fade
-            var bgAnim = new ColorAnimation
-            {
-                To = ((SolidColorBrush)Application.Current.FindResource("BrushSelected")).Color,
-                Duration = TimeSpan.FromMilliseconds(150),
-                EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseInOut },
-            };
-            var bgBrush = new SolidColorBrush();
-            navItem.Background = bgBrush;
-            bgBrush.BeginAnimation(SolidColorBrush.ColorProperty, bgAnim);
-
-            // Indicator: height + opacity glide
-            var heightAnim = new DoubleAnimation
-            {
-                To = 20,
-                Duration = TimeSpan.FromMilliseconds(150),
-                EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseInOut },
-            };
-            indicator.BeginAnimation(FrameworkElement.HeightProperty, heightAnim);
-
-            var opacityAnim = new DoubleAnimation
-            {
-                To = 1,
-                Duration = TimeSpan.FromMilliseconds(120),
-                EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseInOut },
-            };
-            indicator.BeginAnimation(UIElement.OpacityProperty, opacityAnim);
-
+            navItem.Style = (Style)Application.Current.FindResource("NavItemStyleActive");
+            icon.Style = (Style)Application.Current.FindResource("NavIconActiveStyle");
             text.Style = (Style)Application.Current.FindResource("NavTextSelectedStyle");
         }
         else
         {
-            // Smooth transition away
-            var bgAnim = new ColorAnimation
-            {
-                To = Colors.Transparent,
-                Duration = TimeSpan.FromMilliseconds(150),
-                EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseInOut },
-            };
-            var bgBrush = new SolidColorBrush(Colors.Transparent);
-            navItem.Background = bgBrush;
-            bgBrush.BeginAnimation(SolidColorBrush.ColorProperty, bgAnim);
-
-            var heightAnim = new DoubleAnimation
-            {
-                To = 0,
-                Duration = TimeSpan.FromMilliseconds(120),
-                EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseInOut },
-            };
-            indicator.BeginAnimation(FrameworkElement.HeightProperty, heightAnim);
-
-            var opacityAnim = new DoubleAnimation
-            {
-                To = 0,
-                Duration = TimeSpan.FromMilliseconds(100),
-                EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseInOut },
-            };
-            indicator.BeginAnimation(UIElement.OpacityProperty, opacityAnim);
-
+            navItem.Style = (Style)Application.Current.FindResource("NavItemStyle");
+            icon.Style = (Style)Application.Current.FindResource("NavIconStyle");
             text.Style = (Style)Application.Current.FindResource("NavTextStyle");
         }
     }

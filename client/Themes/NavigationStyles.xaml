@@ -9,60 +9,49 @@
     </ResourceDictionary.MergedDictionaries>
 
     <!-- ═══════════════════════════════════════════════
-         HOTIX Navigation Styles
-         Sidebar: 260px, no visible border
-         Nav items: height 48, radius 14, padding 16
-         Selected: 2px black indicator + small red square
+         HOTIX Navigation Styles — Premium
+         Sidebar: 240px, border-right, no heavy shadows
+         Active nav: soft red bg, rounded, subtle
+         Icons: same style, consistent weight
          ═══════════════════════════════════════════════ -->
 
     <!-- Sidebar container -->
     <Style x:Key="SidebarStyle" TargetType="Border">
         <Setter Property="Background" Value="{StaticResource BrushSidebar}" />
-        <Setter Property="Width"      Value="260" />
-        <Setter Property="Effect"     Value="{StaticResource ShadowSidebar}" />
+        <Setter Property="Width"      Value="240" />
+        <Setter Property="BorderBrush" Value="{StaticResource BrushBorderLight}" />
+        <Setter Property="BorderThickness" Value="0,0,1,0" />
     </Style>
 
-    <!-- Nav item container -->
+    <!-- Nav item container — inactive state -->
     <Style x:Key="NavItemStyle" TargetType="Border">
-        <Setter Property="Height"          Value="48" />
+        <Setter Property="Height"          Value="44" />
         <Setter Property="CornerRadius"    Value="{StaticResource RadiusMedium}" />
-        <Setter Property="Padding"         Value="{StaticResource PaddingNavItem}" />
+        <Setter Property="Padding"         Value="12,0,12,0" />
         <Setter Property="Background"      Value="Transparent" />
-        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Cursor"          Value="Hand" />
     </Style>
 
-    <!-- Nav item indicator (2px vertical black line) -->
-    <Style x:Key="NavIndicatorStyle" TargetType="Border">
-        <Setter Property="Width"            Value="2" />
-        <Setter Property="Height"           Value="0" />
-        <Setter Property="Background"       Value="{StaticResource BrushTextPrimary}" />
-        <Setter Property="CornerRadius"     Value="1" />
-        <Setter Property="HorizontalAlignment" Value="Left" />
-        <Setter Property="VerticalAlignment"   Value="Center" />
+    <!-- Nav item container — active state (soft red bg) -->
+    <Style x:Key="NavItemStyleActive" TargetType="Border" BasedOn="{StaticResource NavItemStyle}">
+        <Setter Property="Background" Value="{StaticResource BrushAccentBg}" />
     </Style>
 
-    <!-- Nav item red square accent -->
-    <Style x:Key="NavRedSquareStyle" TargetType="Border">
-        <Setter Property="Width"            Value="6" />
-        <Setter Property="Height"           Value="6" />
-        <Setter Property="Background"       Value="{StaticResource BrushAccent}" />
-        <Setter Property="CornerRadius"     Value="1" />
-        <Setter Property="HorizontalAlignment" Value="Right" />
-        <Setter Property="VerticalAlignment"   Value="Center" />
-        <Setter Property="Margin"           Value="0,0,12,0" />
-        <Setter Property="Opacity"          Value="0" />
-    </Style>
-
-    <!-- Nav icon (thin outline style) -->
+    <!-- Nav icon (all same stroke width, 16px) -->
     <Style x:Key="NavIconStyle" TargetType="TextBlock">
         <Setter Property="Foreground"    Value="{StaticResource BrushTextSecondary}" />
         <Setter Property="FontSize"      Value="16" />
-        <Setter Property="FontWeight"    Value="{StaticResource FontWeightLight}" />
+        <Setter Property="FontWeight"    Value="{StaticResource FontWeightRegular}" />
         <Setter Property="VerticalAlignment" Value="Center" />
-        <Setter Property="Margin"        Value="0,0,12,0" />
+        <Setter Property="Margin"        Value="0,0,10,0" />
     </Style>
 
-    <!-- Nav text -->
+    <!-- Active nav icon -->
+    <Style x:Key="NavIconActiveStyle" TargetType="TextBlock" BasedOn="{StaticResource NavIconStyle}">
+        <Setter Property="Foreground" Value="{StaticResource BrushAccent}" />
+    </Style>
+
+    <!-- Nav text — inactive -->
     <Style x:Key="NavTextStyle" TargetType="TextBlock">
         <Setter Property="Foreground"    Value="{StaticResource BrushTextSecondary}" />
         <Setter Property="FontFamily"    Value="{StaticResource FontPrimary}" />
@@ -71,35 +60,29 @@
         <Setter Property="VerticalAlignment" Value="Center" />
     </Style>
 
-    <!-- Selected nav text -->
+    <!-- Nav text — selected/active -->
     <Style x:Key="NavTextSelectedStyle" TargetType="TextBlock" BasedOn="{StaticResource NavTextStyle}">
         <Setter Property="Foreground" Value="{StaticResource BrushTextPrimary}" />
         <Setter Property="FontWeight" Value="{StaticResource FontWeightMedium}" />
     </Style>
 
     <!-- Sidebar section label -->
-    <Style x:Key="SidebarSectionLabel" TargetType="TextBlock" BasedOn="{StaticResource TextMetadata}">
-        <Setter Property="Padding" Value="16,24,16,8" />
+    <Style x:Key="SidebarSectionLabel" TargetType="TextBlock" BasedOn="{StaticResource TextTiny}">
+        <Setter Property="Padding" Value="12,24,12,8" />
+        <Setter Property="Foreground" Value="{StaticResource BrushTextMuted}" />
     </Style>
 
-    <!-- Logo area -->
+    <!-- Logo area text -->
     <Style x:Key="SidebarLogoStyle" TargetType="TextBlock">
         <Setter Property="FontFamily" Value="{StaticResource FontDisplay}" />
-        <Setter Property="FontSize"   Value="20" />
-        <Setter Property="FontWeight" Value="{StaticResource FontWeightLight}" />
+        <Setter Property="FontSize"   Value="22" />
+        <Setter Property="FontWeight" Value="{StaticResource FontWeightBold}" />
         <Setter Property="Foreground" Value="{StaticResource BrushTextPrimary}" />
     </Style>
 
-    <!-- Inspirational quote -->
-    <Style x:Key="SidebarQuoteStyle" TargetType="TextBlock" BasedOn="{StaticResource TextCaption}">
-        <Setter Property="TextWrapping" Value="Wrap" />
-        <Setter Property="FontStyle" Value="Italic" />
-        <Setter Property="Opacity" Value="0.6" />
-    </Style>
-
-    <!-- Sidebar footer -->
-    <Style x:Key="SidebarFooterStyle" TargetType="TextBlock" BasedOn="{StaticResource TextMetadata}">
-        <Setter Property="Opacity" Value="0.4" />
+    <!-- Sidebar footer text -->
+    <Style x:Key="SidebarFooterStyle" TargetType="TextBlock" BasedOn="{StaticResource TextTiny}">
+        <Setter Property="Opacity" Value="0.5" />
     </Style>
 
 </ResourceDictionary>

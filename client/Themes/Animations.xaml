@@ -2,14 +2,13 @@
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
     <!-- ═══════════════════════════════════════════════
-         HOTIX Motion Design
-         Apple-inspired ease-in-out timing
-         Purposeful, non-decorative animation
+         HOTIX Motion Design — Premium
+         Apple-inspired: 150-200ms, purposeful, subtle
          ═══════════════════════════════════════════════ -->
 
     <!-- ═══ Timing Durations ═══ -->
-    <Duration x:Key="DurationHover">0:0:0.12</Duration>
-    <Duration x:Key="DurationPress">0:0:0.08</Duration>
+    <Duration x:Key="DurationHover">0:0:0.15</Duration>
+    <Duration x:Key="DurationPress">0:0:0.10</Duration>
     <Duration x:Key="DurationFade">0:0:0.18</Duration>
     <Duration x:Key="DurationPanel">0:0:0.22</Duration>
     <Duration x:Key="DurationDialog">0:0:0.25</Duration>
@@ -65,10 +64,10 @@
                          EasingFunction="{StaticResource EaseIn}" />
     </Storyboard>
 
-    <!-- Card Hover: translate -2px, shadow increase -->
+    <!-- Card Hover: translate -1px, subtle -->
     <Storyboard x:Key="StoryboardCardHoverEnter">
         <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.Y)"
-                         To="-2" Duration="{StaticResource DurationHover}"
+                         To="-1" Duration="{StaticResource DurationHover}"
                          EasingFunction="{StaticResource EaseInOut}" />
     </Storyboard>
     <Storyboard x:Key="StoryboardCardHoverLeave">
@@ -77,10 +76,10 @@
                          EasingFunction="{StaticResource EaseInOut}" />
     </Storyboard>
 
-    <!-- Button Hover: translate -2px -->
+    <!-- Button Hover: translate -1px -->
     <Storyboard x:Key="StoryboardButtonHoverEnter">
         <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.Y)"
-                         To="-2" Duration="{StaticResource DurationHover}"
+                         To="-1" Duration="{StaticResource DurationHover}"
                          EasingFunction="{StaticResource EaseInOut}" />
     </Storyboard>
     <Storyboard x:Key="StoryboardButtonHoverLeave">
@@ -89,13 +88,13 @@
                          EasingFunction="{StaticResource EaseInOut}" />
     </Storyboard>
 
-    <!-- Button Press: scale 0.98 -->
+    <!-- Button Press: scale 0.97 -->
     <Storyboard x:Key="StoryboardButtonPressed">
         <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleX)"
-                         To="0.98" Duration="{StaticResource DurationPress}"
+                         To="0.97" Duration="{StaticResource DurationPress}"
                          EasingFunction="{StaticResource EaseInOut}" />
         <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleY)"
-                         To="0.98" Duration="{StaticResource DurationPress}"
+                         To="0.97" Duration="{StaticResource DurationPress}"
                          EasingFunction="{StaticResource EaseInOut}" />
     </Storyboard>
     <Storyboard x:Key="StoryboardButtonReleased">
@@ -140,14 +139,14 @@
                          EasingFunction="{StaticResource EaseOut}" />
     </Storyboard>
 
-    <!-- Notification Fade + Slide (top-right) -->
+    <!-- Notification Slide In (from right) -->
     <Storyboard x:Key="StoryboardNotificationEnter">
         <DoubleAnimation Storyboard.TargetProperty="Opacity"
                          From="0" To="1"
                          Duration="{StaticResource DurationFade}"
                          EasingFunction="{StaticResource EaseOut}" />
         <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.X)"
-                         From="20" To="0"
+                         From="16" To="0"
                          Duration="{StaticResource DurationFade}"
                          EasingFunction="{StaticResource EaseOut}" />
     </Storyboard>
@@ -157,12 +156,12 @@
                          Duration="{StaticResource DurationFade}"
                          EasingFunction="{StaticResource EaseOut}" />
         <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.X)"
-                         From="0" To="20"
+                         From="0" To="16"
                          Duration="{StaticResource DurationFade}"
                          EasingFunction="{StaticResource EaseOut}" />
     </Storyboard>
 
-    <!-- Sidebar indicator glide (fade + slide) -->
+    <!-- Nav indicator glide -->
     <Storyboard x:Key="StoryboardSidebarIndicatorEnter">
         <DoubleAnimation Storyboard.TargetProperty="Opacity"
                          From="0" To="1"
@@ -170,7 +169,7 @@
                          EasingFunction="{StaticResource EaseOut}" />
     </Storyboard>
 
-    <!-- Skeleton shimmer placeholder -->
+    <!-- Skeleton shimmer -->
     <Storyboard x:Key="StoryboardShimmer" RepeatBehavior="Forever">
         <DoubleAnimation Storyboard.TargetProperty="Opacity"
                          From="0.3" To="0.6" AutoReverse="True"
@@ -178,7 +177,7 @@
                          EasingFunction="{StaticResource EaseInOut}" />
     </Storyboard>
 
-    <!-- Spinning progress ring (continuous) -->
+    <!-- Spinning progress ring -->
     <Storyboard x:Key="StoryboardSpin" RepeatBehavior="Forever">
         <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(RotateTransform.Angle)"
                          From="0" To="360"

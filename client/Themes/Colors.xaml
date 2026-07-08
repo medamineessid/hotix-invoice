@@ -2,56 +2,60 @@
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
     <!-- ═══════════════════════════════════════════════
-         HOTIX Color Palette
-         Inspired by Suprematism, Bauhaus, Swiss Typography
+         HOTIX Color Palette — Premium Edition
+         Inspired by Apple HIG, Linear, Suprematism
          ═══════════════════════════════════════════════ -->
 
-    <!-- Backgrounds -->
-    <Color x:Key="ColorBackground">#F8F7F3</Color>
-    <Color x:Key="ColorAltBackground">#FAFAF8</Color>
+    <!-- Backgrounds — warm, natural, premium -->
+    <Color x:Key="ColorBackground">#F8F7F4</Color>
+    <Color x:Key="ColorAltBackground">#F3F2EE</Color>
     <Color x:Key="ColorSurface">#FFFFFF</Color>
-    <Color x:Key="ColorSidebar">#F8F7F3</Color>
+    <Color x:Key="ColorSidebar">#F8F7F4</Color>
 
-    <!-- Borders & Dividers -->
-    <Color x:Key="ColorBorder">#E9E7E2</Color>
-    <Color x:Key="ColorBorderLight">#F0EFEA</Color>
+    <!-- Borders & Dividers — barely there -->
+    <Color x:Key="ColorBorder">#E8E7E2</Color>
+    <Color x:Key="ColorBorderLight">#EEEDE8</Color>
 
-    <!-- Text -->
-    <Color x:Key="ColorTextPrimary">#111111</Color>
-    <Color x:Key="ColorTextSecondary">#5A5A5A</Color>
-    <Color x:Key="ColorTextMuted">#888888</Color>
+    <!-- Text — near-black, no pure black -->
+    <Color x:Key="ColorTextPrimary">#1A1A1A</Color>
+    <Color x:Key="ColorTextSecondary">#666666</Color>
+    <Color x:Key="ColorTextMuted">#999999</Color>
     <Color x:Key="ColorTextInverse">#FFFFFF</Color>
-    <Color x:Key="ColorTextPlaceholder">#BBBBBB</Color>
+    <Color x:Key="ColorTextPlaceholder">#CCCCCC</Color>
 
-    <!-- Accent — Suprematist Red -->
+    <!-- Accent — HOTIX Signature Red -->
     <Color x:Key="ColorAccent">#D9472B</Color>
     <Color x:Key="ColorAccentHover">#C03A20</Color>
     <Color x:Key="ColorAccentLight">#FDF0ED</Color>
+    <Color x:Key="ColorAccentBg">#FFF5F3</Color>
 
-    <!-- Functional -->
+    <!-- Functional colors — softer, more refined -->
     <Color x:Key="ColorSuccess">#2E7D32</Color>
     <Color x:Key="ColorWarning">#E67E22</Color>
     <Color x:Key="ColorError">#C62828</Color>
     <Color x:Key="ColorInfo">#1565C0</Color>
+
+    <!-- Pastel confidence colors (for badges) -->
+    <Color x:Key="ColorConfidenceHighBg">#E8F5E9</Color>
+    <Color x:Key="ColorConfidenceHighText">#2E7D32</Color>
+    <Color x:Key="ColorConfidenceMediumBg">#FFF3E0</Color>
+    <Color x:Key="ColorConfidenceMediumText">#E65100</Color>
+    <Color x:Key="ColorConfidenceLowBg">#FFEBEE</Color>
+    <Color x:Key="ColorConfidenceLowText">#C62828</Color>
 
     <!-- Interaction states -->
     <Color x:Key="ColorHover">#F0EFEA</Color>
     <Color x:Key="ColorSelected">#EBE9E3</Color>
     <Color x:Key="ColorPressed">#E3E0D8</Color>
 
-    <!-- Shadows (used by brushes) -->
+    <!-- Shadows -->
     <Color x:Key="ColorShadow">#000000</Color>
 
     <!-- Overlay -->
     <Color x:Key="ColorOverlay">#000000</Color>
 
-    <!-- Confidence colors -->
-    <Color x:Key="ColorConfidenceHigh">#2E7D32</Color>
-    <Color x:Key="ColorConfidenceMedium">#E67E22</Color>
-    <Color x:Key="ColorConfidenceLow">#C62828</Color>
-
     <!-- Geometric accent shapes -->
-    <Color x:Key="ColorGeometricFill">#E9E7E2</Color>
+    <Color x:Key="ColorGeometricFill">#E8E7E2</Color>
     <Color x:Key="ColorGeometricStroke">#D4D2CC</Color>
 
 </ResourceDictionary>

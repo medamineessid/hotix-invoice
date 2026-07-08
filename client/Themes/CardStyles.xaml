@@ -8,10 +8,9 @@
     </ResourceDictionary.MergedDictionaries>
 
     <!-- ═══════════════════════════════════════════════
-         HOTIX Card Styles
-         Gallery-frame cards: white, radius 20, padding 24
-         Subtle border, very soft shadow
-         Hover: translate -2px, increase shadow
+         HOTIX Card Styles — Premium
+         Consistent: radius 16, same border/shadow/padding
+         Hover: subtle 1px lift
          ═══════════════════════════════════════════════ -->
 
     <Style x:Key="CardStyle" TargetType="Border">
@@ -42,14 +41,22 @@
         <Setter Property="Padding" Value="{StaticResource PaddingCardCompact}" />
     </Style>
 
-    <!-- Card header + body layout helper -->
-    <Style x:Key="CardHeaderStyle" TargetType="TextBlock" BasedOn="{StaticResource TextCardTitle}">
+    <!-- Card step header (step number + title) -->
+    <Style x:Key="CardStepHeader" TargetType="TextBlock" BasedOn="{StaticResource TextCardTitle}">
         <Setter Property="Margin" Value="0,0,0,16" />
     </Style>
 
     <!-- Card label (above inputs within cards) -->
     <Style x:Key="CardLabelStyle" TargetType="TextBlock" BasedOn="{StaticResource TextCaption}">
-        <Setter Property="Margin" Value="0,0,0,8" />
+        <Setter Property="Margin" Value="0,0,0,6" />
+    </Style>
+
+    <!-- Step indicator badge -->
+    <Style x:Key="StepBadgeStyle" TargetType="Border">
+        <Setter Property="Width" Value="28" />
+        <Setter Property="Height" Value="28" />
+        <Setter Property="CornerRadius" Value="{StaticResource RadiusMedium}" />
+        <Setter Property="Background" Value="{StaticResource BrushAccentLight}" />
     </Style>
 
 </ResourceDictionary>

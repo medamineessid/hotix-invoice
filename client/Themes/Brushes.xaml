@@ -6,7 +6,7 @@
     </ResourceDictionary.MergedDictionaries>
 
     <!-- ═══════════════════════════════════════════════
-         HOTIX Brushes
+         HOTIX Brushes — Premium
          ═══════════════════════════════════════════════ -->
 
     <!-- Backgrounds -->
@@ -30,6 +30,7 @@
     <SolidColorBrush x:Key="BrushAccent"          Color="{StaticResource ColorAccent}" />
     <SolidColorBrush x:Key="BrushAccentHover"     Color="{StaticResource ColorAccentHover}" />
     <SolidColorBrush x:Key="BrushAccentLight"     Color="{StaticResource ColorAccentLight}" />
+    <SolidColorBrush x:Key="BrushAccentBg"        Color="{StaticResource ColorAccentBg}" />
 
     <!-- Functional -->
     <SolidColorBrush x:Key="BrushSuccess"         Color="{StaticResource ColorSuccess}" />
@@ -37,73 +38,86 @@
     <SolidColorBrush x:Key="BrushError"           Color="{StaticResource ColorError}" />
     <SolidColorBrush x:Key="BrushInfo"            Color="{StaticResource ColorInfo}" />
 
+    <!-- Pastel confidence badge backgrounds -->
+    <SolidColorBrush x:Key="BrushConfidenceHighBg"   Color="{StaticResource ColorConfidenceHighBg}" />
+    <SolidColorBrush x:Key="BrushConfidenceHighText" Color="{StaticResource ColorConfidenceHighText}" />
+    <SolidColorBrush x:Key="BrushConfidenceMediumBg"   Color="{StaticResource ColorConfidenceMediumBg}" />
+    <SolidColorBrush x:Key="BrushConfidenceMediumText" Color="{StaticResource ColorConfidenceMediumText}" />
+    <SolidColorBrush x:Key="BrushConfidenceLowBg"   Color="{StaticResource ColorConfidenceLowBg}" />
+    <SolidColorBrush x:Key="BrushConfidenceLowText" Color="{StaticResource ColorConfidenceLowText}" />
+
     <!-- Interaction -->
     <SolidColorBrush x:Key="BrushHover"           Color="{StaticResource ColorHover}" />
     <SolidColorBrush x:Key="BrushSelected"        Color="{StaticResource ColorSelected}" />
     <SolidColorBrush x:Key="BrushPressed"         Color="{StaticResource ColorPressed}" />
 
-    <!-- Shadows -->
-    <DropShadowEffect x:Key="ShadowCard" 
-                      ShadowDepth="2" 
-                      Direction="270" 
-                      BlurRadius="12" 
-                      Opacity="0.08" 
+    <!-- Shadows — Apple-style: very soft, almost invisible -->
+    <DropShadowEffect x:Key="ShadowCard"
+                      ShadowDepth="1"
+                      Direction="270"
+                      BlurRadius="8"
+                      Opacity="0.06"
                       Color="{StaticResource ColorShadow}" />
     <DropShadowEffect x:Key="ShadowCardHover"
-                      ShadowDepth="4"
+                      ShadowDepth="2"
                       Direction="270"
-                      BlurRadius="20"
-                      Opacity="0.12"
+                      BlurRadius="16"
+                      Opacity="0.10"
                       Color="{StaticResource ColorShadow}" />
     <DropShadowEffect x:Key="ShadowButton"
                       ShadowDepth="1"
                       Direction="270"
                       BlurRadius="4"
-                      Opacity="0.10"
+                      Opacity="0.08"
                       Color="{StaticResource ColorShadow}" />
     <DropShadowEffect x:Key="ShadowDialog"
-                      ShadowDepth="8"
+                      ShadowDepth="6"
                       Direction="270"
-                      BlurRadius="32"
-                      Opacity="0.15"
+                      BlurRadius="28"
+                      Opacity="0.12"
                       Color="{StaticResource ColorShadow}" />
     <DropShadowEffect x:Key="ShadowSidebar"
                       ShadowDepth="0"
                       Direction="90"
-                      BlurRadius="8"
-                      Opacity="0.06"
+                      BlurRadius="6"
+                      Opacity="0.04"
                       Color="{StaticResource ColorShadow}" />
 
     <!-- Overlay -->
-    <SolidColorBrush x:Key="BrushOverlay"         Color="{StaticResource ColorOverlay}" Opacity="0.35" />
+    <SolidColorBrush x:Key="BrushOverlay"         Color="{StaticResource ColorOverlay}" Opacity="0.30" />
 
-    <!-- Confidence -->
-    <SolidColorBrush x:Key="BrushConfidenceHigh"   Color="{StaticResource ColorConfidenceHigh}" />
-    <SolidColorBrush x:Key="BrushConfidenceMedium" Color="{StaticResource ColorConfidenceMedium}" />
-    <SolidColorBrush x:Key="BrushConfidenceLow"    Color="{StaticResource ColorConfidenceLow}" />
+    <!-- Confidence (legacy — solid colors kept for compatibility) -->
+    <SolidColorBrush x:Key="BrushConfidenceHigh"   Color="{StaticResource ColorConfidenceHighText}" />
+    <SolidColorBrush x:Key="BrushConfidenceMedium" Color="{StaticResource ColorConfidenceMediumText}" />
+    <SolidColorBrush x:Key="BrushConfidenceLow"    Color="{StaticResource ColorConfidenceLowText}" />
 
     <!-- Geometric -->
     <SolidColorBrush x:Key="BrushGeometricFill"    Color="{StaticResource ColorGeometricFill}" />
     <SolidColorBrush x:Key="BrushGeometricStroke"  Color="{StaticResource ColorGeometricStroke}" />
 
-    <!-- Primary button -->
-    <SolidColorBrush x:Key="BrushButtonPrimary"         Color="{StaticResource ColorTextPrimary}" />
-    <SolidColorBrush x:Key="BrushButtonPrimaryHover"    Color="#2A2A2A" />
-    <SolidColorBrush x:Key="BrushButtonPrimaryPressed"  Color="#333333" />
+    <!-- Primary button — Red accent -->
+    <SolidColorBrush x:Key="BrushButtonPrimary"         Color="{StaticResource ColorAccent}" />
+    <SolidColorBrush x:Key="BrushButtonPrimaryHover"    Color="{StaticResource ColorAccentHover}" />
+    <SolidColorBrush x:Key="BrushButtonPrimaryPressed"  Color="#A8321C" />
+    <SolidColorBrush x:Key="BrushButtonPrimaryText"     Color="{StaticResource ColorTextInverse}" />
 
-    <!-- Secondary button -->
+    <!-- Secondary button — White with border -->
     <SolidColorBrush x:Key="BrushButtonSecondary"         Color="{StaticResource ColorSurface}" />
     <SolidColorBrush x:Key="BrushButtonSecondaryStroke"   Color="{StaticResource ColorBorder}" />
     <SolidColorBrush x:Key="BrushButtonSecondaryHover"    Color="{StaticResource ColorHover}" />
+    <SolidColorBrush x:Key="BrushButtonSecondaryText"     Color="{StaticResource ColorTextPrimary}" />
 
-    <!-- Danger button -->
-    <SolidColorBrush x:Key="BrushButtonDanger"         Color="{StaticResource ColorAccent}" />
-    <SolidColorBrush x:Key="BrushButtonDangerHover"    Color="{StaticResource ColorAccentHover}" />
+    <!-- Danger button — Outlined red -->
+    <SolidColorBrush x:Key="BrushButtonDanger"         Color="Transparent" />
+    <SolidColorBrush x:Key="BrushButtonDangerStroke"   Color="{StaticResource ColorAccent}" />
+    <SolidColorBrush x:Key="BrushButtonDangerHover"    Color="{StaticResource ColorAccentBg}" />
+    <SolidColorBrush x:Key="BrushButtonDangerText"     Color="{StaticResource ColorAccent}" />
 
     <!-- Input -->
     <SolidColorBrush x:Key="BrushInputBackground"     Color="{StaticResource ColorSurface}" />
     <SolidColorBrush x:Key="BrushInputBorder"         Color="{StaticResource ColorBorder}" />
-    <SolidColorBrush x:Key="BrushInputBorderHover"    Color="#C0BFBA" />
-    <SolidColorBrush x:Key="BrushInputBorderFocus"    Color="{StaticResource ColorTextPrimary}" />
+    <SolidColorBrush x:Key="BrushInputBorderHover"    Color="#C8C7C2" />
+    <SolidColorBrush x:Key="BrushInputBorderFocus"    Color="{StaticResource ColorAccent}" />
+    <SolidColorBrush x:Key="BrushInputCaret"          Color="{StaticResource ColorTextPrimary}" />
 
 </ResourceDictionary>

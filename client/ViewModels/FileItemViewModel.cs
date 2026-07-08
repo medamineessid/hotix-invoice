@@ -13,6 +13,29 @@ public sealed class FileItemViewModel : INotifyPropertyChanged
     public string FilePath { get; }
     public string FileName => Path.GetFileName(FilePath);
 
+    public string FileSizeDisplay
+    {
+        get
+        {
+            try
+            {
+                var info = new FileInfo(FilePath);
+                if (!info.Exists) return "?";
+                long bytes = info.Length;
+                return bytes switch
+                {
+                    < 1024 => $"{bytes} B",
+                    < 1024 * 1024 => $"{bytes / 1024.0:F1} KB",
+                    _ => $"{bytes / (1024.0 * 1024.0):F1} MB"
+                };
+            }
+            catch
+            {
+                return "?";
+            }
+        }
+    }
+
     public bool IsSelected
     {
         get => _isSelected;

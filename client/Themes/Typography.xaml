@@ -3,9 +3,8 @@
                     xmlns:sys="clr-namespace:System;assembly=mscorlib">
 
     <!-- ═══════════════════════════════════════════════
-         HOTIX Typography
-         Swiss International Typography principles
-         Hierarchy from size, spacing, position
+         HOTIX Typography — Premium
+         Swiss principles, consistent scale
          ═══════════════════════════════════════════════ -->
 
     <!-- Font Families -->
@@ -13,47 +12,52 @@
     <FontFamily x:Key="FontDisplay">Inter, Helvetica Neue, Segoe UI</FontFamily>
     <FontFamily x:Key="FontMono">Consolas, Courier New, monospace</FontFamily>
 
-    <!-- ═══ Font Sizes ═══ -->
-    <sys:Double x:Key="FontSizeDisplay">36</sys:Double>
-    <sys:Double x:Key="FontSizePageTitle">28</sys:Double>
-    <sys:Double x:Key="FontSizeSectionHeading">20</sys:Double>
+    <!-- ═══ Font Sizes — Strict Scale: 32, 24, 18, 16, 14, 13 ═══ -->
+    <sys:Double x:Key="FontSizeDisplay">32</sys:Double>
+    <sys:Double x:Key="FontSizePageTitle">24</sys:Double>
+    <sys:Double x:Key="FontSizeSectionHeading">18</sys:Double>
     <sys:Double x:Key="FontSizeCardTitle">16</sys:Double>
     <sys:Double x:Key="FontSizeBody">14</sys:Double>
-    <sys:Double x:Key="FontSizeCaption">12</sys:Double>
-    <sys:Double x:Key="FontSizeMetadata">11</sys:Double>
+    <sys:Double x:Key="FontSizeCaption">13</sys:Double>
+    <sys:Double x:Key="FontSizeMetadata">12</sys:Double>
+    <sys:Double x:Key="FontSizeTiny">11</sys:Double>
 
-    <!-- ═══ Font Weights ═══ -->
-    <FontWeight x:Key="FontWeightLight">300</FontWeight>
+    <!-- ═══ Font Weights — 700, 600, 500, 400 ═══ -->
     <FontWeight x:Key="FontWeightRegular">400</FontWeight>
     <FontWeight x:Key="FontWeightMedium">500</FontWeight>
     <FontWeight x:Key="FontWeightSemiBold">600</FontWeight>
     <FontWeight x:Key="FontWeightBold">700</FontWeight>
 
-    <!-- ═══ Named Text Styles (applied via Style) ═══ -->
+    <!-- ═══ Named Text Styles ═══ -->
+
+    <!-- Display — 32px Light -->
     <Style x:Key="TextDisplay" TargetType="TextBlock">
         <Setter Property="FontFamily" Value="{StaticResource FontDisplay}" />
         <Setter Property="FontSize"   Value="{StaticResource FontSizeDisplay}" />
-        <Setter Property="FontWeight" Value="{StaticResource FontWeightLight}" />
+        <Setter Property="FontWeight" Value="{StaticResource FontWeightRegular}" />
         <Setter Property="Foreground" Value="{StaticResource BrushTextPrimary}" />
-        <Setter Property="LineHeight" Value="44" />
+        <Setter Property="LineHeight" Value="40" />
     </Style>
 
+    <!-- Page Title — 24px Regular -->
     <Style x:Key="TextPageTitle" TargetType="TextBlock">
         <Setter Property="FontFamily" Value="{StaticResource FontDisplay}" />
         <Setter Property="FontSize"   Value="{StaticResource FontSizePageTitle}" />
-        <Setter Property="FontWeight" Value="{StaticResource FontWeightLight}" />
+        <Setter Property="FontWeight" Value="{StaticResource FontWeightSemiBold}" />
         <Setter Property="Foreground" Value="{StaticResource BrushTextPrimary}" />
-        <Setter Property="LineHeight" Value="36" />
+        <Setter Property="LineHeight" Value="32" />
     </Style>
 
+    <!-- Section Heading — 18px Medium -->
     <Style x:Key="TextSectionHeading" TargetType="TextBlock">
         <Setter Property="FontFamily" Value="{StaticResource FontPrimary}" />
         <Setter Property="FontSize"   Value="{StaticResource FontSizeSectionHeading}" />
-        <Setter Property="FontWeight" Value="{StaticResource FontWeightRegular}" />
+        <Setter Property="FontWeight" Value="{StaticResource FontWeightMedium}" />
         <Setter Property="Foreground" Value="{StaticResource BrushTextPrimary}" />
-        <Setter Property="LineHeight" Value="28" />
+        <Setter Property="LineHeight" Value="24" />
     </Style>
 
+    <!-- Card Title — 16px Medium -->
     <Style x:Key="TextCardTitle" TargetType="TextBlock">
         <Setter Property="FontFamily" Value="{StaticResource FontPrimary}" />
         <Setter Property="FontSize"   Value="{StaticResource FontSizeCardTitle}" />
@@ -62,6 +66,7 @@
         <Setter Property="LineHeight" Value="22" />
     </Style>
 
+    <!-- Body — 14px Regular -->
     <Style x:Key="TextBody" TargetType="TextBlock">
         <Setter Property="FontFamily" Value="{StaticResource FontPrimary}" />
         <Setter Property="FontSize"   Value="{StaticResource FontSizeBody}" />
@@ -70,6 +75,7 @@
         <Setter Property="LineHeight" Value="20" />
     </Style>
 
+    <!-- Caption — 13px Regular -->
     <Style x:Key="TextCaption" TargetType="TextBlock">
         <Setter Property="FontFamily" Value="{StaticResource FontPrimary}" />
         <Setter Property="FontSize"   Value="{StaticResource FontSizeCaption}" />
@@ -78,6 +84,7 @@
         <Setter Property="LineHeight" Value="18" />
     </Style>
 
+    <!-- Metadata — 12px Regular -->
     <Style x:Key="TextMetadata" TargetType="TextBlock">
         <Setter Property="FontFamily" Value="{StaticResource FontPrimary}" />
         <Setter Property="FontSize"   Value="{StaticResource FontSizeMetadata}" />
@@ -86,9 +93,19 @@
         <Setter Property="LineHeight" Value="16" />
     </Style>
 
+    <!-- Tiny — 11px -->
+    <Style x:Key="TextTiny" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource FontPrimary}" />
+        <Setter Property="FontSize"   Value="{StaticResource FontSizeTiny}" />
+        <Setter Property="FontWeight" Value="{StaticResource FontWeightRegular}" />
+        <Setter Property="Foreground" Value="{StaticResource BrushTextMuted}" />
+        <Setter Property="LineHeight" Value="14" />
+    </Style>
+
+    <!-- Mono — 13px -->
     <Style x:Key="TextMono" TargetType="TextBlock">
         <Setter Property="FontFamily" Value="{StaticResource FontMono}" />
-        <Setter Property="FontSize"   Value="{StaticResource FontSizeBody}" />
+        <Setter Property="FontSize"   Value="{StaticResource FontSizeCaption}" />
         <Setter Property="Foreground" Value="{StaticResource BrushTextSecondary}" />
     </Style>
 
