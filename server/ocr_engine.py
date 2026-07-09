@@ -70,11 +70,39 @@ class PaddleOcrEngine:
         return [replace(line, line_index=index) for index, line in enumerate(ordered_lines)]
 
     def _iter_detections(self, result: Any):
-        """Yield raw PaddleOCR detection entries in a normalized shape."""
+        """Yield raw PaddleOCR detection entries in a normalized shape.
 
-        if isinstance(result, list) and len(result) == 1 and isinstance(result[0], list):
-            return result[0]
-        return result or []
+        Handles both:
+        - PaddleOCR 3.x (paddlex pipeline): result[0] is a dict-like OCRResult
+          with keys rec_texts, rec_scores, rec_polys (length-N lists)
+        - PaddleOCR 2.x (legacy): result[0] is a list of
+          [bbox_points, (text, confidence)] pairs
+        """
+
+        if not result:
+            return
+
+        # Unwrap single-element outer list
+        inner = result[0] if (isinstance(result, list) and len(result) == 1) else result
+
+        # PaddleOCR 3.x: dict-like object with rec_texts / rec_scores / rec_polys
+        if hasattr(inner, "get"):
+            texts = inner.get("rec_texts") or []
+            scores = inner.get("rec_scores") or []
+            polys = inner.get("rec_polys") or []
+
+            for i in range(len(texts)):
+                # Normalize to old format: [polygon_points, (text, confidence)]
+                poly = polys[i] if i < len(polys) else None
+                text = texts[i] if i < len(texts) else ""
+                score = float(scores[i]) if i < len(scores) else 0.0
+                yield [poly, (text, score)]
+            return
+
+        # PaddleOCR 2.x (legacy): [[bbox, (text, confidence)], ...]
+        if isinstance(inner, list):
+            yield from inner
+            return
 
     def _parse_detection(self, detection: Any, page_index: int) -> OCRLine | None:
         """Convert one PaddleOCR detection entry into an OCRLine."""
@@ -83,7 +111,12 @@ class PaddleOcrEngine:
             return None
 
         box_points, text_payload = detection[0], detection[1]
-        if not box_points or not text_payload:
+
+        # box_points may be a numpy ndarray (PaddleOCR 3.x) or a list (2.x).
+        # Check for None explicitly since ndarray truthiness is ambiguous.
+        if box_points is None or text_payload is None:
+            return None
+        if isinstance(box_points, (list, tuple)) and not box_points:
             return None
 
         text, confidence = self._extract_text_and_confidence(text_payload)
