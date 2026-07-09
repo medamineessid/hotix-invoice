@@ -473,9 +473,9 @@
                                 <StackPanel VerticalAlignment="Center" Margin="14,0,0,0">
                                     <TextBlock Style="{StaticResource TextBody}"
                                                FontWeight="{StaticResource FontWeightMedium}">
-                                        <Run Text="{Binding ProgressPercentage, StringFormat={}{0:F0}%}" />
+                                        <Run Text="{Binding ProgressPercentage, Mode=OneWay, StringFormat={}{0:F0}%}" />
                                         <Run Text="—" />
-                                        <Run Text="{Binding ExtractionStatusText}" />
+                                        <Run Text="{Binding ExtractionStatusText, Mode=OneWay}" />
                                     </TextBlock>
                                     <TextBlock Text="{Binding ProgressText}"
                                                Style="{StaticResource TextCaption}"
