@@ -304,7 +304,7 @@
                                                         <Style.Triggers>
                                                             <DataTrigger Binding="{Binding GeminiAvailable}" Value="False">
                                                                 <Setter Property="Foreground" Value="{StaticResource BrushTextMuted}" />
-                                                                <Setter Property="ToolTip" Value="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ControlEngineNoKey]}" />
+                                                                <Setter Property="ToolTip" Value="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ControlEngineNoKey], Mode=OneWay}" />
                                                             </DataTrigger>
                                                         </Style.Triggers>
                                                     </Style>
@@ -316,7 +316,7 @@
                                                         <Style.Triggers>
                                                             <DataTrigger Binding="{Binding GrokAvailable}" Value="False">
                                                                 <Setter Property="Foreground" Value="{StaticResource BrushTextMuted}" />
-                                                                <Setter Property="ToolTip" Value="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ControlEngineNoKey]}" />
+                                                                <Setter Property="ToolTip" Value="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ControlEngineNoKey], Mode=OneWay}" />
                                                             </DataTrigger>
                                                         </Style.Triggers>
                                                     </Style>
