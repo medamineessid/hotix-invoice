@@ -444,7 +444,7 @@
                                                         VerticalAlignment="Center">
                                                     <TextBlock Style="{StaticResource TextTiny}"
                                                                Foreground="{StaticResource BrushConfidenceHighText}">
-                                                        <Run Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[FileReady]}" />
+                                                        <Run Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[FileReady], Mode=OneWay}" />
                                                     </TextBlock>
                                                 </Border>
                                             </Grid>
