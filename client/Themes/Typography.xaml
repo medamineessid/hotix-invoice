@@ -22,7 +22,8 @@
     <sys:Double x:Key="FontSizeMetadata">12</sys:Double>
     <sys:Double x:Key="FontSizeTiny">11</sys:Double>
 
-    <!-- ═══ Font Weights — 700, 600, 500, 400 ═══ -->
+    <!-- ═══ Font Weights — 700, 600, 500, 400, 300 ═══ -->
+    <FontWeight x:Key="FontWeightLight">300</FontWeight>
     <FontWeight x:Key="FontWeightRegular">400</FontWeight>
     <FontWeight x:Key="FontWeightMedium">500</FontWeight>
     <FontWeight x:Key="FontWeightSemiBold">600</FontWeight>
