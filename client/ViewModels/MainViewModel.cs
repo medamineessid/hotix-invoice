@@ -1642,8 +1642,10 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     {
         if (row is null || IsExtracting) return;
 
-        string filePath = Path.Combine(SelectedFolder, row.FileName);
-        if (!File.Exists(filePath)) return;
+        // Use the stored full FilePath (set once at row creation) instead of
+        // reconstructing from SelectedFolder, which may have changed since extraction.
+        string filePath = row.FilePath;
+        if (string.IsNullOrEmpty(filePath) || !File.Exists(filePath)) return;
 
         InvoiceRowViewModel updated = await ExtractRowViewModelAsync(filePath);
 

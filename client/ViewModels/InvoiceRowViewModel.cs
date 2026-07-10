@@ -6,6 +6,7 @@ namespace Hotix.InvoiceClient.ViewModels;
 
 public sealed class InvoiceRowViewModel : INotifyPropertyChanged
 {
+    private string _filePath = string.Empty;
     private string _fileName = string.Empty;
     private string? _numeroFacture;
     private string? _date;
@@ -24,6 +25,13 @@ public sealed class InvoiceRowViewModel : INotifyPropertyChanged
     private string? _geminiFallbackReason;
 
     public event PropertyChangedEventHandler? PropertyChanged;
+
+    /// <summary>Full absolute path to the file on disk. Set once at creation and used directly for retry operations.</summary>
+    public string FilePath
+    {
+        get => _filePath;
+        set => SetField(ref _filePath, value);
+    }
 
     public string FileName
     {
@@ -194,6 +202,7 @@ public sealed class InvoiceRowViewModel : INotifyPropertyChanged
 
     public static InvoiceRowViewModel FromSuccess(string filePath, InvoiceResult result) => new()
     {
+        FilePath      = filePath,
         FileName      = Path.GetFileName(filePath),
         NumeroFacture = result.NumeroFacture,
         Date          = result.Date,
@@ -212,6 +221,7 @@ public sealed class InvoiceRowViewModel : INotifyPropertyChanged
 
     public static InvoiceRowViewModel FromError(string filePath, string message) => new()
     {
+        FilePath     = filePath,
         FileName     = Path.GetFileName(filePath),
         HasError     = true,
         ErrorMessage = message,
