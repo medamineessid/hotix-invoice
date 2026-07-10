@@ -5,26 +5,30 @@ namespace Hotix.InvoiceClient.Converters;
 
 public sealed class NullToPlaceholderConverter : IValueConverter
 {
-    private readonly string _placeholder = "—";
-    private readonly string _convertBackMessage = "La conversion inverse n'est pas prise en charge.";
+    private const string Placeholder = "—";
 
     public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
     {
         if (value is null)
-        {
-            return _placeholder;
-        }
+            return Placeholder;
 
         if (value is string text && string.IsNullOrWhiteSpace(text))
-        {
-            return _placeholder;
-        }
+            return Placeholder;
 
         return value;
     }
 
     public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
     {
-        throw new NotSupportedException(_convertBackMessage);
+        // Support DataGrid inline editing: convert the placeholder back to null,
+        // and return any user-entered value as-is.
+        if (value is string s)
+        {
+            if (s == Placeholder || string.IsNullOrWhiteSpace(s))
+                return null!;
+            return s;
+        }
+
+        return value ?? null!;
     }
 }

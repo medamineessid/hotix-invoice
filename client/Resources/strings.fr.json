@@ -215,5 +215,16 @@
   "ExtractionQuotaFallback": "Quota Gemini dépassé — passage en OCR local pour les fichiers restants",
   "QuotaFallbackBanner": "Quota de l'API Gemini atteint. Les fichiers restants seront traités par OCR local. Utilisez le moteur Grok ou réessayez plus tard.",
   "FileReady": "✓ Prêt",
-  "ErrorTimeout": "Le traitement du fichier a expiré après {0}s. Vérifiez votre connexion et l'état de l'API."
+  "ErrorTimeout": "Le traitement du fichier a expiré après {0}s. Vérifiez votre connexion et l'état de l'API.",
+
+  "EngineBadgeAuto": "Auto",
+  "EngineBadgeGeminiReady": "Gemini (cloud)",
+  "EngineBadgeGeminiNoKey": "Gemini (pas de clé)",
+  "EngineBadgeGeminiShort": "Gemini",
+  "EngineBadgeGrokReady": "Grok (xAI)",
+  "EngineBadgeGrokNoKey": "Grok (pas de clé)",
+  "EngineBadgeGrokShort": "Grok",
+  "EngineBadgeOcr": "OCR local (PaddleOCR)",
+  "EngineLabel": "Moteur :",
+  "RerunErrorsProgress": "Re-traitement des fichiers en erreur..."
 }

@@ -215,5 +215,16 @@
   "ExtractionQuotaFallback": "Gemini quota exceeded — switching to local OCR for remaining files",
   "QuotaFallbackBanner": "Gemini API quota reached. Remaining files will be processed with local OCR. Consider using the Grok engine or try again later.",
   "FileReady": "✓ Ready",
-  "ErrorTimeout": "File processing timed out after {0}s. Check your connection and API status."
+  "ErrorTimeout": "File processing timed out after {0}s. Check your connection and API status.",
+
+  "EngineBadgeAuto": "Auto",
+  "EngineBadgeGeminiReady": "Gemini (cloud)",
+  "EngineBadgeGeminiNoKey": "Gemini (no key)",
+  "EngineBadgeGeminiShort": "Gemini",
+  "EngineBadgeGrokReady": "Grok (xAI)",
+  "EngineBadgeGrokNoKey": "Grok (no key)",
+  "EngineBadgeGrokShort": "Grok",
+  "EngineBadgeOcr": "OCR local (PaddleOCR)",
+  "EngineLabel": "Engine:",
+  "RerunErrorsProgress": "Re-running errored files..."
 }

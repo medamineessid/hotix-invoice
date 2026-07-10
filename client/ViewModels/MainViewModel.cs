@@ -176,32 +176,51 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         set
         {
             if (SetField(ref _selectedEngine, value))
+            {
                 SaveSettings();
+                OnPropertyChanged(nameof(ResolvedEngineDisplay));
+            }
         }
     }
 
     public bool GeminiAvailable
     {
         get => _geminiAvailable;
-        set => SetField(ref _geminiAvailable, value);
+        set
+        {
+            if (SetField(ref _geminiAvailable, value))
+                OnPropertyChanged(nameof(ResolvedEngineDisplay));
+        }
     }
 
     public string GeminiKeyInput
     {
         get => _geminiKeyInput;
-        set => SetField(ref _geminiKeyInput, value);
+        set
+        {
+            if (SetField(ref _geminiKeyInput, value))
+                OnPropertyChanged(nameof(ResolvedEngineDisplay));
+        }
     }
 
     public bool GrokAvailable
     {
         get => _grokAvailable;
-        set => SetField(ref _grokAvailable, value);
+        set
+        {
+            if (SetField(ref _grokAvailable, value))
+                OnPropertyChanged(nameof(ResolvedEngineDisplay));
+        }
     }
 
     public string GrokKeyInput
     {
         get => _grokKeyInput;
-        set => SetField(ref _grokKeyInput, value);
+        set
+        {
+            if (SetField(ref _grokKeyInput, value))
+                OnPropertyChanged(nameof(ResolvedEngineDisplay));
+        }
     }
 
     public bool IsSettingsPanelOpen
@@ -434,6 +453,39 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
 
     public bool HasErrors => Results.Any(r => r.HasError);
 
+    /// <summary>Display text showing the resolved engine that will be used for extraction.</summary>
+    public string ResolvedEngineDisplay
+    {
+        get
+        {
+            // Use in-memory fields directly (no disk I/O from LoadGeminiApiKey/LoadGrokApiKey)
+            bool hasGemini = _internetAvailable && !string.IsNullOrEmpty(_geminiKeyInput);
+            bool hasGrok = _internetAvailable && !string.IsNullOrEmpty(_grokKeyInput);
+
+            return _selectedEngine switch
+            {
+                "gemini" => hasGemini
+                    ? TranslationSource.Get("EngineBadgeGeminiReady")
+                    : TranslationSource.Get("EngineBadgeGeminiNoKey"),
+                "grok" => hasGrok
+                    ? TranslationSource.Get("EngineBadgeGrokReady")
+                    : TranslationSource.Get("EngineBadgeGrokNoKey"),
+                "ocr" => TranslationSource.Get("EngineBadgeOcr"),
+                "auto" => ResolveAutoEngineDisplay(hasGemini, hasGrok),
+                _ => TranslationSource.Get("EngineBadgeAuto"),
+            };
+        }
+    }
+
+    private string ResolveAutoEngineDisplay(bool hasGemini, bool hasGrok)
+    {
+        if (hasGemini)
+            return $"{TranslationSource.Get("EngineBadgeAuto")} → {TranslationSource.Get("EngineBadgeGeminiShort")}";
+        if (hasGrok)
+            return $"{TranslationSource.Get("EngineBadgeAuto")} → {TranslationSource.Get("EngineBadgeGrokShort")}";
+        return $"{TranslationSource.Get("EngineBadgeAuto")} → {TranslationSource.Get("EngineBadgeOcr")}";
+    }
+
     /// <summary>Window title including the build commit hash for build-identification.</summary>
     public string WindowTitle => $"{TranslationSource.Get("MainWindowTitle")} — {BuildInfo.CommitHash}";
 
@@ -449,6 +501,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         // Check internet connectivity
         _internetAvailable = await CheckInternetAsync();
         OnPropertyChanged(nameof(InternetAvailable));
+        OnPropertyChanged(nameof(ResolvedEngineDisplay));
 
         // Try to check via server if it's already running
         if (_isServerStarted && _isServerRunning)
@@ -1604,8 +1657,42 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     private async Task RerunAllErrorsAsync()
     {
         var errorRows = Results.Where(r => r.HasError).ToList();
-        foreach (var row in errorRows)
-            await RerunRowAsync(row);
+        if (errorRows.Count == 0) return;
+
+        // Show progress feedback so the user sees something happening
+        IsExtracting = true;
+        IsProgressVisible = true;
+        ShowSummaryBanner = false;
+        SaveConfirmationPath = null;
+        ProcessedFiles = 0;
+        TotalFiles = errorRows.Count;
+        _extractionStatusText = TranslationSource.Get("RerunErrorsProgress");
+        OnPropertyChanged(nameof(ExtractionStatusText));
+
+        try
+        {
+            foreach (var row in errorRows)
+            {
+                string fileName = row.FileName;
+                _extractionStatusText = TranslationSource.Fmt("ExtractionProcessing", fileName);
+                OnPropertyChanged(nameof(ExtractionStatusText));
+
+                await RerunRowAsync(row);
+
+                ProcessedFiles += 1;
+                NotifySummaryChanged();
+            }
+        }
+        finally
+        {
+            IsExtracting = false;
+            IsProgressVisible = false;
+            _extractionStatusText = string.Empty;
+            OnPropertyChanged(nameof(ExtractionStatusText));
+            OnPropertyChanged(nameof(HasErrors));
+            (RerunAllErrorsCommand as RelayCommand)?.RaiseCanExecuteChanged();
+            ShowExtractionSummary();
+        }
     }
 
     private static string MapErrorMessage(InvoiceExtractionException ex)
