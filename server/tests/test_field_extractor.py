@@ -123,15 +123,15 @@ class TestExtractInvoiceFields:
         assert all(v is None for v in fields.values())
 
     def test_all_confidences_zero(self):
-        """Zero-confidence lines should still be processed."""
+        """Zero-confidence lines should return None (rejected by threshold)."""
         lines = [
             OCRLine("Total TTC", BoundingBox(0, 0, 50, 10), 0.0, 0, 0),
             OCRLine("123.45", BoundingBox(0, 15, 40, 25), 0.0, 0, 1),
         ]
         fields = extract_invoice_fields(lines)
-        # Should still extract with 0 confidence
+        # Below FIELD_CONFIDENCE_THRESHOLD (0.6), return None for "right or blank"
         confidences = extract_field_confidences(lines)
-        assert fields["montant_ttc"] is not None
+        assert fields["montant_ttc"] is None
         assert confidences["montant_ttc"] == 0.0
 
 

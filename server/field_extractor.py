@@ -88,11 +88,26 @@ class FieldSelection:
     score: float
 
 
+# Minimum per-character confidence for an extracted field value to be accepted.
+# Fields whose associated OCR line falls below this threshold will be returned
+# as None (blank) rather than showing a garbled or wrong value.
+# Priority: "right or blank" over "always fill something in."
+FIELD_CONFIDENCE_THRESHOLD = 0.6
+
+
 def extract_invoice_fields(ocr_lines: Sequence[OCRLine]) -> dict[str, Optional[str]]:
     """Extract the eight invoice fields from OCR lines."""
 
     selections = _extract_field_selections(ocr_lines)
-    return {field: selections[field].value for field in FIELD_ORDER}
+    return {
+        field: (
+            selections[field].value
+            if selections[field].value is not None
+               and selections[field].confidence >= FIELD_CONFIDENCE_THRESHOLD
+            else None
+        )
+        for field in FIELD_ORDER
+    }
 
 
 def extract_field_confidences(ocr_lines: Sequence[OCRLine]) -> dict[str, float]:

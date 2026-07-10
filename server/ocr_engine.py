@@ -50,9 +50,26 @@ class PaddleOcrEngine:
         """Run OCR on a PIL image and return normalized text lines."""
 
         try:
-            result = self.ocr.ocr(np.array(image.convert("RGB")))
+            # Pad the image with white borders before OCR to give the recognition
+            # model room to read edge characters. PaddleOCR's recognition model
+            # clips characters when the detection crop is too tight (min_x ≈ 0).
+            # Empirically, 20px white padding on all sides resolves this.
+            padded = self._pad_image(image, pad_px=30)
+            result = self.ocr.ocr(np.array(padded.convert("RGB")))
         except Exception as exc:  # pragma: no cover - runtime OCR failures need direct surfacing
             raise OcrEngineError(f"OCR failed on page {page_index + 1}: {exc}") from exc
+
+        lines = self._normalize_result(result, page_index)
+        raw_text = "\n".join(line.text for line in lines)
+        return OCRResult(lines=lines, raw_text=raw_text)
+
+    @staticmethod
+    def _pad_image(image: Image.Image, pad_px: int = 30) -> Image.Image:
+        """Add white padding around the image so detection crops have margin."""
+        w, h = image.size
+        padded = Image.new("RGB", (w + pad_px * 2, h + pad_px * 2), (255, 255, 255))
+        padded.paste(image, (pad_px, pad_px))
+        return padded
 
         lines = self._normalize_result(result, page_index)
         raw_text = "\n".join(line.text for line in lines)
