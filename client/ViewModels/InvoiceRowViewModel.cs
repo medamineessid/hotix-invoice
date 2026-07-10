@@ -21,6 +21,7 @@ public sealed class InvoiceRowViewModel : INotifyPropertyChanged
     private bool _hasError;
     private string? _errorMessage;
     private bool _isSelected;
+    private string? _geminiFallbackReason;
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -143,6 +144,18 @@ public sealed class InvoiceRowViewModel : INotifyPropertyChanged
         set => SetField(ref _isSelected, value);
     }
 
+    public string? GeminiFallbackReason
+    {
+        get => _geminiFallbackReason;
+        set
+        {
+            if (SetField(ref _geminiFallbackReason, value))
+                OnPropertyChanged(nameof(HasGeminiFallback));
+        }
+    }
+
+    public bool HasGeminiFallback => !string.IsNullOrEmpty(_geminiFallbackReason);
+
     public string FileDisplay => HasError ? $"{FileName} — {ErrorMessage}" : FileName;
 
     public bool NumeroFactureMissing => string.IsNullOrWhiteSpace(NumeroFacture);
@@ -194,6 +207,7 @@ public sealed class InvoiceRowViewModel : INotifyPropertyChanged
         RawText       = result.RawText,
         EngineUsed    = result.EngineUsed,
         HasError      = false,
+        GeminiFallbackReason = result.GeminiFallbackReason,
     };
 
     public static InvoiceRowViewModel FromError(string filePath, string message) => new()

@@ -23,6 +23,10 @@ class InvoiceExtractionResponse(BaseModel):
     confidence: float = Field(default=0.0, ge=0.0, le=1.0)
     raw_text: str = Field(default="")
     engine_used: Literal["gemini", "ocr"] = Field(default="ocr")
+    gemini_fallback_reason: Optional[str] = Field(
+        default=None,
+        description="If engine_used is 'ocr' but Gemini was tried first, contains the Gemini error reason.",
+    )
 
 
 class HealthResponse(BaseModel):

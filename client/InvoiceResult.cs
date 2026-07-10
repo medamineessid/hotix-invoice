@@ -37,6 +37,9 @@ public sealed class InvoiceResult
     [JsonPropertyName("engine_used")]
     public string EngineUsed { get; set; } = "ocr";
 
+    [JsonPropertyName("gemini_fallback_reason")]
+    public string? GeminiFallbackReason { get; set; }
+
     [JsonIgnore]
     public bool HasMissingFields =>
         string.IsNullOrWhiteSpace(NumeroFacture)

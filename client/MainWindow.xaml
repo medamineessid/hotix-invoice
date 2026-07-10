@@ -761,6 +761,17 @@
                                                                            Foreground="{StaticResource BrushTextMuted}"
                                                                            FontSize="10" />
                                                             </Border>
+                                                            <!-- Fallback warning icon -->
+                                                            <Border CornerRadius="{StaticResource RadiusPill}"
+                                                                    Padding="6,2"
+                                                                    Margin="4,0,0,0"
+                                                                    Background="{StaticResource BrushWarning}"
+                                                                    Visibility="{Binding HasGeminiFallback, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                                                    ToolTip="{Binding GeminiFallbackReason}">
+                                                                <TextBlock Text="⚠"
+                                                                           FontSize="10"
+                                                                           Foreground="{StaticResource BrushTextInverse}" />
+                                                            </Border>
                                                         </StackPanel>
                                                     </DataTemplate>
                                                 </DataGridTemplateColumn.CellTemplate>
@@ -876,6 +887,17 @@
                                                                 <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[BadgeLocalOcr]}"
                                                                            Foreground="{StaticResource BrushTextMuted}"
                                                                            FontSize="10" />
+                                                            </Border>
+                                                            <!-- Fallback warning icon -->
+                                                            <Border CornerRadius="{StaticResource RadiusPill}"
+                                                                    Padding="6,2"
+                                                                    Margin="4,0,0,0"
+                                                                    Background="{StaticResource BrushWarning}"
+                                                                    Visibility="{Binding HasGeminiFallback, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                                                    ToolTip="{Binding GeminiFallbackReason}">
+                                                                <TextBlock Text="⚠"
+                                                                           FontSize="10"
+                                                                           Foreground="{StaticResource BrushTextInverse}" />
                                                             </Border>
                                                         </StackPanel>
                                                     </DataTemplate>

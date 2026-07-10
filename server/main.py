@@ -131,29 +131,37 @@ async def _extract_first_page_bytes(page) -> bytes:
 
 async def _run_gemini_extraction(
     pages: list, filename: str, engine: str
-) -> InvoiceExtractionResponse | None:
+) -> tuple[InvoiceExtractionResponse | None, str | None]:
+    """
+    Try Gemini extraction. Returns (response, None) on success
+    or (None, error_reason) on failure when falling back is allowed.
+    When engine='gemini' (non-auto), raises HTTPException on failure.
+    """
     try:
         image_data = await _extract_first_page_bytes(pages[0])
         fields = extract_with_gemini(image_data, "image/png")
         logger.info("Extraction via Gemini Vision successful for %s", Path(filename).name)
-        return InvoiceExtractionResponse(
-            **fields,
-            confidence=0.95,
-            raw_text="Extraction via Gemini Vision",
-            engine_used="gemini",
+        return (
+            InvoiceExtractionResponse(
+                **fields,
+                confidence=0.95,
+                raw_text="Extraction via Gemini Vision",
+                engine_used="gemini",
+            ),
+            None,
         )
     except GeminiExtractionError as exc:
         if engine == "gemini":
             logger.error("Gemini extraction failed: %s", exc)
             raise HTTPException(status_code=503, detail=str(exc))
         logger.warning("Gemini failed, falling back to OCR: %s", exc)
-        return None
+        return (None, str(exc))
     except Exception as exc:
         if engine == "gemini":
             logger.exception("Gemini unexpected error")
             raise HTTPException(status_code=503, detail="Gemini service unavailable")
         logger.warning("Gemini unexpected error, falling back to OCR: %s", exc)
-        return None
+        return (None, str(exc))
 
 
 def _run_ocr_extraction(
@@ -203,13 +211,17 @@ async def extract(
              raise IngestionError("Aucune page trouvée dans le fichier")
 
         # --- Gemini Path ---
+        gemini_fallback_reason: str | None = None
         if engine in ("gemini", "auto"):
-            res = await _run_gemini_extraction(pages, filename, engine)
+            res, gemini_fallback_reason = await _run_gemini_extraction(pages, filename, engine)
             if res is not None:
                 return res
 
         # --- OCR Path ---
-        return await asyncio.to_thread(_run_ocr_extraction, pages, filename, ocr_engine)
+        result = await asyncio.to_thread(_run_ocr_extraction, pages, filename, ocr_engine)
+        if gemini_fallback_reason:
+            result.gemini_fallback_reason = gemini_fallback_reason
+        return result
 
     except (IngestionError, OcrEngineError) as exc:
         logger.exception("Extraction failed for %s", filename)
