@@ -226,5 +226,8 @@
   "EngineBadgeGrokShort": "Grok",
   "EngineBadgeOcr": "OCR local (PaddleOCR)",
   "EngineLabel": "Engine:",
-  "RerunErrorsProgress": "Re-running errored files..."
+  "RerunErrorsProgress": "Re-running errored files...",
+
+  "GeminiValidationTitle": "Key Validation",
+  "GeminiServerValidationFailed": "The server could not validate this key: {0}\n\nThe key will still be saved, but the server may not use it correctly. Try restarting the application after saving."
 }

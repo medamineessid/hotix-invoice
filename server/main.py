@@ -92,6 +92,29 @@ async def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
+@app.post("/validate-gemini-key")
+async def validate_gemini_key(request: dict) -> dict:
+    """Validate a Gemini API key by making one lightweight generateContent call."""
+    api_key = request.get("api_key", "")
+    if not api_key:
+        return {"valid": False, "error": "No API key provided"}
+
+    try:
+        import google.genai as genai
+        client = genai.Client(api_key=api_key)
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=["ping"],
+        )
+        if response and response.text:
+            return {"valid": True}
+        return {"valid": False, "error": "Empty response from Gemini"}
+    except Exception as exc:
+        error_str = str(exc)[:500]
+        logger.warning("Key validation failed: %s", error_str)
+        return {"valid": False, "error": error_str}
+
+
 @app.get("/engine-status")
 async def engine_status() -> dict[str, bool]:
     """Check availability of extraction engines.

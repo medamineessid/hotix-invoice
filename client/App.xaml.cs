@@ -79,24 +79,17 @@ public partial class App : Application
             return;
         }
 
-        string mainPyPath = FindFile(new[]
-        {
-            Path.Combine(appDir, "server", "main.py"),
-            Path.Combine(appDir, "..", "server", "main.py"),
-            @"C:\hotix-invoice\server\main.py"
-        });
+        string? serverDir = ServerPathResolver.ResolveServerDirectory();
 
-        if (string.IsNullOrEmpty(mainPyPath))
+        if (serverDir == null)
         {
             MessageBox.Show(TranslationSource.Get("ErrorServerNotFound"), TranslationSource.Get("ErrorFatalTitle"), MessageBoxButton.OK, MessageBoxImage.Error);
             Current.Shutdown();
             return;
         }
 
-        _workingDir = Path.GetDirectoryName(mainPyPath)!;
-        // If main.py is inside a 'server' folder, the root is one level up
-        if (_workingDir.EndsWith("server", StringComparison.OrdinalIgnoreCase))
-            _workingDir = Path.GetDirectoryName(_workingDir)!;
+        // Working directory is one level above the server folder (project root)
+        _workingDir = Path.GetDirectoryName(serverDir)!;
 
         // Cleanup on exit — safe to register even if server never starts
         AppDomain.CurrentDomain.ProcessExit += (s, args) => CleanupServer();
@@ -240,7 +233,7 @@ public partial class App : Application
     {
         try
         {
-            string appSettingsPath = ViewModels.MainViewModel.ResolveAppSettingsPath();
+            string appSettingsPath = ServerPathResolver.ResolveAppSettingsPath();
             if (!File.Exists(appSettingsPath)) return true;
             var doc = System.Text.Json.JsonDocument.Parse(File.ReadAllText(appSettingsPath));
             if (doc.RootElement.TryGetProperty("gemini_api_key", out var el))

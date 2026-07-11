@@ -226,5 +226,8 @@
   "EngineBadgeGrokShort": "Grok",
   "EngineBadgeOcr": "OCR local (PaddleOCR)",
   "EngineLabel": "Moteur :",
-  "RerunErrorsProgress": "Re-traitement des fichiers en erreur..."
+  "RerunErrorsProgress": "Re-traitement des fichiers en erreur...",
+
+  "GeminiValidationTitle": "Validation de clé",
+  "GeminiServerValidationFailed": "Le serveur n'a pas pu valider cette clé : {0}\n\nLa clé sera tout de même sauvegardée, mais le serveur pourrait ne pas l'utiliser correctement. Essayez de redémarrer l'application après la sauvegarde."
 }

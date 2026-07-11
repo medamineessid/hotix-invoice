@@ -1054,7 +1054,43 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     {
         try
         {
-            // Save to appsettings.json
+            // Validate key via server endpoint (uses the server's Python environment
+            // and reads from the same appsettings.json the server will use)
+            if (_isServerStarted && _isServerRunning)
+            {
+                try
+                {
+                    using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
+                    var payload = new { api_key = GeminiKeyInput };
+                    var response = await client.PostAsJsonAsync(
+                        "http://127.0.0.1:8000/validate-gemini-key", payload);
+                    var body = await response.Content.ReadAsStringAsync();
+                    var result = JsonSerializer.Deserialize<JsonElement>(body);
+
+                    bool valid = result.GetProperty("valid").GetBoolean();
+                    if (!valid)
+                    {
+                        string? error = result.TryGetProperty("error", out var errEl)
+                            ? errEl.GetString()
+                            : null;
+                        string msg = TranslationSource.Fmt("GeminiServerValidationFailed",
+                            error ?? "unknown error");
+                        MessageBox.Show(msg, TranslationSource.Get("GeminiValidationTitle"),
+                            MessageBoxButton.OK, MessageBoxImage.Warning);
+                        return;
+                    }
+                }
+                catch (HttpRequestException)
+                {
+                    // Server not reachable — still save the key, but warn the user
+                }
+                catch (TaskCanceledException)
+                {
+                    // Timeout — still save the key
+                }
+            }
+
+            // Save to appsettings.json (same location server reads from)
             string appSettingsPath = ResolveAppSettingsPath();
             var settings = new { gemini_api_key = GeminiKeyInput, grok_api_key = _grokKeyInput, default_engine = SelectedEngine };
             await File.WriteAllTextAsync(appSettingsPath, JsonSerializer.Serialize(settings, new JsonSerializerOptions { WriteIndented = true }));
@@ -1129,20 +1165,13 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         }
     }
 
+    /// <summary>
+    /// Resolves the full path to appsettings.json using the shared ServerPathResolver.
+    /// Validates that server/main.py actually exists (not just the folder).
+    /// </summary>
     public static string ResolveAppSettingsPath()
     {
-        string appDir = AppDomain.CurrentDomain.BaseDirectory;
-        string[] serverDirectories =
-        {
-            Path.Combine(appDir, "server"),
-            Path.Combine(appDir, "..", "server"),
-            @"C:\hotix-invoice\server",
-        };
-
-        string serverDirectory = serverDirectories.FirstOrDefault(Directory.Exists)
-            ?? @"C:\hotix-invoice\server";
-
-        return Path.Combine(serverDirectory, "appsettings.json");
+        return ServerPathResolver.ResolveAppSettingsPath();
     }
 
     // ── Folder / File Selection ──────────────────────────────────────────
