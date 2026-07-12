@@ -13,26 +13,56 @@ class GeminiExtractionError(Exception):
     """Raised when Gemini extraction fails."""
     pass
 
+
+def _get_settings_path() -> Path:
+    """
+    Returns the canonical path to the user-writable appsettings.json.
+    
+    Prefers %LOCALAPPDATA%\Hotix\appsettings.json (always writable by the current user).
+    Falls back to the install-directory location (server/appsettings.json) for backwards
+    compatibility with existing installations that haven't been migrated yet.
+    """
+    local_app_data = os.environ.get("LOCALAPPDATA")
+    if local_app_data:
+        user_path = Path(local_app_data) / "Hotix" / "appsettings.json"
+        if user_path.exists():
+            return user_path
+
+    # Fallback: check install-directory location (pre-migration installs)
+    fallback = Path(__file__).parent / "appsettings.json"
+    if fallback.exists():
+        return fallback
+
+    # If neither exists, prefer the user-writable path (will be created there)
+    if local_app_data:
+        user_path = Path(local_app_data) / "Hotix" / "appsettings.json"
+        user_path.parent.mkdir(parents=True, exist_ok=True)
+        return user_path
+
+    # Last resort: install directory
+    return Path(__file__).parent / "appsettings.json"
+
+
 def load_gemini_api_key() -> Optional[str]:
     """Load API key from environment or appsettings.json."""
     key = os.getenv("GEMINI_API_KEY")
     if key:
         return key
     
-    settings_path = Path(__file__).parent / "appsettings.json"
+    settings_path = _get_settings_path()
     if settings_path.exists():
         try:
             with open(settings_path, 'r', encoding='utf-8') as f:
                 data = json.load(f)
                 return data.get("gemini_api_key")
         except Exception as e:
-            logger.warning(f"Failed to read appsettings.json for Gemini key: {e}")
+            logger.warning(f"Failed to read {settings_path} for Gemini key: {e}")
     return None
 
 
 def load_gemini_model() -> str:
     """Load the selected Gemini model from appsettings.json, or return the default."""
-    settings_path = Path(__file__).parent / "appsettings.json"
+    settings_path = _get_settings_path()
     if settings_path.exists():
         try:
             with open(settings_path, 'r', encoding='utf-8') as f:
@@ -41,7 +71,7 @@ def load_gemini_model() -> str:
                 if model:
                     return model
         except Exception as e:
-            logger.warning(f"Failed to read gemini_model from appsettings.json: {e}")
+            logger.warning(f"Failed to read gemini_model from {settings_path}: {e}")
     return "gemini-2.5-flash"  # default
 
 def extract_with_gemini(image_data: bytes, mime_type: str) -> Dict[str, Optional[str]]:

@@ -29,7 +29,7 @@ from .field_extractor import (
 
 from typing import Literal
 from fastapi import Query
-from .gemini_extractor import extract_with_gemini, GeminiExtractionError, load_gemini_api_key, load_gemini_model
+from .gemini_extractor import extract_with_gemini, GeminiExtractionError, load_gemini_api_key, load_gemini_model, _get_settings_path
 
 logging.basicConfig(
     level=os.getenv("HOTIX_LOG_LEVEL", "INFO"),
@@ -107,12 +107,11 @@ async def validate_grok_key(request: dict) -> dict:
         }
         # Use the currently configured Grok model, or default
         grok_model = "grok-4.3"  # default
-        import json as _json
-        settings_path = Path(__file__).parent / "appsettings.json"
+        settings_path = _get_settings_path()
         if settings_path.exists():
             try:
                 with open(settings_path, 'r', encoding='utf-8') as _f:
-                    _data = _json.load(_f)
+                    _data = json.load(_f)
                     _m = _data.get("grok_model", "")
                     if _m:
                         grok_model = _m

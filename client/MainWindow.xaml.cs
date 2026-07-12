@@ -27,10 +27,6 @@ public partial class MainWindow : Window
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
         "Hotix", "settings.json");
 
-    private static readonly string AppSettingsPath = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-        "..", "Local", "Hotix", "app_settings.json");
-
     private int _currentOnboardingStep;
     private bool _onboardingCompleted;
 
@@ -78,7 +74,24 @@ public partial class MainWindow : Window
     }
 
     private void OnClosing(object? sender, CancelEventArgs e)
-        => ViewModel.Dispose();
+    {
+        // Clean up onboarding SizeChanged handler
+        SizeChanged -= Onboarding_SizeChanged;
+        ViewModel.Dispose();
+    }
+
+    /// <summary>
+    /// Re-positions the spotlight + callout when the window is resized during onboarding.
+    /// </summary>
+    private void Onboarding_SizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        if (_onboardingSteps == null) return;
+        if (OnboardingOverlay.Visibility != Visibility.Visible) return;
+        if (_currentOnboardingStep < 0 || _currentOnboardingStep >= _onboardingSteps.Length) return;
+
+        // Re-show current step to recalculate position
+        ShowOnboardingStep(_currentOnboardingStep);
+    }
 
     // ── Title Bar ────────────────────────────────────────────────────
 
@@ -339,9 +352,14 @@ public partial class MainWindow : Window
                 }
             }
         }
-        catch { /* best-effort */ }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[Hotix] Failed to read onboarding status: {ex.GetType().Name}: {ex.Message}");
+        }
 
-        // Determine the actual target elements (need to find by name from the window)
+        // Subscribe to SizeChanged for repositioning during onboarding
+        SizeChanged += Onboarding_SizeChanged;
+
         _currentOnboardingStep = 0;
         ShowOnboardingStep(0);
     }
@@ -384,9 +402,33 @@ public partial class MainWindow : Window
                 OnboardingSpotlight.Height = h + 12;
                 OnboardingSpotlight.Opacity = 1;
 
-                // Position callout below the spotlight
-                Canvas.SetLeft(OnboardingCallout, point.X);
-                Canvas.SetTop(OnboardingCallout, point.Y + h + 20);
+                // Position callout below the spotlight, clamped to window bounds
+                double calloutX = point.X;
+                double calloutY = point.Y + h + 20;
+
+                // Clamp to keep callout within window bounds (320 = callout width + margin)
+                double windowW = ActualWidth > 0 ? ActualWidth : 1280;
+                double windowH = ActualHeight > 0 ? ActualHeight : 820;
+
+                if (calloutX + 340 > windowW)
+                    calloutX = windowW - 340;
+                if (calloutX < 8)
+                    calloutX = 8;
+
+                // Keep callout below the title bar row (48px)
+                if (calloutY < 56)
+                    calloutY = 56;
+
+                // If callout would go below window, flip it above the target
+                if (calloutY + 200 > windowH)
+                {
+                    calloutY = point.Y - 180; // above the spotlight
+                    if (calloutY < 56)
+                        calloutY = 56; // still too high? clamp to title bar bottom
+                }
+
+                Canvas.SetLeft(OnboardingCallout, calloutX);
+                Canvas.SetTop(OnboardingCallout, calloutY);
             }
             catch
             {
@@ -425,8 +467,24 @@ public partial class MainWindow : Window
         double overlayWidth = OnboardingOverlay.ActualWidth > 0 ? OnboardingOverlay.ActualWidth : 1200;
         double overlayHeight = OnboardingOverlay.ActualHeight > 0 ? OnboardingOverlay.ActualHeight : 800;
 
-        Canvas.SetLeft(OnboardingCallout, (overlayWidth - 320) / 2);
-        Canvas.SetTop(OnboardingCallout, overlayHeight / 3);
+        double centerX = (overlayWidth - 320) / 2;
+        double centerY = overlayHeight / 3;
+
+        // Clamp to window bounds
+        double windowW = ActualWidth > 0 ? ActualWidth : 1280;
+        double windowH = ActualHeight > 0 ? ActualHeight : 820;
+
+        if (centerX + 340 > windowW)
+            centerX = windowW - 340;
+        if (centerX < 8)
+            centerX = 8;
+        if (centerY < 56)
+            centerY = 56;
+        if (centerY + 200 > windowH)
+            centerY = windowH - 220;
+
+        Canvas.SetLeft(OnboardingCallout, centerX);
+        Canvas.SetTop(OnboardingCallout, centerY);
 
         OnboardingSpotlight.Opacity = 0; // Hide spotlight
     }
@@ -437,6 +495,9 @@ public partial class MainWindow : Window
     private void HideOnboarding()
     {
         if (OnboardingOverlay.Visibility != Visibility.Visible) return;
+
+        // Unsubscribe SizeChanged handler
+        SizeChanged -= Onboarding_SizeChanged;
 
         var fadeOutAnim = new DoubleAnimation
         {
@@ -505,9 +566,16 @@ public partial class MainWindow : Window
             }
 
             settings["onboarding_completed"] = true;
+            string dir = Path.GetDirectoryName(path)!;
+            Directory.CreateDirectory(dir);
             File.WriteAllText(path, JsonSerializer.Serialize(settings, new JsonSerializerOptions { WriteIndented = true }));
+
+            Debug.WriteLine($"[Hotix] Onboarding completed — flag written to {path}");
         }
-        catch { /* best-effort */ }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[Hotix] Failed to persist onboarding_completed to {ServerPathResolver.ResolveAppSettingsPath()}: {ex.GetType().Name}: {ex.Message}");
+        }
     }
 
     // ══════════════════════════════════════════════════════════════════

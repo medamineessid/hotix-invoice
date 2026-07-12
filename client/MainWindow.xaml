@@ -1155,14 +1155,24 @@
         </Grid>
 
         <!-- ══ ONBOARDING OVERLAY (coach-mark) ══ -->
+        <!-- Background set to transparent (not #80000000) so the overlay does not
+             intercept clicks on the title-bar close button underneath. The dim
+             backdrop is provided by a Rectangle inside the Canvas that has
+             IsHitTestVisible="False", allowing mouse events to pass through. -->
         <Border x:Name="OnboardingOverlay"
                 Grid.ColumnSpan="2"
-                Background="#80000000"
                 Panel.ZIndex="900"
                 Visibility="Collapsed"
                 IsHitTestVisible="True">
-            <!-- Canvas for absolute positioning of spotlight + callout -->
+            <!-- Canvas for absolute positioning of dim backdrop, spotlight + callout -->
             <Canvas>
+                <!-- Dim backdrop (not hit-testable — clicks pass through to close button) -->
+                <Rectangle x:Name="OnboardingDim"
+                           Fill="#80000000"
+                           Width="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Border}}"
+                           Height="{Binding ActualHeight, RelativeSource={RelativeSource AncestorType=Border}}"
+                           IsHitTestVisible="False"
+                           Canvas.ZIndex="0" />
                 <!-- Spotlight highlight ring around target element -->
                 <Border x:Name="OnboardingSpotlight"
                         BorderBrush="{StaticResource BrushAccent}"
