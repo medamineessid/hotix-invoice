@@ -3,6 +3,7 @@ using System.ComponentModel;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
@@ -147,7 +148,6 @@ public partial class MainWindow : Window
 
         PageTitle.Text = TranslationSource.Get("NavPageSettings");
         ViewModel.ToggleSettingsCommand.Execute(null);
-        NavExtraction_Click(sender, e);
     }
 
     private void NavAbout_Click(object sender, MouseButtonEventArgs e)
@@ -158,7 +158,7 @@ public partial class MainWindow : Window
 
         PageTitle.Text = TranslationSource.Get("NavPageAbout");
         MessageBox.Show(
-            TranslationSource.Get("AboutMessage"),
+            TranslationSource.Fmt("AboutMessage", TranslationSource.Get("SidebarVersion")),
             TranslationSource.Get("AboutTitle"),
             MessageBoxButton.OK,
             MessageBoxImage.Information);
@@ -208,6 +208,36 @@ public partial class MainWindow : Window
             EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut },
         };
         e.Row.RenderTransform.BeginAnimation(TranslateTransform.YProperty, slideUp);
+    }
+
+    // ── Info Button Click Handler ───────────────────────────
+
+    private void InfoButton_Click(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is FrameworkElement element)
+        {
+            // Find the Popup sibling in the parent container
+            if (element.Parent is Panel parent)
+            {
+                foreach (var child in parent.Children)
+                {
+                    if (child is Popup popup)
+                    {
+                        popup.IsOpen = !popup.IsOpen;
+                        e.Handled = true;
+                        return;
+                    }
+                }
+            }
+
+            // If not found via parent, try visual tree
+            var popup2 = element.FindName(element.Name.Replace("Icon", "Popup")) as Popup;
+            if (popup2 != null)
+            {
+                popup2.IsOpen = !popup2.IsOpen;
+                e.Handled = true;
+            }
+        }
     }
 
     // ── Tab Switching (Results / Incomplete) ───────────────

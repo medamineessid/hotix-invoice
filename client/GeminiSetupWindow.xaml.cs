@@ -1,5 +1,12 @@
+using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
+using System.Net.Http;
+using System.Text.Json;
+using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Media.Animation;
 using Hotix.InvoiceClient.ViewModels;
 
@@ -33,6 +40,16 @@ public partial class GeminiSetupWindow : Window
 
             // Pre-fill the key box with the selected provider's existing key
             UpdateKeyBoxFromProvider();
+
+            // If a key is already configured, populate the model dropdown
+            if (_isGeminiProvider && hasGemini)
+            {
+                _ = TryPopulateModelsAsync(vm, vm.GeminiKeyInput);
+            }
+            else if (!_isGeminiProvider && hasGrok)
+            {
+                _ = TryPopulateModelsAsync(vm, vm.GrokKeyInput);
+            }
         }
 
         Activate();
@@ -95,6 +112,7 @@ public partial class GeminiSetupWindow : Window
             GetKeyButton.Content = TranslationSource.Get("GeminiGetKeyBtn");
             SaveButton.Content = TranslationSource.Get("GeminiSaveBtn");
             ClearKeyButton.Content = TranslationSource.Get("GeminiClearBtn");
+            ModelLabel.Text = TranslationSource.Get("GeminiModelLabel");
         }
         else
         {
@@ -105,7 +123,131 @@ public partial class GeminiSetupWindow : Window
             GetKeyButton.Content = TranslationSource.Get("GrokGetKeyBtn");
             SaveButton.Content = TranslationSource.Get("GrokSaveBtn");
             ClearKeyButton.Content = TranslationSource.Get("GrokClearBtn");
+            ModelLabel.Text = TranslationSource.Get("GrokModelLabel");
         }
+
+        // Repopulate model dropdown if key is present
+        if (DataContext is MainViewModel vm2)
+        {
+            string key = _isGeminiProvider ? vm2.GeminiKeyInput : vm2.GrokKeyInput;
+            if (!string.IsNullOrEmpty(key))
+            {
+                _ = TryPopulateModelsAsync(vm2, key);
+            }
+            else
+            {
+                ModelSelector.Visibility = Visibility.Collapsed;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Fetches available models for the current provider and populates the dropdown.
+    /// Gemini: calls the Gemini models.list API. Grok: uses hardcoded known models.
+    /// If the API call fails, the dropdown is hidden and the default model is used silently.
+    /// </summary>
+    private async Task TryPopulateModelsAsync(MainViewModel vm, string apiKey)
+    {
+        try
+        {
+            var models = new List<string>();
+
+            if (_isGeminiProvider)
+            {
+                // Fetch Gemini models from the API
+                using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
+                var response = await client.GetAsync(
+                    $"https://generativelanguage.googleapis.com/v1beta/models?key={apiKey}");
+                if (response.IsSuccessStatusCode)
+                {
+                    var body = await response.Content.ReadAsStringAsync();
+                    var doc = System.Text.Json.JsonDocument.Parse(body);
+                    if (doc.RootElement.TryGetProperty("models", out var modelsArray))
+                    {
+                        foreach (var m in modelsArray.EnumerateArray())
+                        {
+                            string? name = m.GetProperty("name").GetString();
+                            string? supportedActions = m.TryGetProperty("supportedGenerationMethods", out var actions)
+                                ? string.Join(",", actions.EnumerateArray().Select(a => a.GetString()))
+                                : "";
+
+                            // Only include models that support generateContent and are gemini-* (vision capable)
+                            if (name != null && name.StartsWith("models/gemini-") &&
+                                supportedActions.Contains("generateContent"))
+                            {
+                                models.Add(name.Replace("models/", ""));
+                            }
+                        }
+                    }
+                }
+            }
+            else
+            {
+                // Hardcode known Grok models for now
+                models.Add("grok-4.3");
+                models.Add("grok-2");
+                models.Add("grok-2-vision");
+            }
+
+            if (models.Count == 0)
+            {
+                // No models found — hide the dropdown silently
+                ModelSelector.Visibility = Visibility.Collapsed;
+                return;
+            }
+
+            // Populate the dropdown
+            ModelCombo.Items.Clear();
+
+            // Add "Default" option first (uses the current hardcoded default)
+            var defaultItem = new System.Windows.Controls.ComboBoxItem
+            {
+                Content = TranslationSource.Get("ModelDefault"),
+                Tag = "",
+            };
+            ModelCombo.Items.Add(defaultItem);
+
+            foreach (var model in models.OrderBy(m => m))
+            {
+                var item = new System.Windows.Controls.ComboBoxItem
+                {
+                    Content = model,
+                    Tag = model,
+                };
+                ModelCombo.Items.Add(item);
+            }
+
+            // Select the current model if already configured
+            string currentModel = _isGeminiProvider ? vm.GeminiModel : vm.GrokModel;
+            if (!string.IsNullOrEmpty(currentModel))
+            {
+                foreach (System.Windows.Controls.ComboBoxItem item in ModelCombo.Items)
+                {
+                    if (item.Tag is string tag && tag == currentModel)
+                    {
+                        ModelCombo.SelectedItem = item;
+                        break;
+                    }
+                }
+            }
+            else
+            {
+                ModelCombo.SelectedIndex = 0; // Default
+            }
+
+            ModelSelector.Visibility = Visibility.Visible;
+        }
+        catch
+        {
+            // Silently hide the dropdown on any error
+            ModelSelector.Visibility = Visibility.Collapsed;
+        }
+    }
+
+    private void InfoKeyIcon_Click(object sender, MouseButtonEventArgs e)
+    {
+        InfoKeyPopup.IsOpen = !InfoKeyPopup.IsOpen;
+        e.Handled = true;
     }
 
     private void GetApiKey_Click(object sender, RoutedEventArgs e)
@@ -150,6 +292,7 @@ public partial class GeminiSetupWindow : Window
                 }
                 GeminiKeyBox.Password = string.Empty;
                 MessageLabel.Foreground = System.Windows.Media.Brushes.Orange;
+                ModelSelector.Visibility = Visibility.Collapsed;
             }
         }
         catch (Exception ex)
@@ -198,6 +341,18 @@ public partial class GeminiSetupWindow : Window
                 // Key is valid — save it
                 vm.GeminiKeyInput = key;
                 vm.GeminiAvailable = true;
+
+                // Save model selection if it's set
+                if (ModelCombo.SelectedItem is System.Windows.Controls.ComboBoxItem selectedItem &&
+                    selectedItem.Tag is string modelTag && !string.IsNullOrEmpty(modelTag))
+                {
+                    vm.GeminiModel = modelTag;
+                }
+                else
+                {
+                    vm.GeminiModel = ""; // Use default
+                }
+
                 vm.SaveGeminiKeyCommand.Execute(null);
             }
             else
@@ -214,15 +369,30 @@ public partial class GeminiSetupWindow : Window
                 // Key is valid — save it
                 vm.GrokKeyInput = key;
                 vm.GrokAvailable = true;
+
+                // Save model selection if it's set
+                if (ModelCombo.SelectedItem is System.Windows.Controls.ComboBoxItem selectedItem &&
+                    selectedItem.Tag is string modelTag && !string.IsNullOrEmpty(modelTag))
+                {
+                    vm.GrokModel = modelTag;
+                }
+                else
+                {
+                    vm.GrokModel = ""; // Use default
+                }
+
                 vm.SaveGrokKeyCommand.Execute(null);
             }
 
             MessageLabel.Text = TranslationSource.Get(_isGeminiProvider ? "GeminiSaved" : "GrokSaved");
             MessageLabel.Foreground = System.Windows.Media.Brushes.LimeGreen;
 
+            // ── Populate model dropdown now that key is saved ──
+            _ = TryPopulateModelsAsync(vm, key);
+
             // ── Auto-close after successful save ──
             // Allow a brief moment for the user to register the success, then close.
-            await Task.Delay(400);
+            await Task.Delay(800);
             Close();
         }
         catch (Exception ex)

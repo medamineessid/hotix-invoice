@@ -71,10 +71,6 @@ class PaddleOcrEngine:
         padded.paste(image, (pad_px, pad_px))
         return padded
 
-        lines = self._normalize_result(result, page_index)
-        raw_text = "\n".join(line.text for line in lines)
-        return OCRResult(lines=lines, raw_text=raw_text)
-
     def _normalize_result(self, result: Any, page_index: int) -> list[OCRLine]:
         """Convert PaddleOCR output to OCRLine objects."""
 

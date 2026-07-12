@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib.util
+import os
 import shutil
 import subprocess
 import sys
@@ -34,9 +35,15 @@ def main() -> int:
     else:
         return fail("Neither google.genai nor google.generativeai is installed")
 
+    # Check for Poppler: first on PATH, then via POPPLER_PATH env var
     pdfinfo_path = shutil.which("pdfinfo")
     if not pdfinfo_path:
-        return fail("Poppler/pdfinfo is not on PATH")
+        poppler_env = os.getenv("POPPLER_PATH")
+        if poppler_env and os.path.isdir(poppler_env):
+            pdfinfo_path = shutil.which("pdfinfo", path=poppler_env)
+
+    if not pdfinfo_path:
+        return fail("Poppler/pdfinfo is not on PATH or POPPLER_PATH")
 
     try:
         result = subprocess.run(
@@ -52,7 +59,7 @@ def main() -> int:
         output = (result.stdout or result.stderr or "").strip()
         return fail(f"pdfinfo returned {result.returncode}: {output}")
 
-    print("[OK] Poppler/pdfinfo available")
+    print(f"[OK] Poppler/pdfinfo available at {pdfinfo_path}")
     print("[OK] System verification completed successfully")
     return 0
 

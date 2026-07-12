@@ -289,10 +289,37 @@
 
                                     <!-- Engine label + picker + indicator -->
                                     <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                                        <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ControlEngineLabel]}"
-                                                   Style="{StaticResource CardLabelStyle}"
-                                                   VerticalAlignment="Center"
-                                                   Margin="0,0,12,0" />
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                            <TextBlock x:Name="InfoEngineIcon"
+                                                       Text="ⓘ"
+                                                       FontSize="12"
+                                                       Foreground="{StaticResource BrushTextMuted}"
+                                                       VerticalAlignment="Center"
+                                                       Margin="0,0,12,0"
+                                                       Cursor="Hand"
+                                                       MouseLeftButtonDown="InfoButton_Click" />
+                                            <Popup x:Name="InfoEnginePopup"
+                                                   PlacementTarget="{Binding ElementName=InfoEngineIcon}"
+                                                   Placement="Bottom"
+                                                   AllowsTransparency="True"
+                                                   StaysOpen="False"
+                                                   PopupAnimation="Fade">
+                                                <Border Background="{StaticResource BrushSurface}"
+                                                        BorderBrush="{StaticResource BrushBorder}"
+                                                        BorderThickness="1"
+                                                        CornerRadius="8"
+                                                        Padding="14,10"
+                                                        MaxWidth="300"
+                                                        Effect="{StaticResource ShadowCard}">
+                                                    <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[InfoEngine]}"
+                                                               Style="{StaticResource TextCaption}"
+                                                               TextWrapping="Wrap" />
+                                                </Border>
+                                            </Popup>
+                                            <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ControlEngineLabel]}"
+                                                       Style="{StaticResource CardLabelStyle}"
+                                                       VerticalAlignment="Center" />
+                                        </StackPanel>
                                         <ComboBox Style="{StaticResource ComboBoxStyle}"
                                                   Width="200"
                                                   SelectedValuePath="Tag"
@@ -622,10 +649,38 @@
 
                                     <!-- Confidence Legend (pastel badges) -->
                                     <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="24,8,24,12">
-                                        <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[LegendConfidence]}"
-                                                   Style="{StaticResource TextMetadata}"
-                                                   VerticalAlignment="Center"
-                                                   Margin="0,0,16,0" />
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                            <TextBlock x:Name="InfoConfidenceIcon"
+                                                       Text="ⓘ"
+                                                       FontSize="12"
+                                                       Foreground="{StaticResource BrushTextMuted}"
+                                                       VerticalAlignment="Center"
+                                                       Margin="0,0,4,0"
+                                                       Cursor="Hand"
+                                                       MouseLeftButtonDown="InfoButton_Click" />
+                                            <Popup x:Name="InfoConfidencePopup"
+                                                   PlacementTarget="{Binding ElementName=InfoConfidenceIcon}"
+                                                   Placement="Bottom"
+                                                   AllowsTransparency="True"
+                                                   StaysOpen="False"
+                                                   PopupAnimation="Fade">
+                                                <Border Background="{StaticResource BrushSurface}"
+                                                        BorderBrush="{StaticResource BrushBorder}"
+                                                        BorderThickness="1"
+                                                        CornerRadius="8"
+                                                        Padding="14,10"
+                                                        MaxWidth="300"
+                                                        Effect="{StaticResource ShadowCard}">
+                                                    <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[InfoConfidence]}"
+                                                               Style="{StaticResource TextCaption}"
+                                                               TextWrapping="Wrap" />
+                                                </Border>
+                                            </Popup>
+                                            <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[LegendConfidence]}"
+                                                       Style="{StaticResource TextMetadata}"
+                                                       VerticalAlignment="Center"
+                                                       Margin="0,0,16,0" />
+                                        </StackPanel>
                                         <Border Background="{StaticResource BrushConfidenceHighBg}"
                                                 CornerRadius="{StaticResource RadiusPill}" Padding="10,4" Margin="0,0,8,0">
                                             <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[LegendHigh]}" Foreground="{StaticResource BrushConfidenceHighText}"
@@ -656,6 +711,11 @@
                                                 <MenuItem Header="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ContextMenuRerun]}" Command="{Binding DataContext.RerunCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}" CommandParameter="{Binding}" />
                                             </ContextMenu>
                                         </DataGrid.Resources>
+                                        <DataGrid.RowStyle>
+                                            <Style TargetType="DataGridRow" BasedOn="{StaticResource DataGridRowStyle}">
+                                                <Setter Property="ContextMenu" Value="{StaticResource RowContextMenu}" />
+                                            </Style>
+                                        </DataGrid.RowStyle>
                                         <DataGrid.Columns>
                                             <!-- Select Checkbox -->
                                             <DataGridTemplateColumn Width="44" CanUserSort="False">
@@ -830,11 +890,39 @@
                                         <RowDefinition Height="*" />
                                     </Grid.RowDefinitions>
 
-                                    <TextBlock Grid.Row="0"
-                                               Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[IncompleteDescription]}"
-                                               Style="{StaticResource TextCaption}"
-                                               Foreground="{StaticResource BrushAccent}"
-                                               Margin="24,8,24,12" />
+                                    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="24,8,24,12">
+                                        <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[TabIncomplete]}"
+                                                   Style="{StaticResource TextBody}"
+                                                   Foreground="{StaticResource BrushAccent}" />
+                                        <Grid>
+                                            <TextBlock x:Name="InfoIncompleteIcon"
+                                                       Text="ⓘ"
+                                                       FontSize="12"
+                                                       Foreground="{StaticResource BrushTextMuted}"
+                                                       VerticalAlignment="Center"
+                                                       Margin="4,0,0,0"
+                                                       Cursor="Hand"
+                                                       MouseLeftButtonDown="InfoButton_Click" />
+                                            <Popup x:Name="InfoIncompletePopup"
+                                                   PlacementTarget="{Binding ElementName=InfoIncompleteIcon}"
+                                                   Placement="Bottom"
+                                                   AllowsTransparency="True"
+                                                   StaysOpen="False"
+                                                   PopupAnimation="Fade">
+                                                <Border Background="{StaticResource BrushSurface}"
+                                                        BorderBrush="{StaticResource BrushBorder}"
+                                                        BorderThickness="1"
+                                                        CornerRadius="8"
+                                                        Padding="14,10"
+                                                        MaxWidth="300"
+                                                        Effect="{StaticResource ShadowCard}">
+                                                    <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[InfoIncomplete]}"
+                                                               Style="{StaticResource TextCaption}"
+                                                               TextWrapping="Wrap" />
+                                                </Border>
+                                            </Popup>
+                                        </Grid>
+                                    </StackPanel>
 
                                     <DataGrid Grid.Row="1"
                                               ItemsSource="{Binding IncompleteResults}"
@@ -845,6 +933,11 @@
                                                 <MenuItem Header="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ContextMenuRerun]}" Command="{Binding DataContext.RerunCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}" CommandParameter="{Binding}" />
                                             </ContextMenu>
                                         </DataGrid.Resources>
+                                        <DataGrid.RowStyle>
+                                            <Style TargetType="DataGridRow" BasedOn="{StaticResource DataGridRowStyle}">
+                                                <Setter Property="ContextMenu" Value="{StaticResource RowContextMenu}" />
+                                            </Style>
+                                        </DataGrid.RowStyle>
                                         <DataGrid.Columns>
                                             <DataGridTemplateColumn Width="44" CanUserSort="False">
                                                 <DataGridTemplateColumn.HeaderTemplate>

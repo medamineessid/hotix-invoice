@@ -5,7 +5,6 @@
   "SplashSubtitle": "Extraction de Factures",
   "SplashStatus": "HOTIX — Extraction de Factures",
 
-  "SidebarDocs": "Documents",
   "SidebarNavigation": "Navigation",
   "SidebarExtraction": "Extraction",
   "SidebarSettings": "Configuration",
@@ -47,7 +46,6 @@
   "ControlEngineGrok": "Grok (xAI, cloud)",
   "ControlEngineNoKey": "Clé API non configurée",
   "ControlSettingsTooltip": "Configurer les clés API des fournisseurs IA",
-  "ControlEngineNoKeyGrok": "Clé API Grok non configurée",
   "ControlRunBtn": "Lancer l'extraction",
   "ControlRunTooltip": "Lancer l'extraction (F5)",
   "ControlCancelBtn": "Annuler",
@@ -99,7 +97,6 @@
   "GeminiHeader": "Configuration optionnelle",
   "GeminiSubheader": "Clé API Gemini",
   "GeminiDescription": "Pour une meilleure précision d'extraction, vous pouvez configurer une clé API Gemini gratuite. Sans clé, l'extraction locale (OCR) reste entièrement disponible.",
-  "GeminiPlaceholder": "Collez votre clé ici...",
   "GeminiGetKeyBtn": "Obtenir une clé gratuite",
   "GeminiClearBtn": "Effacer la clé",
   "GeminiIgnoreBtn": "Ignorer",
@@ -114,10 +111,6 @@
   "GeminiSaved": "Clé enregistrée ✓",
   "GeminiKeyEmpty": "La clé API est vide.",
   "GeminiNoInternet": "Aucune connexion Internet. Impossible de vérifier la clé.",
-  "GeminiError400": "Clé invalide ou format incorrect (400).",
-  "GeminiError401": "Clé API non reconnue (401). Vérifiez que vous avez copié la clé entière.",
-  "GeminiError403": "Clé API refusée (403). L'accès à Gemini est peut-être désactivé.",
-  "GeminiError429": "Quota de l'API atteint (429).",
   "GeminiErrorPrefix": "Erreur API Gemini ({0}). {1}",
   "GeminiTimeout": "La requête de vérification a expiré. Vérifiez votre connexion Internet.",
   "GeminiNetworkError": "Erreur réseau : {0}",
@@ -147,9 +140,6 @@
   "GrokSaved": "Clé Grok enregistrée ✓",
   "GrokKeyEmpty": "La clé API Grok est vide.",
   "GrokNoInternet": "Aucune connexion Internet. Impossible de vérifier la clé Grok.",
-  "GrokError400": "Clé invalide ou format incorrect (400).",
-  "GrokError401": "Clé API non reconnue (401). Vérifiez que vous avez copié la clé entière.",
-  "GrokError403": "Clé API refusée (403). L'accès à xAI est peut-être désactivé.",
   "GrokErrorPrefix": "Erreur API xAI ({0}). {1}",
   "GrokTimeout": "La requête de vérification a expiré. Vérifiez votre connexion Internet.",
   "GrokNetworkError": "Erreur réseau : {0}",
@@ -183,7 +173,7 @@
   "ExportFileName": "Hotix_Export_{0}.xlsx",
 
   "AboutTitle": "À propos",
-  "AboutMessage": "HOTIX — Extraction de Factures\n\nVersion 1.0.0\n\nMoteurs : PaddleOCR (local), Gemini Vision (cloud)",
+  "AboutMessage": "HOTIX — Extraction de Factures\n\nVersion {0}\n\nMoteurs : PaddleOCR (local), Gemini Vision (cloud)",
   "NavPageExtraction": "Extraction",
   "NavPageSettings": "Configuration",
   "NavPageAbout": "À propos",
@@ -191,9 +181,6 @@
   "LangLabel": "Langue",
   "LangFrench": "Français",
   "LangEnglish": "English",
-
-  "SettingsKeyLabel": "Clé API Gemini",
-  "SettingsConfigureBtn": "Configurer la clé",
 
   "ExportTitle": "Exporter les résultats",
   "ExportDescription": "Comment souhaitez-vous exporter les données de factures extraites ?",
@@ -229,5 +216,36 @@
   "RerunErrorsProgress": "Re-traitement des fichiers en erreur...",
 
   "GeminiValidationTitle": "Validation de clé",
-  "GeminiServerValidationFailed": "Le serveur n'a pas pu valider cette clé : {0}\n\nLa clé sera tout de même sauvegardée, mais le serveur pourrait ne pas l'utiliser correctement. Essayez de redémarrer l'application après la sauvegarde."
+  "GeminiServerValidationFailed": "Le serveur n'a pas pu valider cette clé : {0}\n\nLa clé sera tout de même sauvegardée, mais le serveur pourrait ne pas l'utiliser correctement. Essayez de redémarrer l'application après la sauvegarde.",
+  "GeminiServerUnreachable": "Impossible de joindre le serveur pour valider la clé. La clé sera tout de même sauvegardée. Assurez-vous que le serveur est en cours d'exécution avant d'extraire.",
+
+  "ModelLabel": "Modèle",
+  "GeminiModelLabel": "Modèle Gemini",
+  "GrokModelLabel": "Modèle Grok",
+  "ModelDefault": "Par défaut",
+
+  "OnboardingStep1Title": "1 / 5 — Choisissez vos fichiers",
+  "OnboardingStep1Desc": "Commencez ici : sélectionnez un dossier ou ajoutez des fichiers de factures.",
+  "OnboardingStep2Title": "2 / 5 — Choisissez un moteur",
+  "OnboardingStep2Desc": "Choisissez comment extraire les données : automatique, Gemini, Grok, ou OCR local hors ligne.",
+  "OnboardingStep3Title": "3 / 5 — Lancez l'extraction",
+  "OnboardingStep3Desc": "Lancez l'extraction une fois vos fichiers prêts.",
+  "OnboardingStep4Title": "4 / 5 — Modifiez les résultats",
+  "OnboardingStep4Desc": "Vous pouvez modifier les données extraites directement ici avant l'export.",
+  "OnboardingStep5Title": "5 / 5 — Exportez",
+  "OnboardingStep5Desc": "Exportez vos résultats vérifiés en Excel.",
+  "OnboardingNext": "Suivant",
+  "OnboardingSuivant": "Suivant",
+  "OnboardingSkip": "Passer",
+  "OnboardingPasser": "Passer",
+
+  "InfoEngine": "Automatique : essaie Gemini/Grok d'abord, puis OCR local en cas d'échec. Forcer un moteur spécifique ignore le repli. OCR local est entièrement hors ligne avec une précision moindre.",
+  "InfoConfidence": "Seuils de confiance : Élevée (≥75%) — probablement exact. Moyenne (40-75%) — vérifiez avant export. Basse (<40%) — révisez attentivement.",
+  "InfoIncomplete": "Les extractions incomplètes sont des fichiers où l'extraction a échoué ou partiellement échoué. Elles nécessitent une vérification manuelle avant export.",
+  "InfoGeminiKey": "Une clé API Gemini permet une extraction cloud avec une meilleure précision. La clé est stockée localement et n'est jamais envoyée à un tiers. Vous pouvez obtenir une clé gratuite sur aistudio.google.com.",
+
+  "UpdateCheckTitle": "Mise à jour disponible",
+  "UpdateCheckNewVersion": "Une nouvelle version de HOTIX est disponible : {0}. Vous utilisez la version {1}.",
+  "UpdateCheckReleaseLink": "Télécharger la mise à jour",
+  "UpdateCheckDismiss": "Ignorer"
 }

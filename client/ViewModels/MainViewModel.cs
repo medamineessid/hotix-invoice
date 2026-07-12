@@ -32,6 +32,8 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     private string _geminiKeyInput = string.Empty;
     private bool _grokAvailable;
     private string _grokKeyInput = string.Empty;
+    private string _geminiModel = string.Empty;
+    private string _grokModel = string.Empty;
     private bool _isSettingsPanelOpen;
     private DispatcherTimer? _engineStatusTimer;
     private DispatcherTimer? _processingTimer;
@@ -59,11 +61,12 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     private string? _lastExportSheetName;
 
     // Gemini REST API endpoint
-    private const string GeminiApiBase = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
+    private const string GeminiApiBaseTemplate = "https://generativelanguage.googleapis.com/v1beta/models/{0}:generateContent";
+    private const string GeminiDefaultModel = "gemini-2.5-flash";
 
     // Grok (xAI) REST API endpoint
     private const string GrokApiBase = "https://api.x.ai/v1/chat/completions";
-    private const string GrokModel = "grok-4.3";
+    private const string GrokDefaultModel = "grok-4.3";
 
     public MainViewModel()
     {
@@ -222,6 +225,28 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                 OnPropertyChanged(nameof(ResolvedEngineDisplay));
         }
     }
+
+    /// <summary>Selected Gemini model (empty = use default).</summary>
+    public string GeminiModel
+    {
+        get => _geminiModel;
+        set => SetField(ref _geminiModel, value);
+    }
+
+    /// <summary>Selected Grok model (empty = use default).</summary>
+    public string GrokModel
+    {
+        get => _grokModel;
+        set => SetField(ref _grokModel, value);
+    }
+
+    /// <summary>Resolves the Gemini model to use for API calls.</summary>
+    private string ResolvedGeminiModel => !string.IsNullOrEmpty(_geminiModel) ? _geminiModel : GeminiDefaultModel;
+
+    /// <summary>Resolves the Grok model to use for API calls.</summary>
+    private string ResolvedGrokModel => !string.IsNullOrEmpty(_grokModel) ? _grokModel : GrokDefaultModel;
+
+    private string GeminiApiBase => string.Format(GeminiApiBaseTemplate, ResolvedGeminiModel);
 
     public bool IsSettingsPanelOpen
     {
@@ -626,9 +651,10 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         try
         {
             using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
+            string apiUrl = string.Format(GeminiApiBaseTemplate, GeminiDefaultModel);
             var body = new { contents = new[] { new { parts = new[] { new { text = "ping" } } } } };
             var response = await client.PostAsJsonAsync(
-                $"{GeminiApiBase}?key={apiKey}", body);
+                $"{apiUrl}?key={apiKey}", body);
 
             if (response.IsSuccessStatusCode)
                 return (true, null);
@@ -677,7 +703,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
 
             var body = new
             {
-                model = GrokModel,
+                model = GrokDefaultModel,
                 messages = new[] { new { role = "user", content = "ping" } },
                 max_tokens = 1
             };
@@ -735,17 +761,17 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             generationConfig = new { response_mime_type = "application/json" }
         };
 
+        string geminiApiUrl = string.Format(GeminiApiBaseTemplate, ResolvedGeminiModel);
         using var geminiClient = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
         var response = await geminiClient.PostAsJsonAsync(
-            $"{GeminiApiBase}?key={apiKey}", requestBody);
+            $"{geminiApiUrl}?key={apiKey}", requestBody);
 
         string responseBody = await response.Content.ReadAsStringAsync();
 
         if (!response.IsSuccessStatusCode)
-        {
-            if ((int)response.StatusCode == 429)
-                throw new GeminiQuotaExceededException(TranslationSource.Fmt("GeminiApiError", 429, ResponseBodySummary(responseBody)));
-            throw new GeminiApiException(TranslationSource.Fmt("GeminiApiError", (int)response.StatusCode, responseBody));
+        {                if ((int)response.StatusCode == 429)
+                throw new CloudQuotaExceededException(TranslationSource.Fmt("GeminiApiError", 429, ResponseBodySummary(responseBody)));
+            throw new CloudApiException(TranslationSource.Fmt("GeminiApiError", (int)response.StatusCode, responseBody));
         }
 
         // Parse Gemini response JSON
@@ -758,7 +784,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             .GetString();
 
         if (string.IsNullOrEmpty(text))
-            throw new GeminiApiException(TranslationSource.Get("GeminiEmptyResponse"));
+            throw new CloudApiException(TranslationSource.Get("GeminiEmptyResponse"));
 
         // Strip markdown fences if present
         text = text.Trim();
@@ -768,7 +794,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
 
         var fields = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(text);
         if (fields == null)
-            throw new GeminiApiException(TranslationSource.Get("GeminiParseError"));
+            throw new CloudApiException(TranslationSource.Get("GeminiParseError"));
 
         static string? GetStringField(Dictionary<string, JsonElement> dict, string key)
         {
@@ -805,7 +831,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
 
         var requestBody = new
         {
-            model = GrokModel,
+            model = ResolvedGrokModel,
             messages = new[]
             {
                 new
@@ -830,10 +856,9 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         if (!response.IsSuccessStatusCode)
         {
             // Log the exact response body for all non-2xx responses to avoid misclassifying real errors as quota
-            string errorDetail = responseBody.Length > 500 ? responseBody[..500] + "..." : responseBody;
-            if ((int)response.StatusCode == 429)
-                throw new GeminiQuotaExceededException(TranslationSource.Fmt("GrokApiError", 429, errorDetail));
-            throw new GeminiApiException(TranslationSource.Fmt("GrokApiError", (int)response.StatusCode, errorDetail));
+            string errorDetail = responseBody.Length > 500 ? responseBody[..500] + "..." : responseBody;                if ((int)response.StatusCode == 429)
+                throw new CloudQuotaExceededException(TranslationSource.Fmt("GrokApiError", 429, errorDetail));
+            throw new CloudApiException(TranslationSource.Fmt("GrokApiError", (int)response.StatusCode, errorDetail));
         }
 
         // Parse OpenAI-compatible response
@@ -845,7 +870,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             .GetString();
 
         if (string.IsNullOrEmpty(text))
-            throw new GeminiApiException(TranslationSource.Get("GrokEmptyResponse"));
+            throw new CloudApiException(TranslationSource.Get("GrokEmptyResponse"));
 
         // Strip markdown fences if present
         text = text.Trim();
@@ -855,7 +880,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
 
         var fields = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(text);
         if (fields == null)
-            throw new GeminiApiException(TranslationSource.Get("GrokParseError"));
+            throw new CloudApiException(TranslationSource.Get("GrokParseError"));
 
         static string? GetStringField(Dictionary<string, JsonElement> dict, string key)
         {
@@ -1083,16 +1108,24 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                 catch (HttpRequestException)
                 {
                     // Server not reachable — still save the key, but warn the user
+                    MessageBox.Show(
+                        TranslationSource.Get("GeminiServerUnreachable"),
+                        TranslationSource.Get("GeminiValidationTitle"),
+                        MessageBoxButton.OK, MessageBoxImage.Warning);
                 }
                 catch (TaskCanceledException)
                 {
                     // Timeout — still save the key
+                    MessageBox.Show(
+                        TranslationSource.Get("GeminiServerUnreachable"),
+                        TranslationSource.Get("GeminiValidationTitle"),
+                        MessageBoxButton.OK, MessageBoxImage.Warning);
                 }
             }
 
             // Save to appsettings.json (same location server reads from)
             string appSettingsPath = ResolveAppSettingsPath();
-            var settings = new { gemini_api_key = GeminiKeyInput, grok_api_key = _grokKeyInput, default_engine = SelectedEngine };
+            var settings = new { gemini_api_key = GeminiKeyInput, grok_api_key = _grokKeyInput, default_engine = SelectedEngine, gemini_model = _geminiModel, grok_model = _grokModel };
             await File.WriteAllTextAsync(appSettingsPath, JsonSerializer.Serialize(settings, new JsonSerializerOptions { WriteIndented = true }));
         }
         catch (Exception ex)
@@ -1123,6 +1156,47 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     {
         try
         {
+            // Validate key via server endpoint
+            if (_isServerStarted && _isServerRunning)
+            {
+                try
+                {
+                    using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
+                    var payload = new { api_key = GrokKeyInput };
+                    var response = await client.PostAsJsonAsync(
+                        "http://127.0.0.1:8000/validate-grok-key", payload);
+                    var body = await response.Content.ReadAsStringAsync();
+                    var result = JsonSerializer.Deserialize<JsonElement>(body);
+
+                    bool valid = result.GetProperty("valid").GetBoolean();
+                    if (!valid)
+                    {
+                        string? error = result.TryGetProperty("error", out var errEl)
+                            ? errEl.GetString()
+                            : null;
+                        string msg = TranslationSource.Fmt("GeminiServerValidationFailed",
+                            error ?? "unknown error");
+                        MessageBox.Show(msg, TranslationSource.Get("GeminiValidationTitle"),
+                            MessageBoxButton.OK, MessageBoxImage.Warning);
+                        return;
+                    }
+                }
+                catch (HttpRequestException)
+                {
+                    MessageBox.Show(
+                        TranslationSource.Get("GeminiServerUnreachable"),
+                        TranslationSource.Get("GeminiValidationTitle"),
+                        MessageBoxButton.OK, MessageBoxImage.Warning);
+                }
+                catch (TaskCanceledException)
+                {
+                    MessageBox.Show(
+                        TranslationSource.Get("GeminiServerUnreachable"),
+                        TranslationSource.Get("GeminiValidationTitle"),
+                        MessageBoxButton.OK, MessageBoxImage.Warning);
+                }
+            }
+
             // Save to appsettings.json
             string appSettingsPath = ResolveAppSettingsPath();
             var settings = new { gemini_api_key = _geminiKeyInput, grok_api_key = GrokKeyInput, default_engine = SelectedEngine };
@@ -1157,6 +1231,12 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                 }
                 if (doc.RootElement.TryGetProperty("default_engine", out var engineEl))
                     SelectedEngine = engineEl.GetString() ?? "auto";
+
+                // Load model selections
+                if (doc.RootElement.TryGetProperty("gemini_model", out var geminiModelEl))
+                    GeminiModel = geminiModelEl.GetString() ?? "";
+                if (doc.RootElement.TryGetProperty("grok_model", out var grokModelEl))
+                    GrokModel = grokModelEl.GetString() ?? "";
             }
         }
         catch
@@ -1388,7 +1468,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                         LogPipeline("HTTP response received — success");
                         row = InvoiceRowViewModel.FromSuccess(file, result);
                     }
-                    catch (GeminiApiException ex)
+                    catch (CloudApiException ex)
                     {
                         LogPipeline($"HTTP response error: {ex.Message}");
                         row = InvoiceRowViewModel.FromError(file, ex.Message);
@@ -1410,7 +1490,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                         LogPipeline("HTTP response received — parsing succeeded");
                         row = InvoiceRowViewModel.FromSuccess(file, result);
                     }
-                    catch (GeminiQuotaExceededException)
+                    catch (CloudQuotaExceededException)
                     {
                         LogPipeline("Gemini quota exceeded");
 
@@ -1467,9 +1547,9 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                             row = await ExtractViaServerAsync(file);
                         }
                     }
-                    catch (GeminiApiException ex)
+                    catch (CloudApiException ex)
                     {
-                        LogPipeline($"Gemini API error: {ex.Message}");
+                        LogPipeline($"Cloud API error: {ex.Message}");
                         row = InvoiceRowViewModel.FromError(file, ex.Message);
                     }
                     catch (Exception ex2)
@@ -1495,7 +1575,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                         await EnsureServerReadyAsync();
                         row = await ExtractViaServerAsync(file);
                     }
-                    catch (GeminiApiException ex)
+                    catch (CloudApiException ex)
                     {
                         LogPipeline($"Grok API error: {ex.Message}");
                         row = InvoiceRowViewModel.FromError(file, ex.Message);
@@ -2107,14 +2187,14 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
 
 // ── Custom Exceptions ─────────────────────────────────────────────────────
 
-internal sealed class GeminiQuotaExceededException : Exception
+internal sealed class CloudQuotaExceededException : Exception
 {
-    public GeminiQuotaExceededException(string message) : base(message) { }
+    public CloudQuotaExceededException(string message) : base(message) { }
 }
 
-internal sealed class GeminiApiException : Exception
+internal sealed class CloudApiException : Exception
 {
-    public GeminiApiException(string message) : base(message) { }
+    public CloudApiException(string message) : base(message) { }
 }
 
 internal sealed class RelayCommand : ICommand

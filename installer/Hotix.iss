@@ -51,6 +51,9 @@ Source: "requirements.txt"; DestDir: "{app}"; Flags: ignoreversion
 ; Python 3.12 installer (bundled, deleted after use)
 Source: "installer\vendor\{#PythonInstallerName}"; DestDir: "{tmp}"; Flags: deleteafterinstall
 
+; Poppler Windows binaries (for PDF support)
+Source: "installer\vendor\poppler\**\*"; DestDir: "{app}\poppler"; Flags: recursesubdirs ignoreversion createallsubdirs
+
 ; README and setup scripts
 Source: "README.md"; DestDir: "{app}"; Flags: ignoreversion
 Source: "scripts\start.ps1"; DestDir: "{app}\scripts"; Flags: ignoreversion
@@ -65,11 +68,19 @@ Name: "{group}\Uninstall {#MyAppName}"; Filename: "{uninstallexe}"
 ; Run diagnostics after install to verify everything works
 Filename: "{app}\HotixDiagnostics.exe"; Description: "Run Hotix Diagnostics"; Flags: nowait postinstall skipifsilent
 
+[Registry]
+; Add Poppler to system PATH for PDF support
+Root: HKLM; Subkey: "SYSTEM\CurrentControlSet\Control\Session Manager\Environment"; ValueType: expandsz; ValueName: "Path"; ValueData: "{olddata};{app}\poppler\bin"; Check: DirExists(ExpandConstant('{app}\poppler\bin'))
+
+; Set POPPLER_PATH environment variable for server configuration
+Root: HKLM; Subkey: "SYSTEM\CurrentControlSet\Control\Session Manager\Environment"; ValueType: string; ValueName: "POPPLER_PATH"; ValueData: "{app}\poppler\bin"; Check: DirExists(ExpandConstant('{app}\poppler\bin'))
+
 [UninstallDelete]
 ; Clean up venv and logs on uninstall
 Type: dirifempty; Name: "{app}\venv"
 Type: files; Name: "{app}\install.log"
 Type: files; Name: "{app}\*.log"
+Type: filesandordirs; Name: "{app}\poppler"
 
 [Code]
 var

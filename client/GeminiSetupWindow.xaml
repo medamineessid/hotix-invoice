@@ -118,12 +118,54 @@
                     </StackPanel>
 
                     <!-- Key label (changes based on provider) -->
-                    <TextBlock x:Name="KeyLabel"
-                               Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[GeminiSubheader]}"
-                               Style="{StaticResource CardLabelStyle}"
-                               TextWrapping="Wrap" />
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock x:Name="KeyLabel"
+                                   Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[GeminiSubheader]}"
+                                   Style="{StaticResource CardLabelStyle}"
+                                   TextWrapping="Wrap" />
+                        <Grid VerticalAlignment="Center" Margin="4,0,0,6">
+                            <TextBlock x:Name="InfoKeyIcon"
+                                       Text="ⓘ"
+                                       FontSize="12"
+                                       Foreground="{StaticResource BrushTextMuted}"
+                                       Cursor="Hand"
+                                       MouseLeftButtonDown="InfoKeyIcon_Click" />
+                            <Popup x:Name="InfoKeyPopup"
+                                   PlacementTarget="{Binding ElementName=InfoKeyIcon}"
+                                   Placement="Bottom"
+                                   AllowsTransparency="True"
+                                   StaysOpen="False"
+                                   PopupAnimation="Fade">
+                                <Border Background="{StaticResource BrushSurface}"
+                                        BorderBrush="{StaticResource BrushBorder}"
+                                        BorderThickness="1"
+                                        CornerRadius="8"
+                                        Padding="14,10"
+                                        MaxWidth="300"
+                                        Effect="{StaticResource ShadowCard}">
+                                    <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[InfoGeminiKey]}"
+                                               Style="{StaticResource TextCaption}"
+                                               TextWrapping="Wrap" />
+                                </Border>
+                            </Popup>
+                        </Grid>
+                    </StackPanel>
                     <PasswordBox x:Name="GeminiKeyBox"
                                  Style="{StaticResource PasswordBoxStyle}" />
+
+                    <!-- Model selector (shown after successful validation) -->
+                    <StackPanel x:Name="ModelSelector"
+                                Margin="0,16,0,0"
+                                Visibility="Collapsed">
+                        <TextBlock x:Name="ModelLabel"
+                                   Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[GeminiModelLabel]}"
+                                   Style="{StaticResource CardLabelStyle}" />
+                        <ComboBox x:Name="ModelCombo"
+                                  Style="{StaticResource ComboBoxStyle}"
+                                  Width="320"
+                                  HorizontalAlignment="Left"
+                                  MinHeight="36" />
+                    </StackPanel>
 
                     <Grid Margin="0,12,0,0">
                         <Grid.ColumnDefinitions>

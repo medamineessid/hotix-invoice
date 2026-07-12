@@ -29,12 +29,28 @@ def load_gemini_api_key() -> Optional[str]:
             logger.warning(f"Failed to read appsettings.json for Gemini key: {e}")
     return None
 
+
+def load_gemini_model() -> str:
+    """Load the selected Gemini model from appsettings.json, or return the default."""
+    settings_path = Path(__file__).parent / "appsettings.json"
+    if settings_path.exists():
+        try:
+            with open(settings_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                model = data.get("gemini_model", "")
+                if model:
+                    return model
+        except Exception as e:
+            logger.warning(f"Failed to read gemini_model from appsettings.json: {e}")
+    return "gemini-2.5-flash"  # default
+
 def extract_with_gemini(image_data: bytes, mime_type: str) -> Dict[str, Optional[str]]:
-    """Extract invoice fields using Gemini 1.5 Flash."""
+    """Extract invoice fields using Gemini Vision."""
     api_key = load_gemini_api_key()
     if not api_key:
         raise GeminiExtractionError("Clé API Gemini non configurée")
 
+    model_name = load_gemini_model()
     client = genai.Client(api_key=api_key)
 
     # Only 8 fields requested: numero_facture, date, fournisseur, client, montant_ht, montant_tva, montant_taxe, montant_ttc
@@ -45,7 +61,7 @@ Réponds uniquement avec le JSON."""
 
     try:
         response = client.models.generate_content(
-        model="gemini-2.5-flash",
+        model=model_name,
         contents=[
             prompt,
             types.Part.from_bytes(data=image_data, mime_type=mime_type),

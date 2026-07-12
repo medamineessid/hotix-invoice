@@ -29,7 +29,7 @@ from .field_extractor import (
 
 from typing import Literal
 from fastapi import Query
-from .gemini_extractor import extract_with_gemini, GeminiExtractionError, load_gemini_api_key
+from .gemini_extractor import extract_with_gemini, GeminiExtractionError, load_gemini_api_key, load_gemini_model
 
 logging.basicConfig(
     level=os.getenv("HOTIX_LOG_LEVEL", "INFO"),
@@ -92,6 +92,54 @@ async def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
+@app.post("/validate-grok-key")
+async def validate_grok_key(request: dict) -> dict:
+    """Validate a Grok API key by making one lightweight chat completion call."""
+    api_key = request.get("api_key", "")
+    if not api_key:
+        return {"valid": False, "error": "No API key provided"}
+
+    try:
+        import httpx
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        }
+        # Use the currently configured Grok model, or default
+        grok_model = "grok-4.3"  # default
+        import json as _json
+        settings_path = Path(__file__).parent / "appsettings.json"
+        if settings_path.exists():
+            try:
+                with open(settings_path, 'r', encoding='utf-8') as _f:
+                    _data = _json.load(_f)
+                    _m = _data.get("grok_model", "")
+                    if _m:
+                        grok_model = _m
+            except Exception:
+                pass
+        body = {
+            "model": grok_model,
+            "messages": [{"role": "user", "content": "ping"}],
+            "max_tokens": 1,
+        }
+        async with httpx.AsyncClient(timeout=10) as client:
+            response = await client.post(
+                "https://api.x.ai/v1/chat/completions",
+                headers=headers,
+                json=body,
+            )
+        if response.status_code == 200:
+            return {"valid": True}
+        error_body = response.text[:300]
+        logger.warning("Grok key validation failed (HTTP %s): %s", response.status_code, error_body)
+        return {"valid": False, "error": f"xAI API error ({response.status_code}): {error_body}"}
+    except Exception as exc:
+        error_str = str(exc)[:500]
+        logger.warning("Grok key validation failed: %s", error_str)
+        return {"valid": False, "error": error_str}
+
+
 @app.post("/validate-gemini-key")
 async def validate_gemini_key(request: dict) -> dict:
     """Validate a Gemini API key by making one lightweight generateContent call."""
@@ -102,8 +150,10 @@ async def validate_gemini_key(request: dict) -> dict:
     try:
         import google.genai as genai
         client = genai.Client(api_key=api_key)
+        # Use the currently configured model, or default if none selected
+        validate_model = load_gemini_model()
         response = client.models.generate_content(
-            model="gemini-2.5-flash",
+            model=validate_model,
             contents=["ping"],
         )
         if response and response.text:

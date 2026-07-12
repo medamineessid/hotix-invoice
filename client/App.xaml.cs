@@ -170,6 +170,13 @@ public partial class App : Application
                 }
             };
 
+            // Resolve Poppler path for PDF support and pass to server
+            // This is needed because the installer sets POPPLER_PATH via [Registry] HKLM
+            // but that env var may not be visible to processes started by the installer itself.
+            string? popplerDir = ResolvePopplerPath();
+            if (popplerDir != null)
+                ServerProcess.StartInfo.EnvironmentVariables["POPPLER_PATH"] = popplerDir;
+
             ServerProcess.Start();
 
             // Poll /health until ready (max 30 seconds)
@@ -208,6 +215,22 @@ public partial class App : Application
         }
     }
 
+    /// <summary>
+    /// Resolves the Poppler binary directory for PDF support by checking
+    /// the same candidate locations as ServerPathResolver.
+    /// </summary>
+    private static string? ResolvePopplerPath()
+    {
+        string appDir = AppDomain.CurrentDomain.BaseDirectory;
+        string[] candidates = new[]
+        {
+            Path.Combine(appDir, "poppler", "bin"),
+            Path.Combine(appDir, "..", "poppler", "bin"),
+            @"C:\hotix-invoice\poppler\bin",
+        };
+        return candidates.FirstOrDefault(Directory.Exists);
+    }
+
     private static string FindFile(string[] paths) => paths.FirstOrDefault(File.Exists) ?? string.Empty;
 
     private static void CleanupServer()
@@ -227,19 +250,5 @@ public partial class App : Application
         CleanupServer();
         MessageBox.Show(TranslationSource.Fmt("ErrorUnexpected", ex.Message), TranslationSource.Get("ErrorSystemTitle"), MessageBoxButton.OK, MessageBoxImage.Error);
         Current.Shutdown();
-    }
-
-    private bool IsFirstRun()
-    {
-        try
-        {
-            string appSettingsPath = ServerPathResolver.ResolveAppSettingsPath();
-            if (!File.Exists(appSettingsPath)) return true;
-            var doc = System.Text.Json.JsonDocument.Parse(File.ReadAllText(appSettingsPath));
-            if (doc.RootElement.TryGetProperty("gemini_api_key", out var el))
-                return string.IsNullOrWhiteSpace(el.GetString());
-            return true;
-        }
-        catch { return true; }
     }
 }

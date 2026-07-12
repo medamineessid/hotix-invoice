@@ -5,7 +5,6 @@
   "SplashSubtitle": "Invoice Extraction",
   "SplashStatus": "HOTIX — Invoice Extraction",
 
-  "SidebarDocs": "Documents",
   "SidebarNavigation": "Navigation",
   "SidebarExtraction": "Extraction",
   "SidebarSettings": "Settings",
@@ -47,7 +46,6 @@
   "ControlEngineGrok": "Grok (xAI, cloud)",
   "ControlEngineNoKey": "API key not configured",
   "ControlSettingsTooltip": "Configure AI provider API keys",
-  "ControlEngineNoKeyGrok": "Grok API key not configured",
   "ControlRunBtn": "Start extraction",
   "ControlRunTooltip": "Start extraction (F5)",
   "ControlCancelBtn": "Cancel",
@@ -99,7 +97,6 @@
   "GeminiHeader": "Optional Configuration",
   "GeminiSubheader": "Gemini API Key",
   "GeminiDescription": "For better extraction accuracy, you can configure a free Gemini API key. Without a key, local OCR extraction remains fully available.",
-  "GeminiPlaceholder": "Paste your key here...",
   "GeminiGetKeyBtn": "Get a free key",
   "GeminiClearBtn": "Clear key",
   "GeminiIgnoreBtn": "Skip",
@@ -114,10 +111,6 @@
   "GeminiSaved": "Key saved ✓",
   "GeminiKeyEmpty": "The API key is empty.",
   "GeminiNoInternet": "No internet connection. Cannot verify key.",
-  "GeminiError400": "Invalid key or incorrect format (400).",
-  "GeminiError401": "API key not recognized (401). Check that you copied the full key.",
-  "GeminiError403": "API key denied (403). Access to Gemini may be disabled.",
-  "GeminiError429": "API quota reached (429).",
   "GeminiErrorPrefix": "Gemini API error ({0}). {1}",
   "GeminiTimeout": "Verification request timed out. Check your internet connection.",
   "GeminiNetworkError": "Network error: {0}",
@@ -147,9 +140,6 @@
   "GrokSaved": "Grok key saved ✓",
   "GrokKeyEmpty": "The Grok API key is empty.",
   "GrokNoInternet": "No internet connection. Cannot verify Grok key.",
-  "GrokError400": "Invalid key or incorrect format (400).",
-  "GrokError401": "API key not recognized (401). Check that you copied the full key.",
-  "GrokError403": "API key denied (403). Access to xAI may be disabled.",
   "GrokErrorPrefix": "xAI API error ({0}). {1}",
   "GrokTimeout": "Verification request timed out. Check your internet connection.",
   "GrokNetworkError": "Network error: {0}",
@@ -183,7 +173,7 @@
   "ExportFileName": "Hotix_Export_{0}.xlsx",
 
   "AboutTitle": "About",
-  "AboutMessage": "HOTIX — Invoice Extraction\n\nVersion 1.0.0\n\nEngines: PaddleOCR (local), Gemini Vision (cloud)",
+  "AboutMessage": "HOTIX — Invoice Extraction\n\nVersion {0}\n\nEngines: PaddleOCR (local), Gemini Vision (cloud)",
   "NavPageExtraction": "Extraction",
   "NavPageSettings": "Settings",
   "NavPageAbout": "About",
@@ -191,9 +181,6 @@
   "LangLabel": "Language",
   "LangFrench": "Français",
   "LangEnglish": "English",
-
-  "SettingsKeyLabel": "Gemini API Key",
-  "SettingsConfigureBtn": "Configure key",
 
   "ExportTitle": "Export Results",
   "ExportDescription": "How would you like to export the extracted invoice data?",
@@ -229,5 +216,36 @@
   "RerunErrorsProgress": "Re-running errored files...",
 
   "GeminiValidationTitle": "Key Validation",
-  "GeminiServerValidationFailed": "The server could not validate this key: {0}\n\nThe key will still be saved, but the server may not use it correctly. Try restarting the application after saving."
+  "GeminiServerValidationFailed": "The server could not validate this key: {0}\n\nThe key will still be saved, but the server may not use it correctly. Try restarting the application after saving.",
+  "GeminiServerUnreachable": "Could not reach the server to validate the key. The key will still be saved. Make sure the server is running before extracting.",
+
+  "ModelLabel": "Model",
+  "GeminiModelLabel": "Gemini Model",
+  "GrokModelLabel": "Grok Model",
+  "ModelDefault": "Default",
+
+  "OnboardingStep1Title": "1 / 5 — Choose your files",
+  "OnboardingStep1Desc": "Commencez ici : sélectionnez un dossier ou ajoutez des fichiers de factures.",
+  "OnboardingStep2Title": "2 / 5 — Choose an engine",
+  "OnboardingStep2Desc": "Choisissez comment extraire les données : automatique, Gemini, Grok, ou OCR local hors ligne.",
+  "OnboardingStep3Title": "3 / 5 — Launch extraction",
+  "OnboardingStep3Desc": "Lancez l'extraction une fois vos fichiers prêts.",
+  "OnboardingStep4Title": "4 / 5 — Edit results",
+  "OnboardingStep4Desc": "Vous pouvez modifier les données extraites directement ici avant l'export.",
+  "OnboardingStep5Title": "5 / 5 — Export",
+  "OnboardingStep5Desc": "Exportez vos résultats vérifiés en Excel.",
+  "OnboardingNext": "Next",
+  "OnboardingSuivant": "Suivant",
+  "OnboardingSkip": "Skip",
+  "OnboardingPasser": "Passer",
+
+  "InfoEngine": "Automatic: tries Gemini/Grok first, falls back to local OCR. Forcing a specific engine skips fallback. OCR local is fully offline with lower accuracy.",
+  "InfoConfidence": "Confidence thresholds: High (≥75%) — likely accurate. Medium (40-75%) — verify before export. Low (<40%) — review carefully.",
+  "InfoIncomplete": "Incomplete extractions are files where extraction failed or partially failed. These require manual review before export.",
+  "InfoGeminiKey": "A Gemini API key enables cloud-based AI extraction with higher accuracy. The key is stored locally and never sent to any third party. You can get a free key at aistudio.google.com.",
+
+  "UpdateCheckTitle": "Update Available",
+  "UpdateCheckNewVersion": "A new version of HOTIX is available: {0}. You are using {1}.",
+  "UpdateCheckReleaseLink": "Download update",
+  "UpdateCheckDismiss": "Dismiss"
 }
