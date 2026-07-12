@@ -235,9 +235,7 @@
   "OnboardingStep5Title": "5 / 5 — Export",
   "OnboardingStep5Desc": "Exportez vos résultats vérifiés en Excel.",
   "OnboardingNext": "Next",
-  "OnboardingSuivant": "Suivant",
   "OnboardingSkip": "Skip",
-  "OnboardingPasser": "Passer",
 
   "InfoEngine": "Automatic: tries Gemini/Grok first, falls back to local OCR. Forcing a specific engine skips fallback. OCR local is fully offline with lower accuracy.",
   "InfoConfidence": "Confidence thresholds: High (≥75%) — likely accurate. Medium (40-75%) — verify before export. Low (<40%) — review carefully.",

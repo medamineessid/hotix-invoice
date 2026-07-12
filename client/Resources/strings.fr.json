@@ -235,9 +235,7 @@
   "OnboardingStep5Title": "5 / 5 — Exportez",
   "OnboardingStep5Desc": "Exportez vos résultats vérifiés en Excel.",
   "OnboardingNext": "Suivant",
-  "OnboardingSuivant": "Suivant",
   "OnboardingSkip": "Passer",
-  "OnboardingPasser": "Passer",
 
   "InfoEngine": "Automatique : essaie Gemini/Grok d'abord, puis OCR local en cas d'échec. Forcer un moteur spécifique ignore le repli. OCR local est entièrement hors ligne avec une précision moindre.",
   "InfoConfidence": "Seuils de confiance : Élevée (≥75%) — probablement exact. Moyenne (40-75%) — vérifiez avant export. Basse (<40%) — révisez attentivement.",

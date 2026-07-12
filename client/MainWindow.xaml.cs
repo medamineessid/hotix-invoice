@@ -1,6 +1,13 @@
+using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.IO;
+using System.Linq;
+using System.Net.Http;
+using System.Net.Http.Json;
+using System.Text.Json;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
@@ -15,10 +22,38 @@ public partial class MainWindow : Window
 {
     private MainViewModel ViewModel => (MainViewModel)DataContext;
 
+    // ── Onboarding state ──────────────────────────────────────────────
+    private static readonly string SettingsPath = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+        "Hotix", "settings.json");
+
+    private static readonly string AppSettingsPath = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+        "..", "Local", "Hotix", "app_settings.json");
+
+    private int _currentOnboardingStep;
+    private bool _onboardingCompleted;
+
+    private (string TitleKey, string DescKey, Func<FrameworkElement?> TargetResolver)[] _onboardingSteps = null!;
+
+    private void InitOnboardingSteps()
+    {
+        _onboardingSteps = new (string, string, Func<FrameworkElement?> TargetResolver)[]
+        {
+            ( "OnboardingStep1Title", "OnboardingStep1Desc", () => AddButton ),
+            ( "OnboardingStep2Title", "OnboardingStep2Desc", () => EngineCombo ),
+            ( "OnboardingStep3Title", "OnboardingStep3Desc", () => RunButton ),
+            ( "OnboardingStep4Title", "OnboardingStep4Desc", () => ResultsGrid ),
+            ( "OnboardingStep5Title", "OnboardingStep5Desc", () => ExportButton ),
+        };
+    }
+
     public MainWindow()
     {
         InitializeComponent();
+        InitOnboardingSteps();
         Loaded  += OnLoaded;
+        ContentRendered += OnContentRendered;
         Closing += OnClosing;
     }
 
@@ -32,10 +67,20 @@ public partial class MainWindow : Window
         LangEnglishRadio.IsChecked = currentLang == "en";
     }
 
+    private async void OnContentRendered(object? sender, EventArgs e)
+    {
+        // Check onboarding (after ~500ms delay for the window to settle)
+        await Task.Delay(500);
+        CheckOnboarding();
+
+        // Check for updates (non-blocking)
+        _ = CheckForUpdateAsync();
+    }
+
     private void OnClosing(object? sender, CancelEventArgs e)
         => ViewModel.Dispose();
 
-    // ── Title Bar ──────────────────────────────────────────
+    // ── Title Bar ────────────────────────────────────────────────────
 
     private void TitleBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
@@ -61,7 +106,7 @@ public partial class MainWindow : Window
     private void CloseButton_Click(object sender, RoutedEventArgs e)
         => Close();
 
-    // ── Language Selection ────────────────────────────────────
+    // ── Language Selection ────────────────────────────────────────────
 
     private void LangFrench_Checked(object sender, RoutedEventArgs e)
     {
@@ -79,27 +124,27 @@ public partial class MainWindow : Window
     {
         try
         {
-            string settingsPath = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                "Hotix", "settings.json");
+            string settingsPath = SettingsPath;
             var settings = new Dictionary<string, string> { ["language"] = culture };
 
             // Preserve any existing engine preference when saving language
             try
             {
-                var existing = System.Text.Json.JsonDocument.Parse(File.ReadAllText(settingsPath));
+                var existing = JsonDocument.Parse(File.ReadAllText(settingsPath));
                 if (existing.RootElement.TryGetProperty("engine", out var engine))
                     settings["engine"] = engine.GetString() ?? "auto";
+                if (existing.RootElement.TryGetProperty("update_last_check", out var update))
+                    settings["update_last_check"] = update.GetString() ?? "";
             }
             catch { /* file may not exist yet */ }
 
             Directory.CreateDirectory(Path.GetDirectoryName(settingsPath)!);
-            File.WriteAllText(settingsPath, System.Text.Json.JsonSerializer.Serialize(settings));
+            File.WriteAllText(settingsPath, JsonSerializer.Serialize(settings));
         }
         catch { /* best-effort */ }
     }
 
-    // ── Drag & Drop ────────────────────────────────────────
+    // ── Drag & Drop ──────────────────────────────────────────────────
 
     private void Window_DragOver(object sender, DragEventArgs e)
     {
@@ -117,19 +162,19 @@ public partial class MainWindow : Window
             ViewModel.SetFolderFromDrop(folder);
     }
 
-    // ── Add Button Context Menu ────────────────────────────
+    // ── Add Button Context Menu ──────────────────────────────────────
 
     private void AddButton_Click(object sender, RoutedEventArgs e)
     {
-        if (sender is System.Windows.Controls.Button btn && btn.ContextMenu != null)
+        if (sender is Button btn && btn.ContextMenu != null)
         {
             btn.ContextMenu.PlacementTarget = btn;
-            btn.ContextMenu.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
+            btn.ContextMenu.Placement = PlacementMode.Bottom;
             btn.ContextMenu.IsOpen = true;
         }
     }
 
-    // ── Sidebar Navigation ─────────────────────────────────
+    // ── Sidebar Navigation ───────────────────────────────────────────
 
     private void NavExtraction_Click(object sender, MouseButtonEventArgs e)
     {
@@ -181,12 +226,12 @@ public partial class MainWindow : Window
         }
     }
 
-    // ── Staggered Row Animation ────────────────────────────
+    // ── Staggered Row Animation ──────────────────────────────────────
 
     private void ResultsGrid_LoadingRow(object sender, DataGridRowEventArgs e)
     {
         int rowIndex = e.Row.GetIndex();
-        double delayMs = rowIndex * 40.0; // 40ms stagger per row
+        double delayMs = rowIndex * 40.0;
 
         e.Row.Opacity = 0;
         e.Row.RenderTransform = new TranslateTransform(0, 6);
@@ -210,13 +255,12 @@ public partial class MainWindow : Window
         e.Row.RenderTransform.BeginAnimation(TranslateTransform.YProperty, slideUp);
     }
 
-    // ── Info Button Click Handler ───────────────────────────
+    // ── Info Button Click Handler ─────────────────────────────────────
 
     private void InfoButton_Click(object sender, MouseButtonEventArgs e)
     {
         if (sender is FrameworkElement element)
         {
-            // Find the Popup sibling in the parent container
             if (element.Parent is Panel parent)
             {
                 foreach (var child in parent.Children)
@@ -229,18 +273,10 @@ public partial class MainWindow : Window
                     }
                 }
             }
-
-            // If not found via parent, try visual tree
-            var popup2 = element.FindName(element.Name.Replace("Icon", "Popup")) as Popup;
-            if (popup2 != null)
-            {
-                popup2.IsOpen = !popup2.IsOpen;
-                e.Handled = true;
-            }
         }
     }
 
-    // ── Tab Switching (Results / Incomplete) ───────────────
+    // ── Tab Switching (Results / Incomplete) ─────────────────────────
 
     private void TabResults_Click(object sender, MouseButtonEventArgs e)
     {
@@ -276,5 +312,366 @@ public partial class MainWindow : Window
             TabResultsText.Foreground = (Brush)Application.Current.FindResource("BrushTextMuted");
             TabResultsUnderline.Background = Brushes.Transparent;
         }
+    }
+
+    // ══════════════════════════════════════════════════════════════════
+    //   ONBOARDING
+    // ══════════════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// Checks if onboarding should be shown (first run only, persisted to appsettings.json).
+    /// </summary>
+    private void CheckOnboarding()
+    {
+        if (_onboardingCompleted) return;
+
+        // Check if onboarding was already completed
+        try
+        {
+            string path = ServerPathResolver.ResolveAppSettingsPath();
+            if (File.Exists(path))
+            {
+                var doc = JsonDocument.Parse(File.ReadAllText(path));
+                if (doc.RootElement.TryGetProperty("onboarding_completed", out var el) && el.GetBoolean())
+                {
+                    _onboardingCompleted = true;
+                    return;
+                }
+            }
+        }
+        catch { /* best-effort */ }
+
+        // Determine the actual target elements (need to find by name from the window)
+        _currentOnboardingStep = 0;
+        ShowOnboardingStep(0);
+    }
+
+    /// <summary>
+    /// Shows the onboarding step at the given index with fade-in animation.
+    /// </summary>
+    private void ShowOnboardingStep(int stepIndex)
+    {
+        if (stepIndex < 0 || stepIndex >= _onboardingSteps.Length)
+        {
+            HideOnboarding();
+            return;
+        }
+
+        _currentOnboardingStep = stepIndex;
+        var step = _onboardingSteps[stepIndex];
+
+        // Update callout content
+        OnboardingStepLabel.Text = TranslationSource.Get(step.TitleKey);
+        OnboardingTitle.Text = TranslationSource.Get(step.TitleKey);
+        OnboardingDesc.Text = TranslationSource.Get(step.DescKey);
+
+        // Update step counter in label
+        OnboardingStepLabel.Text = $"{stepIndex + 1} / {_onboardingSteps.Length}";
+
+        // Try to position spotlight around the target element
+        var target = step.TargetResolver();
+        if (target != null && target.IsVisible)
+        {
+            try
+            {
+                var point = target.TransformToAncestor(this).Transform(new Point(0, 0));
+                double w = target.ActualWidth;
+                double h = target.ActualHeight;
+
+                Canvas.SetLeft(OnboardingSpotlight, point.X - 6);
+                Canvas.SetTop(OnboardingSpotlight, point.Y - 6);
+                OnboardingSpotlight.Width = w + 12;
+                OnboardingSpotlight.Height = h + 12;
+                OnboardingSpotlight.Opacity = 1;
+
+                // Position callout below the spotlight
+                Canvas.SetLeft(OnboardingCallout, point.X);
+                Canvas.SetTop(OnboardingCallout, point.Y + h + 20);
+            }
+            catch
+            {
+                // Fallback to center positioning
+                CenterOnboardingCallout();
+            }
+        }
+        else
+        {
+            CenterOnboardingCallout();
+        }
+
+        // Show the overlay with fade animation
+        if (OnboardingOverlay.Visibility != Visibility.Visible)
+        {
+            OnboardingOverlay.Visibility = Visibility.Visible;
+            OnboardingOverlay.Opacity = 0;
+        }
+
+        var fadeInAnim = new DoubleAnimation
+        {
+            To = 1,
+            Duration = TimeSpan.FromMilliseconds(180),
+            EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut },
+        };
+
+        OnboardingOverlay.BeginAnimation(UIElement.OpacityProperty, fadeInAnim);
+        OnboardingCallout.BeginAnimation(UIElement.OpacityProperty, fadeInAnim);
+    }
+
+    /// <summary>
+    /// Centers the callout in the window as a fallback when no target element is available.
+    /// </summary>
+    private void CenterOnboardingCallout()
+    {
+        double overlayWidth = OnboardingOverlay.ActualWidth > 0 ? OnboardingOverlay.ActualWidth : 1200;
+        double overlayHeight = OnboardingOverlay.ActualHeight > 0 ? OnboardingOverlay.ActualHeight : 800;
+
+        Canvas.SetLeft(OnboardingCallout, (overlayWidth - 320) / 2);
+        Canvas.SetTop(OnboardingCallout, overlayHeight / 3);
+
+        OnboardingSpotlight.Opacity = 0; // Hide spotlight
+    }
+
+    /// <summary>
+    /// Hides the onboarding overlay with fade-out animation.
+    /// </summary>
+    private void HideOnboarding()
+    {
+        if (OnboardingOverlay.Visibility != Visibility.Visible) return;
+
+        var fadeOutAnim = new DoubleAnimation
+        {
+            To = 0,
+            Duration = TimeSpan.FromMilliseconds(150),
+            EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseIn },
+        };
+
+        fadeOutAnim.Completed += (_, _) =>
+        {
+            OnboardingOverlay.Visibility = Visibility.Collapsed;
+        };
+
+        OnboardingOverlay.BeginAnimation(UIElement.OpacityProperty, fadeOutAnim);
+    }
+
+    private void OnboardingNext_Click(object sender, RoutedEventArgs e)
+    {
+        if (_currentOnboardingStep >= _onboardingSteps.Length - 1)
+        {
+            // Last step — complete onboarding
+            CompleteOnboarding();
+            return;
+        }
+
+        ShowOnboardingStep(_currentOnboardingStep + 1);
+    }
+
+    private void OnboardingSkip_Click(object sender, RoutedEventArgs e)
+    {
+        CompleteOnboarding();
+    }
+
+    /// <summary>
+    /// Marks onboarding as completed and persists the flag to appsettings.json.
+    /// </summary>
+    private void CompleteOnboarding()
+    {
+        HideOnboarding();
+        _onboardingCompleted = true;
+
+        // Persist to appsettings.json
+        try
+        {
+            string path = ServerPathResolver.ResolveAppSettingsPath();
+            Dictionary<string, object> settings;
+
+            if (File.Exists(path))
+            {
+                var existing = JsonDocument.Parse(File.ReadAllText(path));
+                settings = new Dictionary<string, object>();
+
+                foreach (var prop in existing.RootElement.EnumerateObject())
+                {
+                    if (prop.Value.ValueKind == JsonValueKind.String)
+                        settings[prop.Name] = prop.Value.GetString() ?? "";
+                    else if (prop.Value.ValueKind == JsonValueKind.True || prop.Value.ValueKind == JsonValueKind.False)
+                        settings[prop.Name] = prop.Value.GetBoolean();
+                    else
+                        settings[prop.Name] = prop.Value.GetRawText();
+                }
+            }
+            else
+            {
+                settings = new Dictionary<string, object>();
+            }
+
+            settings["onboarding_completed"] = true;
+            File.WriteAllText(path, JsonSerializer.Serialize(settings, new JsonSerializerOptions { WriteIndented = true }));
+        }
+        catch { /* best-effort */ }
+    }
+
+    // ══════════════════════════════════════════════════════════════════
+    //   UPDATE CHECK
+    // ══════════════════════════════════════════════════════════════════
+
+    private const string GitHubReleasesUrl = "https://api.github.com/repos/medamineessid/hotix-invoice/releases/latest";
+    private static string AppVersion => BuildInfo.AppVersion;
+
+    /// <summary>
+    /// Checks GitHub Releases API for a newer version. Caches check time — only checks once per day.
+    /// Shows a dismissible notification bar if a newer version is found.
+    /// </summary>
+    private async Task CheckForUpdateAsync()
+    {
+        try
+        {
+            // Check cache: only check once per day
+            if (WasUpdateCheckedRecently())
+                return;
+
+            using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
+            client.DefaultRequestHeaders.UserAgent.ParseAdd("Hotix-Invoice/1.0");
+
+            var response = await client.GetAsync(GitHubReleasesUrl);
+            if (!response.IsSuccessStatusCode) return;
+
+            var body = await response.Content.ReadAsStringAsync();
+            using var doc = JsonDocument.Parse(body);
+
+            string? latestTag = doc.RootElement.TryGetProperty("tag_name", out var tagEl)
+                ? tagEl.GetString()
+                : null;
+
+            string? releaseUrl = doc.RootElement.TryGetProperty("html_url", out var urlEl)
+                ? urlEl.GetString()
+                : null;
+
+            if (string.IsNullOrEmpty(latestTag) || string.IsNullOrEmpty(releaseUrl))
+                return;
+
+            // Compare versions (simple string comparison — assumes semantic versioning with v prefix)
+            string currentTag = $"v{AppVersion}";
+            bool isNewer = CompareVersions(latestTag, currentTag) > 0;
+
+            if (isNewer)
+            {
+                ShowUpdateNotification(latestTag, releaseUrl);
+            }
+        }
+        catch
+        {
+            // Silently fail — this is a non-critical feature
+        }
+        finally
+        {
+            // Update last check time regardless of success/failure
+            SaveUpdateCheckTime();
+        }
+    }
+
+    private static bool WasUpdateCheckedRecently()
+    {
+        try
+        {
+            string settingsPath = SettingsPath;
+            if (!File.Exists(settingsPath)) return false;
+
+            var doc = JsonDocument.Parse(File.ReadAllText(settingsPath));
+            if (!doc.RootElement.TryGetProperty("update_last_check", out var el))
+                return false;
+
+            string? lastCheck = el.GetString();
+            if (string.IsNullOrEmpty(lastCheck)) return false;
+
+            if (DateTime.TryParse(lastCheck, out var lastCheckDate))
+            {
+                // Only check once per day
+                return (DateTime.UtcNow - lastCheckDate).TotalHours < 24;
+            }
+        }
+        catch { }
+
+        return false;
+    }
+
+    private static void SaveUpdateCheckTime()
+    {
+        try
+        {
+            string settingsPath = SettingsPath;
+            var existing = File.Exists(settingsPath)
+                ? JsonDocument.Parse(File.ReadAllText(settingsPath))
+                : null;
+
+            var settings = new Dictionary<string, object>();
+
+            if (existing != null)
+            {
+                foreach (var prop in existing.RootElement.EnumerateObject())
+                {
+                    if (prop.Name == "update_last_check") continue;
+                    if (prop.Value.ValueKind == JsonValueKind.String)
+                        settings[prop.Name] = prop.Value.GetString() ?? "";
+                    else if (prop.Value.ValueKind == JsonValueKind.True || prop.Value.ValueKind == JsonValueKind.False)
+                        settings[prop.Name] = prop.Value.GetBoolean();
+                    else
+                        settings[prop.Name] = prop.Value.GetRawText();
+                }
+            }
+
+            settings["update_last_check"] = DateTime.UtcNow.ToString("o");
+            Directory.CreateDirectory(Path.GetDirectoryName(settingsPath)!);
+            File.WriteAllText(settingsPath, JsonSerializer.Serialize(settings, new JsonSerializerOptions { WriteIndented = true }));
+        }
+        catch { }
+    }
+
+    private static int CompareVersions(string v1, string v2)
+    {
+        // Strip "v" prefix and compare
+        string a = v1.TrimStart('v');
+        string b = v2.TrimStart('v');
+
+        var partsA = a.Split('.');
+        var partsB = b.Split('.');
+
+        for (int i = 0; i < Math.Max(partsA.Length, partsB.Length); i++)
+        {
+            int numA = i < partsA.Length && int.TryParse(partsA[i], out var na) ? na : 0;
+            int numB = i < partsB.Length && int.TryParse(partsB[i], out var nb) ? nb : 0;
+
+            if (numA > numB) return 1;
+            if (numA < numB) return -1;
+        }
+
+        return 0;
+    }
+
+    private string? _updateReleaseUrl;
+    private bool _updateDismissed;
+
+    private void ShowUpdateNotification(string latestVersion, string releaseUrl)
+    {
+        if (_updateDismissed) return;
+
+        _updateReleaseUrl = releaseUrl;
+        UpdateNotificationText.Text = TranslationSource.Fmt("UpdateCheckNewVersion", latestVersion, $"v{AppVersion}");
+        UpdateNotification.Visibility = Visibility.Visible;
+    }
+
+    private void UpdateDownload_Click(object sender, RoutedEventArgs e)
+    {
+        if (!string.IsNullOrEmpty(_updateReleaseUrl))
+        {
+            Process.Start(new ProcessStartInfo(_updateReleaseUrl) { UseShellExecute = true });
+        }
+        UpdateNotification.Visibility = Visibility.Collapsed;
+        _updateDismissed = true;
+    }
+
+    private void UpdateDismiss_Click(object sender, RoutedEventArgs e)
+    {
+        UpdateNotification.Visibility = Visibility.Collapsed;
+        _updateDismissed = true;
     }
 }

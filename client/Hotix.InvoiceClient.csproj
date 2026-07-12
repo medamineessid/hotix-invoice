@@ -30,6 +30,7 @@
       <_BuildInfoLines Include="{" />
       <_BuildInfoLines Include="    public const string CommitHash = &quot;$(_BuildHash)&quot;%3B" />
       <_BuildInfoLines Include="    public const string BuildTimestamp = &quot;$(_BuildTimestamp)&quot;%3B" />
+      <_BuildInfoLines Include="    public const string AppVersion = &quot;1.0.0&quot;%3B" />
       <_BuildInfoLines Include="}" />
     </ItemGroup>
     <WriteLinesToFile File="$(IntermediateOutputPath)BuildInfo.g.cs" Lines="@(_BuildInfoLines, '%0A')" Overwrite="true" />

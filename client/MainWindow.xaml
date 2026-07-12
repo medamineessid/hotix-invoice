@@ -320,7 +320,8 @@
                                                        Style="{StaticResource CardLabelStyle}"
                                                        VerticalAlignment="Center" />
                                         </StackPanel>
-                                        <ComboBox Style="{StaticResource ComboBoxStyle}"
+                                        <ComboBox x:Name="EngineCombo"
+                                                  Style="{StaticResource ComboBoxStyle}"
                                                   Width="200"
                                                   SelectedValuePath="Tag"
                                                   SelectedValue="{Binding SelectedEngine}">
@@ -382,7 +383,8 @@
                                     </StackPanel>
 
                                     <!-- Run button -->
-                                    <Button Grid.Column="2"
+                                    <Button x:Name="RunButton"
+                                            Grid.Column="2"
                                             Style="{StaticResource ButtonPrimaryStyle}"
                                             MinWidth="130"
                                             Padding="24,10"
@@ -1135,7 +1137,8 @@
 
                     <!-- Export + Clear buttons -->
                     <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-                        <Button Content="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[BtnExportExcel]}"
+                        <Button x:Name="ExportButton"
+                                Content="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[BtnExportExcel]}"
                                 Style="{StaticResource ButtonPrimaryStyle}"
                                 Padding="16,8"
                                 Margin="0,0,8,0"
@@ -1150,6 +1153,109 @@
                 </Grid>
             </Border>
         </Grid>
+
+        <!-- ══ ONBOARDING OVERLAY (coach-mark) ══ -->
+        <Border x:Name="OnboardingOverlay"
+                Grid.ColumnSpan="2"
+                Background="#80000000"
+                Panel.ZIndex="900"
+                Visibility="Collapsed"
+                IsHitTestVisible="True">
+            <!-- Canvas for absolute positioning of spotlight + callout -->
+            <Canvas>
+                <!-- Spotlight highlight ring around target element -->
+                <Border x:Name="OnboardingSpotlight"
+                        BorderBrush="{StaticResource BrushAccent}"
+                        BorderThickness="2.5"
+                        CornerRadius="8"
+                        Opacity="0"
+                        Canvas.ZIndex="1" />
+
+                <!-- Callout box -->
+                <Border x:Name="OnboardingCallout"
+                        Style="{StaticResource CardStyle}"
+                        Width="320"
+                        Opacity="0"
+                        Canvas.ZIndex="2">
+                    <StackPanel>
+                        <TextBlock x:Name="OnboardingStepLabel"
+                                   Style="{StaticResource TextCaption}"
+                                   Foreground="{StaticResource BrushAccent}"
+                                   FontWeight="{StaticResource FontWeightMedium}"
+                                   Margin="0,0,0,8" />
+                        <TextBlock x:Name="OnboardingTitle"
+                                   Style="{StaticResource TextCardTitle}"
+                                   TextWrapping="Wrap"
+                                   Margin="0,0,0,8" />
+                        <TextBlock x:Name="OnboardingDesc"
+                                   Style="{StaticResource TextBody}"
+                                   Foreground="{StaticResource BrushTextSecondary}"
+                                   TextWrapping="Wrap"
+                                   Margin="0,0,0,20" />
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                            <Button x:Name="OnboardingSkipBtn"
+                                    Content="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[OnboardingSkip]}"
+                                    Style="{StaticResource ButtonSecondaryStyle}"
+                                    MinWidth="80"
+                                    Margin="0,0,8,0"
+                                    Click="OnboardingSkip_Click" />
+                            <Button x:Name="OnboardingNextBtn"
+                                    Content="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[OnboardingNext]}"
+                                    Style="{StaticResource ButtonPrimaryStyle}"
+                                    MinWidth="80"
+                                    Click="OnboardingNext_Click" />
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+            </Canvas>
+        </Border>
+
+        <!-- ══ UPDATE CHECK NOTIFICATION ══ -->
+        <Border x:Name="UpdateNotification"
+                Grid.Column="1"
+                Background="{StaticResource BrushSurface}"
+                BorderBrush="{StaticResource BrushAccent}"
+                BorderThickness="0,2,0,0"
+                Padding="24,10"
+                VerticalAlignment="Bottom"
+                Panel.ZIndex="800"
+                Visibility="Collapsed">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <Border Grid.Column="0"
+                        Width="8" Height="8"
+                        CornerRadius="4"
+                        Background="{StaticResource BrushAccent}"
+                        VerticalAlignment="Center"
+                        Margin="0,0,12,0" />
+                <TextBlock Grid.Column="1"
+                           x:Name="UpdateNotificationText"
+                           Style="{StaticResource TextCaption}"
+                           VerticalAlignment="Center"
+                           TextWrapping="Wrap" />
+                <Button Grid.Column="2"
+                        x:Name="UpdateDownloadBtn"
+                        Content="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[UpdateCheckReleaseLink]}"
+                        Style="{StaticResource ButtonPrimaryStyle}"
+                        MinWidth="120"
+                        Padding="12,6"
+                        Margin="16,0,8,0"
+                        FontSize="12"
+                        Click="UpdateDownload_Click" />
+                <Button Grid.Column="3"
+                        Content="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[UpdateCheckDismiss]}"
+                        Style="{StaticResource ButtonSecondaryStyle}"
+                        MinWidth="60"
+                        Padding="8,6"
+                        FontSize="12"
+                        Click="UpdateDismiss_Click" />
+            </Grid>
+        </Border>
 
         <!-- ══ SERVER OVERLAY (crashed / starting) ══ -->
         <Border Grid.ColumnSpan="2"
