@@ -13,7 +13,8 @@ hotix-invoice/
 ├── venv/          ← Python 3.12 environment
 ├── scripts/       ← setup.ps1 and start.bat
 ├── requirements.txt
-└── README.md```
+└── README.md
+```
 
 - The **Python server** runs locally and exposes a `POST /extract` API.
 - The **C# WPF client** is the graphical interface the user interacts with.
@@ -108,7 +109,6 @@ This will:
 ### Step 6 — Create a Desktop Shortcut (Optional)
 
 Right-click `client\publish\Hotix.InvoiceClient.exe` → Send to → Desktop (create shortcut). Rename the shortcut to HOTIX.
-Right-click `client\publish\Hotix.InvoiceClient.exe` → Send to → Desktop (create shortcut). Rename the shortcut to HOTIX.
 
 ---
 
@@ -118,9 +118,9 @@ Right-click `client\publish\Hotix.InvoiceClient.exe` → Send to → Desktop (cr
 
 Double-click the **HOTIX** shortcut on the desktop.
 
-A **splash screen** will appear while the OCR server initializes. Once ready, the main application window will open automatically. The server now runs silently in the background with no visible console window.
+A **splash screen** will appear while the OCR server initializes. Once ready, the main application window will open automatically. The server runs silently in the background with no visible console window.
 
-> The status bar in the top-right corner indicates **"Serveur OCR actif"** when the system is ready. If the server process stops unexpectedly, a red error screen will prompt you to restart.
+> The status bar in the top-right corner indicates **"Serveur actif"** when the system is ready. If the server process stops unexpectedly, a red error screen will prompt you to restart.
 
 ---
 
@@ -131,14 +131,14 @@ A **splash screen** will appear while the OCR server initializes. Once ready, th
    - Supported formats: PDF, JPG, PNG, TIF, BMP
 
 2. **Select the Extraction Engine** in the control panel:
-   - **Automatique**: Tries Gemini Vision first, falls back to local OCR if needed.
-   - **Gemini Vision**: High accuracy cloud-based extraction (requires API key).
-   - **OCR local**: Standard local extraction (no internet required).
+   - **Automatique**: Tries Gemini Vision first, falls back to Grok, then to local OCR if needed.
+   - **Gemini Vision**: High-accuracy cloud extraction (requires an API key).
+   - **Grok Vision**: Alternative cloud extraction (requires an API key).
+   - **OCR local**: Fully offline extraction, no internet or API key required. Lower accuracy than the cloud engines — intended as the fallback, not the primary path.
 
 3. Click **Lancer l'extraction** (or press `F5`)
 
 4. Wait for the progress bar to complete
-
 
 ---
 
@@ -149,26 +149,32 @@ Results appear in the **Résultats** tab with the following columns:
 | Column | Description |
 |---|---|
 | N° Facture | Invoice number |
-| Date | Invoice date (YYYY-MM-DD) |
+| Date | Invoice date |
 | Fournisseur | Supplier name |
 | Client | Client name |
 | Montant HT | Amount before tax |
 | TVA | VAT amount |
 | Taxe | Stamp duty or other tax |
 | TTC | Total including tax |
-| Confiance | Extraction confidence (green = high, red = low) |
-| Moteur | Engine used: Gemini (cloud) or OCR local — shown as "Local (hors ligne)" badge inline in the grid |
+| Confiance | Extraction confidence: **Élevée** (≥75%), **Moyenne** (40–75%), **Basse** (<40%) |
 | Fichier | Source file name |
 
-- Fields shown in **grey italic** were not found in the invoice.
+- Fields shown as **—** were not found in the invoice.
 - Invoices with missing fields appear in the **Extractions Incomplètes** tab.
+- A **"Local (hors ligne)"** badge on a row means that file was processed with the local OCR engine rather than a cloud engine.
+- If a row was extracted via OCR instead of your selected cloud engine, hover over the row to see a tooltip explaining why the cloud engine wasn't used for that file (e.g. quota exceeded, invalid key, timeout).
 
-### Configuring Gemini API Key
+### Editing Results Before Export
 
-To use Gemini Vision for better accuracy:
+You can edit any extracted field directly in the results grid — double-click a cell to correct a value before exporting. This is useful for low-confidence or partially-missing extractions.
+
+### Configuring API Keys and Models
+
+To use Gemini or Grok for higher-accuracy extraction:
 1. Click the gear icon **⚙** next to the engine selector.
-2. Enter your **Gemini API key** (visit [Google AI Studio](https://aistudio.google.com/app/apikey) to get a free key).
-3. Click **Enregistrer**. A green indicator signifies the key is active.
+2. Enter your **Gemini API key** (get one at [Google AI Studio](https://aistudio.google.com/app/apikey)) and/or your **Grok API key**.
+3. Once a key is entered, a **model selection dropdown** appears — choose which specific model to use, or leave it on the default.
+4. Click **Enregistrer**.
 
 ---
 
@@ -196,11 +202,11 @@ To use Gemini Vision for better accuracy:
 **"Le serveur OCR s'est arrêté de façon inattendue"**
 The background process failed. Close the app and relaunch via the HOTIX shortcut. This can happen if another application is using port 8000.
 
-**"Clé API Gemini non configurée"**
-You selected Gemini but haven't provided a key. Use the gear icon **⚙** to set it up or switch back to "OCR local". The app checks engine availability every **45 seconds** automatically, so it will reflect any configuration changes without a restart.
+**A cloud engine (Gemini/Grok) row shows the "Local (hors ligne)" badge instead**
+Hover over the row for a tooltip explaining why — a saved key alone doesn't guarantee it's valid; the tooltip shows the actual reason (invalid key, quota exceeded, timeout, etc.).
 
-**Rows show a "Local (hors ligne)" badge**
-This indicates the extraction was performed using the local PaddleOCR engine. Gemini-extracted rows display no badge. The engine used per row is also exported to Excel in the "Moteur" column.
+**"Clé API Gemini non configurée"**
+You selected Gemini but haven't provided a key. Use the gear icon **⚙** to set it up or switch back to "OCR local".
 
 **PDF files fail with "Poppler manquant"**
 Poppler is not installed or not on PATH. Redo Step 3 of the IT setup.
@@ -209,7 +215,7 @@ Poppler is not installed or not on PATH. Redo Step 3 of the IT setup.
 PaddleOCR downloads its language models on first use. This is a one-time download requiring internet access.
 
 **Fields are missing or incorrect**
-Check the raw OCR text in the preview panel (click the row). If the text itself is garbled, the scan quality is too low — try rescanning at higher resolution (300 DPI minimum).
+Check the raw OCR text in the preview panel (click the row). If the text itself is garbled, the scan quality is too low — try rescanning at higher resolution (300 DPI minimum). You can correct individual fields directly in the results grid before exporting.
 
 ---
 
