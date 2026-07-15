@@ -12,6 +12,7 @@
         MinWidth="1000"
         MinHeight="700"
         MaxHeight="{x:Static SystemParameters.MaximizedPrimaryScreenHeight}"
+        WindowState="Maximized"
         Background="{StaticResource BrushBackground}"
         Foreground="{StaticResource BrushTextPrimary}"
         FontFamily="{StaticResource FontPrimary}"

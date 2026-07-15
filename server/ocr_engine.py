@@ -14,6 +14,26 @@ from .utils import BoundingBox, OCRLine, collapse_text
 
 logger = logging.getLogger(__name__)
 
+# ── Tunable constants ────────────────────────────────────────
+#
+# MIN_CONFIDENCE: discard recognition results below this score.
+#   Returning blank/null for a field is safer than surfacing a
+#   wrong plausible-looking value.  Adjust based on empirical
+#   testing with real invoices.
+#
+# DET_UNCLIP_RATIO: PaddleOCR detection-box expansion factor.
+#   The default (1.5 – 2.0) clips the first 1-3 characters of
+#   many recognised lines on typical invoice scans.  Increasing
+#   to 3.0 gives the recognition model enough margin.
+#
+# DET_BOX_THRESH: minimum confidence for a detection box to be
+#   kept.  Lower value retains more candidate fields at the cost
+#   of more noise.
+
+MIN_CONFIDENCE: float = 0.3
+DET_UNCLIP_RATIO: float = 3.0
+DET_BOX_THRESH: float = 0.2
+
 
 @dataclass(frozen=True)
 class OCRResult:
@@ -43,7 +63,29 @@ class PaddleOcrEngine:
         if self._ocr is None:
             from paddleocr import PaddleOCR
 
-            self._ocr = PaddleOCR(lang=self._language)
+            logger.info(
+                "Initialising PaddleOCR (lang=%s) with "
+                "text_det_unclip_ratio=%s, text_det_box_thresh=%s",
+                self._language,
+                DET_UNCLIP_RATIO,
+                DET_BOX_THRESH,
+            )
+            self._ocr = PaddleOCR(
+                lang=self._language,
+                text_det_unclip_ratio=DET_UNCLIP_RATIO,
+                text_det_box_thresh=DET_BOX_THRESH,
+                text_rec_score_thresh=MIN_CONFIDENCE,
+            )
+
+            # Log the actual detection / recognition model names
+            det_name = getattr(self._ocr, "text_detection_model_name", "unknown")
+            rec_name = getattr(self._ocr, "text_recognition_model_name", "unknown")
+            logger.info(
+                "PaddleOCR models — detection: %s, recognition: %s",
+                det_name,
+                rec_name,
+            )
+
         return self._ocr
 
     def recognize(self, image: Image.Image, page_index: int) -> OCRResult:
@@ -135,6 +177,20 @@ class PaddleOcrEngine:
         text, confidence = self._extract_text_and_confidence(text_payload)
         text = collapse_text(text)
         if not text:
+            return None
+
+        # ── Confidence threshold check ───────────────────────
+        # If the recogniser is not confident about this line,
+        # discard it rather than surfacing a likely-wrong value.
+        # Correctness over completeness.
+        if confidence < MIN_CONFIDENCE:
+            logger.debug(
+                "Discarding low-confidence line (conf=%.3f < %.2f) on page %s: %r",
+                confidence,
+                MIN_CONFIDENCE,
+                page_index,
+                text[:60],
+            )
             return None
 
         try:

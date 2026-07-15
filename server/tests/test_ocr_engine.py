@@ -8,7 +8,7 @@ import numpy as np
 import pytest
 from PIL import Image
 
-from server.ocr_engine import PaddleOcrEngine, OCRResult
+from server.ocr_engine import MIN_CONFIDENCE, PaddleOcrEngine, OCRResult
 
 
 def _make_mock_3x_result(
@@ -110,6 +110,39 @@ class TestParseDetection:
         assert line is not None
         assert line.text == "Hello"
         assert line.page_index == 1
+
+    def test_parse_low_confidence_returns_none(self):
+        """Detection with confidence below MIN_CONFIDENCE returns None."""
+        engine = PaddleOcrEngine()
+        poly = np.array([[10, 20], [100, 20], [100, 50], [10, 50]], dtype=np.int16)
+        # Confidence just below the threshold
+        low_conf = MIN_CONFIDENCE - 0.01
+        detection = [poly, ("garbage", low_conf)]
+        line = engine._parse_detection(detection, page_index=0)
+        assert line is None, f"Expected None for confidence {low_conf} < {MIN_CONFIDENCE}"
+
+    def test_parse_at_threshold_confidence(self):
+        """Detection at exactly MIN_CONFIDENCE is accepted."""
+        engine = PaddleOcrEngine()
+        poly = np.array([[10, 20], [100, 20], [100, 50], [10, 50]], dtype=np.int16)
+        detection = [poly, ("valid", MIN_CONFIDENCE)]
+        line = engine._parse_detection(detection, page_index=0)
+        assert line is not None
+        assert line.text == "valid"
+
+    def test_parse_low_confidence_mixed(self):
+        """Only low-confidence detections are filtered; high-confidence ones survive."""
+        engine = PaddleOcrEngine()
+        poly = np.array([[10, 20], [100, 20], [100, 50], [10, 50]], dtype=np.int16)
+        result = _make_mock_3x_result(
+            ["keep", "discard", "keep"],
+            [0.95, MIN_CONFIDENCE - 0.1, 0.80],
+        )
+        lines = engine._normalize_result(result, page_index=0)
+        texts = [line.text for line in lines]
+        assert "discard" not in texts
+        assert "keep" in texts
+        assert len(lines) == 2, f"Expected 2 lines, got {len(lines)}: {texts}"
 
 
 class TestPadImage:
