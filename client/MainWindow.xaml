@@ -199,7 +199,7 @@
                           PanningMode="VerticalOnly"
                           PanningDeceleration="0.003"
                           BorderThickness="0">
-                <Grid Margin="40,40,40,32" HorizontalAlignment="Stretch" MaxWidth="1400" MinWidth="0">
+                <Grid x:Name="MainContentGrid" Margin="40,40,40,32" HorizontalAlignment="Stretch" MaxWidth="1400" MinWidth="0">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />   <!-- Page Title -->
                         <RowDefinition Height="Auto" />   <!-- Step 1: Source Card -->
@@ -217,7 +217,7 @@
                     </StackPanel>
 
                     <!-- ══ STEP 1: SOURCE FOLDER + ENGINE ══ -->
-                    <Border Grid.Row="1" Style="{StaticResource CardStyle}" Margin="0,0,0,12">
+                    <Border x:Name="StepOneCard" Grid.Row="1" Style="{StaticResource CardStyle}" Margin="0,0,0,12">
                         <Grid>
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto" />
@@ -387,7 +387,7 @@
                     </Border>
 
                     <!-- ══ STEP 2: DETECTED FILES ══ -->
-                    <Border Grid.Row="2" Style="{StaticResource CardStyle}" Margin="0,0,0,12"
+                    <Border x:Name="StepTwoCard" Grid.Row="2" Style="{StaticResource CardStyle}" Margin="0,0,0,12"
                             Visibility="{Binding HasSelectedFolder, Converter={StaticResource BooleanToVisibilityConverter}}">
                         <Grid>
                             <Grid.RowDefinitions>
@@ -549,7 +549,7 @@
                     </Border>
 
                     <!-- ══ STEP 3: RESULTS AREA ══ -->
-                    <Grid Grid.Row="5">
+                    <Grid x:Name="ResultsSection" Grid.Row="5">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />

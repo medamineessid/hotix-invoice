@@ -2,9 +2,28 @@
 
 from __future__ import annotations
 
+import logging
 import re
 from dataclasses import dataclass, field
+from decimal import Decimal
 from typing import Mapping, Optional, Sequence
+
+
+logger = logging.getLogger(__name__)
+
+
+# ── Extraction debug mode ─────────────────────────────────────────────────────
+# Set to True to enable detailed per-field logging for debugging extraction issues.
+# Can also be enabled at runtime by setting the HOTIX_DEBUG_EXTRACTION env var.
+import os
+
+_DEBUG_EXTRACTION = os.getenv("HOTIX_DEBUG_EXTRACTION", "").lower() in ("1", "true", "yes")
+
+
+def _debug_log(msg: str) -> None:
+    """Emit a debug log line when extraction debug mode is enabled."""
+    if _DEBUG_EXTRACTION:
+        logger.info("[EXTRACTION_DEBUG] %s", msg)
 
 from .utils import (
     OCRLine,
@@ -34,47 +53,74 @@ FIELD_ALIASES: dict[str, tuple[str, ...]] = {
         "n° facture",
         "n facture",
         "n°facture",
+        "numéro de facture",
+        "numero de facture",
         "numéro",
         "numero",
         "facture n°",
         "facture no",
+        "facture nº",
         "nº facture",
         "no facture",
+        "n° de facture",
+        "n de facture",
         "référence",
         "reference",
         "ref",
         "no",
+        "facture",
+        "invoice",
+        "invoice n°",
+        "invoice #",
     ),
     "date": (
         "date",
         "date de facturation",
         "date facture",
+        "date invoice",
         "émise le",
         "emise le",
+        "invoice date",
     ),
     "fournisseur": (
         "fournisseur",
         "vendeur",
         "émetteur",
         "emetteur",
+        "supplier",
     ),
     "client": (
         "client",
         "acheteur",
         "destinataire",
+        "customer",
     ),
     "montant_ht": (
         "montant ht",
         "total ht",
+        "sous-total ht",
+        "sous total ht",
         "ht",
+        "montant hors taxe",
+        "montant hors taxes",
+        "total hors taxe",
+        "h.t",
+        "base ht",
     ),
     "montant_tva": (
         "tva",
         "montant tva",
+        "total tva",
+        "t.v.a",
+        "vat",
     ),
     "montant_taxe": (
         "taxe",
         "montant taxe",
+        "total taxe",
+        "tax",
+        "contribution",
+        "timbre",
     ),
     "montant_ttc": (
         "ttc",
@@ -82,6 +128,17 @@ FIELD_ALIASES: dict[str, tuple[str, ...]] = {
         "total ttc",
         "net à payer",
         "net a payer",
+        "total ttc",
+        "t.t.c",
+        "total général",
+        "total general",
+        "à payer",
+        "a payer",
+        "montant dû",
+        "montant du",
+        "total",
+        "total invoice",
+        "grand total",
     ),
 }
 
@@ -160,14 +217,126 @@ def extract_raw_text(ocr_lines: Sequence[OCRLine]) -> str:
     return "\n".join(lines_out)
 
 
-def compute_confidence(field_scores: Mapping[str, float]) -> float:
-    """Compute a normalized confidence score from selected field confidences."""
+# ── Cross-field validation ────────────────────────────────────────────────────
+
+
+def cross_validate_fields(fields: dict[str, Optional[str]]) -> list[str]:
+    """Validate extracted fields for semantic consistency.
+
+    Returns a list of human-readable validation issues (empty = all good).
+    Each issue represents a reason to distrust the extraction.
+    """
+    issues: list[str] = []
+
+    ht = _safe_parse_decimal(fields.get("montant_ht"))
+    tva = _safe_parse_decimal(fields.get("montant_tva"))
+    taxe = _safe_parse_decimal(fields.get("montant_taxe"))
+    ttc = _safe_parse_decimal(fields.get("montant_ttc"))
+
+    # Count available monetary fields
+    amt_count = sum(1 for x in [ht, tva, ttc] if x is not None)
+
+    if amt_count >= 2:
+        # HT == TVA is almost certainly an error (unless both are 0)
+        if ht is not None and tva is not None and ht == tva and ht > Decimal("0"):
+            issues.append("HT equals TVA (duplication error)")
+
+        # HT == TTC is almost certainly an error (unless both are 0)
+        if ht is not None and ttc is not None and ht == ttc and ht > Decimal("0"):
+            issues.append("HT equals TTC (duplication error)")
+
+        # TVA > TTC is impossible
+        if tva is not None and ttc is not None and tva > ttc:
+            issues.append("TVA exceeds TTC (impossible)")
+
+        # Negative amounts
+        if ht is not None and ht < Decimal("0"):
+            issues.append("Negative HT amount")
+        if tva is not None and tva < Decimal("0"):
+            issues.append("Negative TVA amount")
+        if ttc is not None and ttc < Decimal("0"):
+            issues.append("Negative TTC amount")
+
+        # TVA should be approximately HT × VAT_RATE for reasonable VAT rates
+        if ht is not None and ht > Decimal("0") and tva is not None and tva > Decimal("0"):
+            vat_rate = tva / ht
+            # Accept VAT rates between 5% and 30% (covers most jurisdictions)
+            if vat_rate < Decimal("0.05") or vat_rate > Decimal("0.30"):
+                issues.append(f"Unlikely VAT rate: {float(vat_rate)*100:.1f}%")
+
+        # Check arithmetic: HT + TVA + Taxe ≈ TTC (within tolerance)
+        if ht is not None and tva is not None and ttc is not None:
+            eff_taxe = taxe or Decimal("0")
+            expected = ht + tva + eff_taxe
+            diff = abs(expected - ttc)
+            if diff > Decimal("0.50"):
+                issues.append(f"Arithmetic mismatch: HT+IVA+Taxe={expected:.3f} ≠ TTC={ttc:.3f}")
+
+    # Missing mandatory fields
+    if not fields.get("numero_facture"):
+        issues.append("Invoice number missing")
+    if not fields.get("date"):
+        issues.append("Date missing")
+    if not fields.get("montant_ttc"):
+        issues.append("TTC amount missing")
+
+    return issues
+
+
+def _safe_parse_decimal(value: Optional[str]) -> Optional[Decimal]:
+    """Parse a decimal safely, returning None on failure."""
+    if not value:
+        return None
+    try:
+        return Decimal(value)
+    except Exception:
+        return None
+
+
+def compute_confidence(field_scores: Mapping[str, float], fields: Mapping[str, Optional[str]] | None = None, issues: list[str] | None = None) -> float:
+    """Compute a confidence score with penalties for extraction quality issues.
+
+    Base score is the average per-field confidence.
+    Penalties are applied for:
+    - Missing mandatory fields (invoice number, date, TTC)
+    - Duplicated monetary values (HT == TVA, HT == TTC)
+    - Arithmetic inconsistency
+    - Impossible values (TVA > TTC, negative totals)
+    - Unlikely VAT rates
+    """
 
     scores = [score for score in field_scores.values() if score > 0.0]
     if not scores:
         return 0.0
-    average = sum(scores) / len(scores)
-    return max(0.0, min(1.0, average))
+    base = sum(scores) / len(scores)
+
+    penalties = 0.0
+
+    # Penalize based on validation issues
+    if issues:
+        for issue in issues:
+            if "duplication" in issue:
+                penalties += 0.25
+            elif "impossible" in issue or "Negative" in issue:
+                penalties += 0.20
+            elif "Arithmetic mismatch" in issue:
+                penalties += 0.15
+            elif "VAT rate" in issue:
+                penalties += 0.10
+            elif "missing" in issue:
+                penalties += 0.10
+
+    # Penalize missing monetary fields even if not flagged (reduce confidence for
+    # incomplete extractions)
+    if fields is not None:
+        missing_amounts = sum(1 for k in ["montant_ht", "montant_tva", "montant_ttc"] if not fields.get(k))
+        if missing_amounts >= 2:
+            penalties += 0.10
+        elif missing_amounts >= 3:
+            penalties += 0.20
+
+    result = base - penalties
+    return max(0.0, min(1.0, result))
 
 
 # ── Row utilities ───────────────────────────────────────────────────────────
@@ -218,28 +387,44 @@ def _extract_field_selections(ocr_lines: Sequence[OCRLine]) -> dict[str, FieldSe
         selection = _select_best_selection_for_field(field, rows, all_lines, FieldSelection(value=None, confidence=0.0, score=float("-inf"), ocr_line=None))
         if selection.ocr_line is not None and selection.score > float("-inf"):
             proposals.append((field, selection.ocr_line, selection.score, selection.value, selection.confidence))
+            _debug_log(
+                f"FIELD: {field}\n"
+                f"  Candidates: [...]\n"
+                f"  Selected: {selection.value}\n"
+                f"  from line: {selection.ocr_line.text[:80]!r}\n"
+                f"  confidence: {selection.confidence:.3f}  score: {selection.score:.1f}"
+            )
+        else:
+            _debug_log(f"FIELD: {field} — NO CANDIDATE FOUND")
 
     # Step 2: Resolve conflicts — each OCR line goes to the highest-scoring field
-    # Sort proposals by score descending
     proposals.sort(key=lambda p: p[2], reverse=True)
 
-    claimed_lines: set[int] = set()  # id(OCRLine)
+    claimed_lines: set[int] = set()
     resolved: dict[str, FieldSelection] = {field: FieldSelection(value=None, confidence=0.0, score=float("-inf")) for field in FIELD_ORDER}
 
+    _debug_log("--- CONFLICT RESOLUTION ---")
     for field, ocr_line, score, value, confidence in proposals:
         line_id = id(ocr_line)
         if line_id in claimed_lines:
-            # This line was already claimed by a higher-scoring field — skip
+            _debug_log(f"  {field}: line already claimed by higher-scoring field — REJECTED")
             continue
         claimed_lines.add(line_id)
         resolved[field] = FieldSelection(value=value, confidence=confidence, score=score, ocr_line=ocr_line)
+        _debug_log(f"  {field}: ASSIGNED (value={value}, score={score:.1f})")
 
-    # Step 3: For fields that didn't get a candidate (no proposal or all claimed),
-    # try same-line inline extraction (which doesn't consume a separate line)
+    # Step 3: Fields that still don't have a candidate retry with claimed lines excluded
     for field in FIELD_ORDER:
         if resolved[field].score > float("-inf"):
-            continue  # Already has a candidate
-        resolved[field] = _select_best_selection_for_field(field, rows, all_lines, resolved[field])
+            continue
+        _debug_log(f"  {field}: retrying with claimed lines excluded...")
+        resolved[field] = _select_best_selection_for_field(
+            field, rows, all_lines, resolved[field], excluded_ids=claimed_lines,
+        )
+        if resolved[field].score > float("-inf"):
+            _debug_log(f"  {field}: fallback ASSIGNED (value={resolved[field].value}, score={resolved[field].score:.1f})")
+        else:
+            _debug_log(f"  {field}: fallback — STILL NO CANDIDATE")
 
     return resolved
 
@@ -247,19 +432,25 @@ def _extract_field_selections(ocr_lines: Sequence[OCRLine]) -> dict[str, FieldSe
 # ── Per-field candidate search ───────────────────────────────────────────────
 
 
-def _select_best_selection_for_field(field: str, rows: list[list[OCRLine]], all_lines: Sequence[OCRLine], current_selection: FieldSelection) -> FieldSelection:
-    """Evaluate all anchors for a field using geometric search and return the best selection."""
+def _select_best_selection_for_field(field: str, rows: list[list[OCRLine]], all_lines: Sequence[OCRLine], current_selection: FieldSelection, excluded_ids: set[int] | None = None) -> FieldSelection:
+    """Evaluate all anchors for a field using geometric search and return the best selection.
+
+    If excluded_ids is provided, lines whose ids are in the set will be skipped
+    (used for collision prevention in the fallback pass).
+    """
 
     aliases = FIELD_ALIASES[field]
     anchors = [line for line in all_lines if _contains_any_alias(line.text, aliases)]
     selection = current_selection
 
     for anchor in anchors:
+        if excluded_ids and id(anchor) in excluded_ids:
+            continue
         same_line_selection = _selection_from_same_line(field, anchor, selection)
         if same_line_selection is not None:
             selection = same_line_selection
 
-        geometric_selection = _selection_from_geometric_search(field, anchor, rows, selection)
+        geometric_selection = _selection_from_geometric_search(field, anchor, rows, selection, excluded_ids)
         if geometric_selection is not None:
             selection = geometric_selection
 
@@ -280,12 +471,14 @@ def _selection_from_same_line(field: str, anchor: OCRLine, current_selection: Fi
     return selection
 
 
-def _selection_from_geometric_search(field: str, anchor: OCRLine, rows: list[list[OCRLine]], current_selection: FieldSelection) -> FieldSelection | None:
+def _selection_from_geometric_search(field: str, anchor: OCRLine, rows: list[list[OCRLine]], current_selection: FieldSelection, excluded_ids: set[int] | None = None) -> FieldSelection | None:
     """Find the best candidate using purely geometric criteria.
 
     Considers:
     (a) Lines on the same row as the anchor, to the right
     (b) Lines in rows below the anchor, within horizontal range
+
+    If excluded_ids is set, lines whose ids are in the set are skipped.
     """
 
     anchor_row_idx = _row_index_of(anchor, rows)
@@ -299,7 +492,8 @@ def _selection_from_geometric_search(field: str, anchor: OCRLine, rows: list[lis
     for line in anchor_row:
         if line is anchor:
             continue
-        # Must be to the right of the anchor's right edge
+        if excluded_ids and id(line) in excluded_ids:
+            continue
         if line.box.x1 < anchor.box.x2:
             continue
         if not _candidate_is_plausible(line):
@@ -309,6 +503,8 @@ def _selection_from_geometric_search(field: str, anchor: OCRLine, rows: list[lis
 
     # (b) Below-row candidates
     for line in _lines_below(anchor_row_idx, rows):
+        if excluded_ids and id(line) in excluded_ids:
+            continue
         if not _candidate_is_plausible(line):
             continue
         score = _score_below_row(anchor, line)
@@ -317,7 +513,6 @@ def _selection_from_geometric_search(field: str, anchor: OCRLine, rows: list[lis
     if not candidates:
         return None
 
-    # Sort by score descending
     candidates.sort(key=lambda c: c[1], reverse=True)
     best_line, best_score = candidates[0]
 

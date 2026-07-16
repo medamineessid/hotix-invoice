@@ -24,6 +24,7 @@ from .field_extractor import (
     extract_invoice_fields,
     extract_field_confidences,
     extract_raw_text,
+    cross_validate_fields,
     compute_confidence,
 )
 from .utils import reconcile_amounts
@@ -219,13 +220,21 @@ async def _run_gemini_extraction(
     try:
         image_data = await _extract_first_page_bytes(pages[0])
         fields = extract_with_gemini(image_data, "image/png")
+        # Cross-field validation before reconciliation
+        gemini_issues = cross_validate_fields(fields)
         # Reconcile monetary amounts (compute missing, flag mismatches)
         fields, computed_fields, has_mismatch = reconcile_amounts(fields, {})
-        logger.info("Extraction via Gemini Vision successful for %s", Path(filename).name)
+        # Confidence with penalties (Gemini has high base OCR confidence)
+        gemini_confidences = {k: 0.95 for k in fields}
+        gemini_confidence = compute_confidence(gemini_confidences, fields, gemini_issues)
+        logger.info(
+            "Extraction via Gemini Vision successful for %s. Issues: %s",
+            Path(filename).name, gemini_issues,
+        )
         return (
             InvoiceExtractionResponse(
                 **fields,
-                confidence=0.95,
+                confidence=gemini_confidence,
                 raw_text="Extraction via Gemini Vision",
                 engine_used="gemini",
                 computed_fields=list(computed_fields),
@@ -257,13 +266,19 @@ def _run_ocr_extraction(
 
     fields = extract_invoice_fields(all_lines)
     confidences = extract_field_confidences(all_lines)
+    # Cross-field validation before reconciliation
+    issues = cross_validate_fields(fields)
     # Reconcile monetary amounts (compute missing, flag mismatches — never overwrite high-confidence)
     fields, computed_fields, has_mismatch = reconcile_amounts(fields, confidences)
     raw_text = extract_raw_text(all_lines)
-    confidence = compute_confidence(confidences)
+    # Confidence with penalties for extraction quality issues
+    confidence = compute_confidence(confidences, fields, issues)
 
     field_names = [k for k, v in fields.items() if v is not None]
-    logger.info("Extraction via OCR successful for %s. Fields: %s", Path(filename).name, field_names)
+    logger.info(
+        "Extraction via OCR successful for %s. Fields: %s. Issues: %s",
+        Path(filename).name, field_names, issues,
+    )
 
     return InvoiceExtractionResponse(
         **fields,

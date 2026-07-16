@@ -57,6 +57,9 @@ public partial class MainWindow : Window
     {
         await ViewModel.InitializeAsync();
 
+        // Keep the results section at least as tall as the combined height of Steps 1 and 2
+        MainContentGrid.SizeChanged += OnMainContentGrid_SizeChanged;
+
         // Set initial language radio button state
         string currentLang = TranslationSource.Instance.CurrentCulture;
         LangFrenchRadio.IsChecked = currentLang == "fr";
@@ -69,14 +72,18 @@ public partial class MainWindow : Window
         await Task.Delay(500);
         CheckOnboarding();
 
+        // Ensure results section has a minimum height equal to the combined height of Steps 1 and 2
+        UpdateResultsMinHeight();
+
         // Check for updates (non-blocking)
         _ = CheckForUpdateAsync();
     }
 
     private void OnClosing(object? sender, CancelEventArgs e)
     {
-        // Clean up onboarding SizeChanged handler
+        // Clean up event handlers
         SizeChanged -= Onboarding_SizeChanged;
+        MainContentGrid.SizeChanged -= OnMainContentGrid_SizeChanged;
         ViewModel.Dispose();
     }
 
@@ -223,6 +230,35 @@ public partial class MainWindow : Window
             icon.Style = (Style)Application.Current.FindResource("NavIconStyle");
             text.Style = (Style)Application.Current.FindResource("NavTextStyle");
         }
+    }
+
+    // ── Results section min-height sync ─────────────────────────────
+
+    /// <summary>
+    /// Ensures the results section is at least as tall as the combined height of Step 1 and Step 2.
+    /// This prevents the results grid from looking tiny when there are few extracted rows.
+    /// </summary>
+    private void UpdateResultsMinHeight()
+    {
+        if (StepOneCard == null || StepTwoCard == null || ResultsSection == null)
+            return;
+
+        double step1Height = StepOneCard.ActualHeight;
+        double step2Height = StepTwoCard.ActualHeight;
+
+        // Account for margin gap between the two cards (margin-bottom on Step 1 card)
+        double gap = StepOneCard.Margin.Bottom;
+        double combined = step1Height + step2Height + gap;
+
+        if (combined > 0)
+        {
+            ResultsSection.MinHeight = combined;
+        }
+    }
+
+    private void OnMainContentGrid_SizeChanged(object? sender, SizeChangedEventArgs e)
+    {
+        UpdateResultsMinHeight();
     }
 
     // ── Staggered Row Animation ──────────────────────────────────────
