@@ -201,3 +201,101 @@ def extract_date(text: str) -> Optional[str]:
 def clean_date(text: str) -> Optional[str]:
     """Alias for extract_date used by field_extractor."""
     return extract_date(text)
+
+
+def _parse_decimal(value: Optional[str]) -> Optional[Decimal]:
+    """Parse a French-format amount string (e.g. '1 250,00' or '1250.000') to Decimal."""
+    if not value:
+        return None
+    cleaned = value.strip()
+    if not cleaned:
+        return None
+    try:
+        return Decimal(cleaned)
+    except InvalidOperation:
+        pass
+    # Try French format: remove spaces, replace comma with dot
+    try:
+        cleaned = cleaned.replace(" ", "").replace("\u00a0", "")
+        if "," in cleaned:
+            cleaned = cleaned.replace(".", "").replace(",", ".")
+        return Decimal(cleaned)
+    except (InvalidOperation, ValueError):
+        return None
+
+
+def _format_amount(value: Decimal) -> str:
+    """Format a Decimal amount to the canonical 3-decimal string."""
+    return f"{value.quantize(Decimal('0.001')):.3f}"
+
+
+def validate_amounts(fields: dict[str, Optional[str]]) -> dict[str, Optional[str]]:
+    """Validate and correct monetary amounts (HT, TVA, Taxe, TTC) in extracted fields.
+
+    Logic:
+    - If two of (montant_ht, montant_tva, montant_ttc) are available, derive the third.
+    - If all three are available, verify HT + TVA + Taxe ≈ TTC (within €0.50).
+    - If inconsistent, detect common duplication errors (HT == TVA or TTC == HT)
+      and correct the duplicated field.
+    - If no clear duplication, trust HT and TTC as most reliable and derive TVA.
+    """
+    result = dict(fields)  # Copy
+
+    epsilon = Decimal("0.50")
+
+    ht = _parse_decimal(result.get("montant_ht"))
+    tva = _parse_decimal(result.get("montant_tva"))
+    taxe = _parse_decimal(result.get("montant_taxe"))
+    ttc = _parse_decimal(result.get("montant_ttc"))
+
+    # How many of the three main amounts are present?
+    available = sum(1 for x in [ht, tva, ttc] if x is not None)
+
+    if available < 2:
+        return result  # Not enough data to cross-validate
+
+    effective_taxe = taxe or Decimal("0")
+
+    # ── Case 1: All three found ──────────────────────────────────────────────
+    if available == 3 and ht is not None and tva is not None and ttc is not None:
+        expected_ttc = ht + tva + effective_taxe
+        if abs(expected_ttc - ttc) <= epsilon:
+            return result  # Already consistent
+
+        # Inconsistent — try to detect common duplication errors
+        if ht == tva:
+            # TVA is a copy of HT (most common error). Derive from TTC - HT.
+            derived_tva = ttc - ht - effective_taxe
+            if derived_tva >= Decimal("0"):
+                result["montant_tva"] = _format_amount(derived_tva)
+        elif ttc == ht:
+            # TTC is a copy of HT. Derive TTC from HT + TVA.
+            derived_ttc = ht + tva + effective_taxe
+            result["montant_ttc"] = _format_amount(derived_ttc)
+        elif ttc == tva:
+            # TTC is a copy of TVA. Derive TTC from HT + TVA.
+            derived_ttc = ht + tva + effective_taxe
+            result["montant_ttc"] = _format_amount(derived_ttc)
+        else:
+            # No obvious duplication. HT and TVA are the base amounts most
+            # reliably presented on invoices — prefer keeping both and
+            # deriving TTC.
+            derived_ttc = ht + tva + effective_taxe
+            result["montant_ttc"] = _format_amount(derived_ttc)
+
+        return result
+
+    # ── Case 2: Exactly two found — derive the third ────────────────────────
+    if ht is not None and tva is not None and ttc is None:
+        derived_ttc = ht + tva + effective_taxe
+        result["montant_ttc"] = _format_amount(derived_ttc)
+    elif ht is not None and ttc is not None and tva is None:
+        derived_tva = ttc - ht - effective_taxe
+        if derived_tva >= Decimal("0"):
+            result["montant_tva"] = _format_amount(derived_tva)
+    elif tva is not None and ttc is not None and ht is None:
+        derived_ht = ttc - tva - effective_taxe
+        if derived_ht >= Decimal("0"):
+            result["montant_ht"] = _format_amount(derived_ht)
+
+    return result

@@ -192,26 +192,13 @@ public partial class MainWindow : Window
     private void NavExtraction_Click(object sender, MouseButtonEventArgs e)
     {
         SetActiveNav(NavExtraction, NavExtractionIcon, NavExtractionText, true);
-        SetActiveNav(NavSettings, NavSettingsIcon, NavSettingsText, false);
         SetActiveNav(NavAbout, NavAboutIcon, NavAboutText, false);
-
-        PageTitle.Text = TranslationSource.Get("NavPageExtraction");
     }
 
-    private void NavSettings_Click(object sender, MouseButtonEventArgs e)
-    {
-        SetActiveNav(NavExtraction, NavExtractionIcon, NavExtractionText, false);
-        SetActiveNav(NavSettings, NavSettingsIcon, NavSettingsText, true);
-        SetActiveNav(NavAbout, NavAboutIcon, NavAboutText, false);
-
-        PageTitle.Text = TranslationSource.Get("NavPageSettings");
-        ViewModel.ToggleSettingsCommand.Execute(null);
-    }
 
     private void NavAbout_Click(object sender, MouseButtonEventArgs e)
     {
         SetActiveNav(NavExtraction, NavExtractionIcon, NavExtractionText, false);
-        SetActiveNav(NavSettings, NavSettingsIcon, NavSettingsText, false);
         SetActiveNav(NavAbout, NavAboutIcon, NavAboutText, true);
 
         PageTitle.Text = TranslationSource.Get("NavPageAbout");

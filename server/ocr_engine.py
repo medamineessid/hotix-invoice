@@ -31,7 +31,7 @@ logger = logging.getLogger(__name__)
 #   of more noise.
 
 MIN_CONFIDENCE: float = 0.3
-DET_UNCLIP_RATIO: float = 3.0
+DET_UNCLIP_RATIO: float = 2.0
 DET_BOX_THRESH: float = 0.2
 
 

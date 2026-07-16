@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from typing import Mapping, Optional, Sequence
 
@@ -283,31 +284,28 @@ def _clean_candidate_value(field: str, value: str) -> Optional[str]:
 
 
 def _looks_like_label(text: str) -> bool:
-    """Return True when the text still looks like a label rather than a value."""
+    """Return True when the text still looks like a label rather than a value.
 
-    normalized = normalize_text(text).replace(" ", "")
-    label_tokens = {
-        "facture",
-        "date",
-        "fournisseur",
-        "client",
-        "vendeur",
-        "emetteur",
-        "acheteur",
-        "destinataire",
-        "ht",
-        "tva",
-        "taxe",
-        "ttc",
-        "montant",
-        "total",
-        "netapayer",
-        "reference",
-        "numero",
-        "no",
-        "ref",
-    }
-    return any(token in normalized for token in label_tokens)
+    Uses regex patterns to avoid false positives where short label tokens
+    (e.g. "no", "ref") appear as substrings inside legitimate values.
+    Example: "Société Nouvelle SARL" must NOT match "no" (inside "nouvelle").
+    "REF-2024-001" must NOT match "ref" (it's an invoice number, not a label).
+    """
+
+    normalized = normalize_text(text)
+    label_patterns = [
+        "facture", "date", "fournisseur", "client",
+        "vendeur", "emetteur", "acheteur", "destinataire",
+        "ht", "tva", "taxe", "ttc",
+        "montant", "total", "netapayer",
+        "reference", "numero",
+        # "no" and "ref" only match as standalone words with optional trailing
+        # punctuation (periods) — so "NO" and "no." are labels, but "REF-2024-001"
+        # (hyphen + content follows) and "nouvelle" (word-internal) are not.
+        r"\bno\b[.\s]*$",
+        r"\bref\b[.\s]*$",
+    ]
+    return any(re.search(pattern, normalized) for pattern in label_patterns)
 
 
 def _score_candidate(anchor: OCRLine, candidate: OCRLine, same_line: bool) -> float:

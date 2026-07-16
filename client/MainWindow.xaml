@@ -69,7 +69,14 @@
                     <Border Width="36" Height="36"
                             Background="{StaticResource BrushAccent}"
                             CornerRadius="10"
-                            Margin="0,0,0,16" />
+                            Margin="0,0,0,16">
+                        <TextBlock Text="H"
+                                   FontSize="18"
+                                   FontWeight="700"
+                                   Foreground="{StaticResource BrushTextInverse}"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center" />
+                    </Border>
                     <TextBlock Text="HOTIX" Style="{StaticResource SidebarLogoStyle}" />
                     <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[SplashSubtitle]}"
                                Style="{StaticResource TextCaption}"
@@ -94,20 +101,6 @@
                             <!-- Text -->
                             <TextBlock Grid.Column="1" x:Name="NavExtractionText"
                                        Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[SidebarExtraction]}" Style="{StaticResource NavTextSelectedStyle}" />
-                        </Grid>
-                    </Border>
-
-                    <!-- Settings Nav Item -->
-                    <Border x:Name="NavSettings" Style="{StaticResource NavItemStyle}" MouseLeftButtonDown="NavSettings_Click">
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="*" />
-                            </Grid.ColumnDefinitions>
-
-                            <TextBlock Grid.Column="0" x:Name="NavSettingsIcon" Text="◈" Style="{StaticResource NavIconStyle}" />
-                            <TextBlock Grid.Column="1" x:Name="NavSettingsText"
-                                       Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[SidebarSettings]}" Style="{StaticResource NavTextStyle}" />
                         </Grid>
                     </Border>
 
@@ -221,7 +214,7 @@
 
                     <!-- ══ PAGE TITLE ══ -->
                     <StackPanel Grid.Row="0" Margin="0,0,0,32" MaxWidth="800">
-                        <TextBlock x:Name="PageTitle" Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[SidebarExtraction]}" Style="{StaticResource TextPageTitle}" />
+                        <TextBlock x:Name="PageTitle" Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[PageTitleExtraction]}" Style="{StaticResource TextPageTitle}" />
                         <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[EmptyResultsDesc]}"
                                    Style="{StaticResource TextBody}"
                                    Foreground="{StaticResource BrushTextSecondary}"
@@ -325,7 +318,8 @@
                                                   Style="{StaticResource ComboBoxStyle}"
                                                   Width="200"
                                                   SelectedValuePath="Tag"
-                                                  SelectedValue="{Binding SelectedEngine}">
+                                                  SelectedValue="{Binding SelectedEngine}"
+                                                  ToolTip="{Binding ResolvedEngineDisplay}">
                                             <ComboBoxItem Content="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ControlEngineAuto]}" Tag="auto" />
                                             <ComboBoxItem Content="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ControlEngineGemini]}" Tag="gemini">
                                                 <ComboBoxItem.Style>
@@ -359,28 +353,6 @@
                                                 Command="{Binding ToggleSettingsCommand}"
                                                 ToolTip="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ControlSettingsTooltip]}" />
 
-                                        <!-- Engine status badge -->
-                                        <Border CornerRadius="{StaticResource RadiusPill}"
-                                                Padding="8,3"
-                                                Margin="10,0,0,0"
-                                                Background="{StaticResource BrushSurface}"
-                                                BorderBrush="{StaticResource BrushBorder}"
-                                                BorderThickness="1"
-                                                VerticalAlignment="Center"
-                                                ToolTip="{Binding ResolvedEngineDisplay}">
-                                            <StackPanel Orientation="Horizontal">
-                                                <Border Width="6" Height="6"
-                                                        CornerRadius="3"
-                                                        Margin="0,0,6,0"
-                                                        VerticalAlignment="Center"
-                                                        Background="{StaticResource BrushAccent}" />
-                                                <TextBlock Text="{Binding ResolvedEngineDisplay}"
-                                                           Style="{StaticResource TextTiny}"
-                                                           FontWeight="{StaticResource FontWeightMedium}"
-                                                           Foreground="{StaticResource BrushTextSecondary}"
-                                                           VerticalAlignment="Center" />
-                                            </StackPanel>
-                                        </Border>
                                     </StackPanel>
 
                                     <!-- Run button -->

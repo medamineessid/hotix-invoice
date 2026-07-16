@@ -59,8 +59,14 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     private string _summaryBannerColor = "#2ECC71";
     private string? _saveConfirmationPath;
     private string? _lastExportSheetName;
-
-    // Gemini REST API endpoint
+    private const int DefaultBatchConcurrency = 4;
+    private int _batchConcurrency = DefaultBatchConcurrency;
+    private readonly object _batchLock = new();
+    private bool _geminiDisabled;
+    private bool _grokDisabled;
+    private string _geminiDisabledReason = string.Empty;
+    private string _grokDisabledReason = string.Empty;
+// Gemini REST API endpoint
     private const string GeminiApiBaseTemplate = "https://generativelanguage.googleapis.com/v1beta/models/{0}:generateContent";
     private const string GeminiDefaultModel = "gemini-2.5-flash";
 
@@ -76,7 +82,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         _apiHttpClient = new HttpClient
         {
             BaseAddress = new Uri(apiBaseUrl),
-            Timeout = TimeSpan.FromMinutes(5),
+            Timeout = TimeSpan.FromMinutes(15),
         };
 
         _invoiceClient = new InvoiceClient(_apiHttpClient);
@@ -114,6 +120,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
 
         LoadSettings();
         LoadProviderKeysFromAppSettings();
+        LoadBatchConcurrencyFromAppSettings();
 
         // Poll engine + internet status every 45 seconds on the UI thread
         _engineStatusTimer = new DispatcherTimer
@@ -247,6 +254,35 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     private string ResolvedGrokModel => !string.IsNullOrEmpty(_grokModel) ? _grokModel : GrokDefaultModel;
 
     private string GeminiApiBase => string.Format(GeminiApiBaseTemplate, ResolvedGeminiModel);
+    private void LoadBatchConcurrencyFromAppSettings()
+    {
+        int concurrency = DefaultBatchConcurrency;
+
+        string? envValue = Environment.GetEnvironmentVariable("HOTIX_BATCH_CONCURRENCY");
+        if (int.TryParse(envValue, out int parsedEnv) && parsedEnv > 0)
+            concurrency = parsedEnv;
+
+        try
+        {
+            string path = ResolveAppSettingsPath();
+            if (File.Exists(path))
+            {
+                var doc = JsonDocument.Parse(File.ReadAllText(path));
+                if (doc.RootElement.TryGetProperty("batch_concurrency", out var concurrencyEl)
+                    && concurrencyEl.TryGetInt32(out int parsedFile)
+                    && parsedFile > 0)
+                {
+                    concurrency = parsedFile;
+                }
+            }
+        }
+        catch
+        {
+            // Best-effort settings read.
+        }
+
+        _batchConcurrency = Math.Clamp(concurrency, 1, 16);
+    }
 
     public bool IsSettingsPanelOpen
     {
@@ -769,9 +805,10 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         string responseBody = await response.Content.ReadAsStringAsync();
 
         if (!response.IsSuccessStatusCode)
-        {                if ((int)response.StatusCode == 429)
-                throw new CloudQuotaExceededException(TranslationSource.Fmt("GeminiApiError", 429, ResponseBodySummary(responseBody)));
-            throw new CloudApiException(TranslationSource.Fmt("GeminiApiError", (int)response.StatusCode, responseBody));
+        {
+            if ((int)response.StatusCode == 429)
+                throw new CloudQuotaExceededException(TranslationSource.Fmt("GeminiApiError", 429, ResponseBodySummary(responseBody)), response.StatusCode, responseBody);
+            throw new CloudApiException(TranslationSource.Fmt("GeminiApiError", (int)response.StatusCode, responseBody), response.StatusCode, responseBody);
         }
 
         // Parse Gemini response JSON
@@ -856,9 +893,10 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         if (!response.IsSuccessStatusCode)
         {
             // Log the exact response body for all non-2xx responses to avoid misclassifying real errors as quota
-            string errorDetail = responseBody.Length > 500 ? responseBody[..500] + "..." : responseBody;                if ((int)response.StatusCode == 429)
-                throw new CloudQuotaExceededException(TranslationSource.Fmt("GrokApiError", 429, errorDetail));
-            throw new CloudApiException(TranslationSource.Fmt("GrokApiError", (int)response.StatusCode, errorDetail));
+            string errorDetail = responseBody.Length > 500 ? responseBody[..500] + "..." : responseBody;
+            if ((int)response.StatusCode == 429)
+                throw new CloudQuotaExceededException(TranslationSource.Fmt("GrokApiError", 429, errorDetail), response.StatusCode, responseBody);
+            throw new CloudApiException(TranslationSource.Fmt("GrokApiError", (int)response.StatusCode, errorDetail), response.StatusCode, responseBody);
         }
 
         // Parse OpenAI-compatible response
@@ -1066,7 +1104,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         {
             // Clear from appsettings.json
             string appSettingsPath = ResolveAppSettingsPath();
-            var settings = new { gemini_api_key = "", grok_api_key = _grokKeyInput, default_engine = SelectedEngine };
+            var settings = new { gemini_api_key = "", grok_api_key = _grokKeyInput, default_engine = SelectedEngine, batch_concurrency = _batchConcurrency };
             await File.WriteAllTextAsync(appSettingsPath, JsonSerializer.Serialize(settings, new JsonSerializerOptions { WriteIndented = true }));
         }
         catch (Exception ex)
@@ -1125,7 +1163,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
 
             // Save to appsettings.json (same location server reads from)
             string appSettingsPath = ResolveAppSettingsPath();
-            var settings = new { gemini_api_key = GeminiKeyInput, grok_api_key = _grokKeyInput, default_engine = SelectedEngine, gemini_model = _geminiModel, grok_model = _grokModel };
+            var settings = new { gemini_api_key = GeminiKeyInput, grok_api_key = _grokKeyInput, default_engine = SelectedEngine, gemini_model = _geminiModel, grok_model = _grokModel, batch_concurrency = _batchConcurrency };
             await File.WriteAllTextAsync(appSettingsPath, JsonSerializer.Serialize(settings, new JsonSerializerOptions { WriteIndented = true }));
         }
         catch (Exception ex)
@@ -1143,7 +1181,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         {
             // Clear from appsettings.json
             string appSettingsPath = ResolveAppSettingsPath();
-            var settings = new { gemini_api_key = _geminiKeyInput, grok_api_key = "", default_engine = SelectedEngine };
+            var settings = new { gemini_api_key = _geminiKeyInput, grok_api_key = "", default_engine = SelectedEngine, batch_concurrency = _batchConcurrency };
             await File.WriteAllTextAsync(appSettingsPath, JsonSerializer.Serialize(settings, new JsonSerializerOptions { WriteIndented = true }));
         }
         catch (Exception ex)
@@ -1199,7 +1237,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
 
             // Save to appsettings.json
             string appSettingsPath = ResolveAppSettingsPath();
-            var settings = new { gemini_api_key = _geminiKeyInput, grok_api_key = GrokKeyInput, default_engine = SelectedEngine };
+            var settings = new { gemini_api_key = _geminiKeyInput, grok_api_key = GrokKeyInput, default_engine = SelectedEngine, batch_concurrency = _batchConcurrency };
             await File.WriteAllTextAsync(appSettingsPath, JsonSerializer.Serialize(settings, new JsonSerializerOptions { WriteIndented = true }));
         }
         catch (Exception ex)
@@ -1364,12 +1402,350 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         Debug.WriteLine("[Hotix] " + step);
     }
 
+    private Task SetExtractionStatusAsync(string status)
+    {
+        return Application.Current.Dispatcher.InvokeAsync(() =>
+        {
+            _extractionStatusText = status;
+            OnPropertyChanged(nameof(ExtractionStatusText));
+        }).Task;
+    }
+
+    private Task AddExtractionResultAsync(InvoiceRowViewModel row)
+    {
+        return Application.Current.Dispatcher.InvokeAsync(() =>
+        {
+            Results.Add(row);
+            if (row.IsIncomplete) IncompleteResults.Add(row);
+
+            ProcessedFiles += 1;
+            NotifySummaryChanged();
+            RaiseCommandStateChanged();
+        }).Task;
+    }
+
+    private Task ShowQuotaFallbackBannerAsync()
+    {
+        lock (this)
+        {
+            if (_quotaFallbackBannerShown)
+                return Task.CompletedTask;
+
+            _quotaFallbackBannerShown = true;
+        }
+
+        return Application.Current.Dispatcher.InvokeAsync(() =>
+        {
+            SummaryBannerText = TranslationSource.Get("QuotaFallbackBanner");
+            SummaryBannerColor = "#E67E22";
+            ShowSummaryBanner = true;
+            OnPropertyChanged(nameof(SummaryBannerText));
+            OnPropertyChanged(nameof(SummaryBannerColor));
+            OnPropertyChanged(nameof(ShowSummaryBanner));
+
+            _extractionStatusText = TranslationSource.Get("ExtractionQuotaFallback");
+            OnPropertyChanged(nameof(ExtractionStatusText));
+        }).Task;
+    }
+
+    private static bool IsPermanentCloudFailure(HttpStatusCode statusCode)
+    {
+        return statusCode is HttpStatusCode.Unauthorized
+            or HttpStatusCode.Forbidden
+            or HttpStatusCode.NotFound
+            or HttpStatusCode.Gone
+            or HttpStatusCode.ServiceUnavailable
+            or HttpStatusCode.TooManyRequests;
+    }
+
+    private bool TryMarkGeminiDisabled(string reason)
+    {
+        lock (this)
+        {
+            if (_geminiDisabled)
+                return false;
+
+            _geminiDisabled = true;
+            _geminiDisabledReason = reason;
+            return true;
+        }
+    }
+
+    private bool TryMarkGrokDisabled(string reason)
+    {
+        lock (this)
+        {
+            if (_grokDisabled)
+                return false;
+
+            _grokDisabled = true;
+            _grokDisabledReason = reason;
+            return true;
+        }
+    }
+
+    private bool GeminiDisabled
+    {
+        get { lock (this) { return _geminiDisabled; } }
+    }
+
+    private bool GrokDisabled
+    {
+        get { lock (this) { return _grokDisabled; } }
+    }
+
+    private string GeminiDisabledReason
+    {
+        get { lock (this) { return _geminiDisabledReason; } }
+    }
+
+    private string GrokDisabledReason
+    {
+        get { lock (this) { return _grokDisabledReason; } }
+    }
+
+    private async Task<InvoiceRowViewModel> ProcessInvoiceAsync(
+        string file,
+        string selectedEngine,
+        string? geminiKey,
+        string? grokKey,
+        bool hasGemini,
+        bool hasGrok)
+    {
+        string fileName = Path.GetFileName(file);
+        LogPipeline($"Invoice started: {fileName}");
+        await SetExtractionStatusAsync(TranslationSource.Fmt("ExtractionProcessing", fileName));
+
+        var stopwatch = Stopwatch.StartNew();
+        InvoiceRowViewModel row;
+
+        try
+        {
+            if (selectedEngine == "grok" && hasGrok)
+            {
+                if (GrokDisabled)
+                {
+                    LogPipeline($"Grok skipped (cached failure) for {fileName}");
+                    row = InvoiceRowViewModel.FromError(file, GrokDisabledReason);
+                }
+                else
+                {
+                    LogPipeline($"Engine dispatch: Grok-only for {fileName}");
+                    try
+                    {
+                        LogPipeline("HTTP request start (Grok)");
+                        InvoiceResult result = await CallGrokDirectlyAsync(file, grokKey!);
+                        LogPipeline("HTTP response received — success");
+                        row = InvoiceRowViewModel.FromSuccess(file, result);
+                    }
+                    catch (CloudQuotaExceededException ex)
+                    {
+                        TryMarkGrokDisabled(ex.Message);
+                        LogPipeline($"Grok skipped (cached failure) for {fileName}");
+                        row = InvoiceRowViewModel.FromError(file, ex.Message);
+                    }
+                    catch (CloudApiException ex) when (ex.StatusCode.HasValue && IsPermanentCloudFailure(ex.StatusCode.Value))
+                    {
+                        TryMarkGrokDisabled(ex.Message);
+                        LogPipeline($"Grok skipped (cached failure) for {fileName}");
+                        row = InvoiceRowViewModel.FromError(file, ex.Message);
+                    }
+                    catch (CloudApiException ex)
+                    {
+                        LogPipeline($"HTTP response error: {ex.Message}");
+                        row = InvoiceRowViewModel.FromError(file, ex.Message);
+                    }
+                    catch (Exception ex2)
+                    {
+                        LogPipeline($"Grok exception: {ex2.GetType().Name}: {ex2.Message}");
+                        row = InvoiceRowViewModel.FromError(file, TranslationSource.Fmt("ErrorGemini", $"{ex2.GetType().Name}: {ex2.Message}"));
+                    }
+                }
+            }
+            else if (hasGemini && (selectedEngine == "auto" || selectedEngine == "gemini") && !GeminiDisabled)
+            {
+                LogPipeline($"Engine dispatch: Gemini-first for {fileName}");
+                try
+                {
+                    LogPipeline("HTTP request start (Gemini)");
+                    InvoiceResult result = await CallGeminiDirectlyAsync(file, geminiKey!);
+                    LogPipeline("HTTP response received — parsing succeeded");
+                    row = InvoiceRowViewModel.FromSuccess(file, result);
+                }
+                catch (CloudQuotaExceededException ex)
+                {
+                    TryMarkGeminiDisabled(ex.Message);
+                    LogPipeline("Gemini quota exceeded");
+
+                    if (selectedEngine == "auto" && hasGrok && !GrokDisabled)
+                    {
+                        LogPipeline("Gemini quota — trying Grok before OCR");
+                        try
+                        {
+                            InvoiceResult grokResult = await CallGrokDirectlyAsync(file, grokKey!);
+                            LogPipeline("Grok succeeded after Gemini quota");
+                            row = InvoiceRowViewModel.FromSuccess(file, grokResult);
+                        }
+                        catch (CloudQuotaExceededException grokEx)
+                        {
+                            TryMarkGrokDisabled(grokEx.Message);
+                            LogPipeline("Grok also failed after Gemini quota — falling back to OCR");
+                            await ShowQuotaFallbackBannerAsync();
+                            row = await ExtractViaServerAsync(file);
+                        }
+                        catch (CloudApiException grokEx) when (grokEx.StatusCode.HasValue && IsPermanentCloudFailure(grokEx.StatusCode.Value))
+                        {
+                            TryMarkGrokDisabled(grokEx.Message);
+                            LogPipeline("Grok also failed after Gemini quota — falling back to OCR");
+                            await ShowQuotaFallbackBannerAsync();
+                            row = await ExtractViaServerAsync(file);
+                        }
+                        catch
+                        {
+                            LogPipeline("Grok also failed after Gemini quota — falling back to OCR");
+                            await ShowQuotaFallbackBannerAsync();
+                            row = await ExtractViaServerAsync(file);
+                        }
+                    }
+                    else if (selectedEngine == "gemini")
+                    {
+                        row = InvoiceRowViewModel.FromError(file, ex.Message);
+                    }
+                    else
+                    {
+                        await ShowQuotaFallbackBannerAsync();
+                        row = await ExtractViaServerAsync(file);
+                    }
+                }
+                catch (CloudApiException ex) when (ex.StatusCode.HasValue && IsPermanentCloudFailure(ex.StatusCode.Value))
+                {
+                    TryMarkGeminiDisabled(ex.Message);
+                    LogPipeline($"Gemini skipped (cached failure) for {fileName}");
+
+                    if (selectedEngine == "auto")
+                    {
+                        if (hasGrok && !GrokDisabled)
+                        {
+                            try
+                            {
+                                LogPipeline("HTTP request start (Grok fallback)");
+                                InvoiceResult result = await CallGrokDirectlyAsync(file, grokKey!);
+                                LogPipeline("Grok fallback succeeded");
+                                row = InvoiceRowViewModel.FromSuccess(file, result);
+                            }
+                            catch (CloudQuotaExceededException grokEx)
+                            {
+                                TryMarkGrokDisabled(grokEx.Message);
+                                LogPipeline("Grok fallback also failed — trying OCR server");
+                                await EnsureServerReadyAsync();
+                                row = await ExtractViaServerAsync(file);
+                            }
+                            catch (CloudApiException grokEx) when (grokEx.StatusCode.HasValue && IsPermanentCloudFailure(grokEx.StatusCode.Value))
+                            {
+                                TryMarkGrokDisabled(grokEx.Message);
+                                LogPipeline("Grok fallback also failed — trying OCR server");
+                                await EnsureServerReadyAsync();
+                                row = await ExtractViaServerAsync(file);
+                            }
+                            catch
+                            {
+                                LogPipeline("Grok fallback also failed — trying OCR server");
+                                await EnsureServerReadyAsync();
+                                row = await ExtractViaServerAsync(file);
+                            }
+                        }
+                        else
+                        {
+                            LogPipeline("No Grok key — falling back to OCR server");
+                            await EnsureServerReadyAsync();
+                            row = await ExtractViaServerAsync(file);
+                        }
+                    }
+                    else
+                    {
+                        row = InvoiceRowViewModel.FromError(file, ex.Message);
+                    }
+                }
+                catch (CloudApiException ex)
+                {
+                    LogPipeline($"Cloud API error: {ex.Message}");
+                    row = InvoiceRowViewModel.FromError(file, ex.Message);
+                }
+                catch (Exception ex2)
+                {
+                    LogPipeline($"Gemini exception: {ex2.GetType().Name}: {ex2.Message}");
+                    row = InvoiceRowViewModel.FromError(file, TranslationSource.Fmt("ErrorGemini", $"{ex2.GetType().Name}: {ex2.Message}"));
+                }
+            }
+            else if (hasGrok && (selectedEngine == "auto" || selectedEngine == "grok") && !GrokDisabled)
+            {
+                LogPipeline($"Engine dispatch: Grok-first for {fileName}");
+                try
+                {
+                    LogPipeline("HTTP request start (Grok)");
+                    InvoiceResult result = await CallGrokDirectlyAsync(file, grokKey!);
+                    LogPipeline("HTTP response received — success");
+                    row = InvoiceRowViewModel.FromSuccess(file, result);
+                }
+                catch (Exception) when (selectedEngine == "auto")
+                {
+                    LogPipeline("Grok failed in auto mode — falling back to OCR server");
+                    await EnsureServerReadyAsync();
+                    row = await ExtractViaServerAsync(file);
+                }
+                catch (CloudQuotaExceededException ex)
+                {
+                    TryMarkGrokDisabled(ex.Message);
+                    LogPipeline("Grok quota exceeded");
+                    row = selectedEngine == "auto"
+                        ? await ExtractViaServerAsync(file)
+                        : InvoiceRowViewModel.FromError(file, ex.Message);
+                }
+                catch (CloudApiException ex) when (ex.StatusCode.HasValue && IsPermanentCloudFailure(ex.StatusCode.Value))
+                {
+                    TryMarkGrokDisabled(ex.Message);
+                    LogPipeline($"Grok skipped (cached failure) for {fileName}");
+                    row = selectedEngine == "auto"
+                        ? await ExtractViaServerAsync(file)
+                        : InvoiceRowViewModel.FromError(file, ex.Message);
+                }
+                catch (CloudApiException ex)
+                {
+                    LogPipeline($"Grok API error: {ex.Message}");
+                    row = InvoiceRowViewModel.FromError(file, ex.Message);
+                }
+                catch (Exception ex2)
+                {
+                    LogPipeline($"Grok exception: {ex2.GetType().Name}: {ex2.Message}");
+                    row = InvoiceRowViewModel.FromError(file, TranslationSource.Fmt("ErrorGemini", $"{ex2.GetType().Name}: {ex2.Message}"));
+                }
+            }
+            else
+            {
+                LogPipeline($"Engine dispatch: OCR server for {fileName}");
+                row = await ExtractViaServerAsync(file);
+            }
+        }
+        finally
+        {
+            stopwatch.Stop();
+            LogPipeline($"Invoice completed: {fileName}");
+            LogPipeline($"Invoice duration: {fileName} took {stopwatch.Elapsed.TotalSeconds:F2}s");
+            await SetExtractionStatusAsync(string.Empty);
+        }
+
+        LogPipeline($"Row created: success={!row.HasError}, engine={row.EngineUsed}");
+        return row;
+    }
+
     private async Task StartExtractionAsync()
     {
         if (!CanStartExtraction()) return;
 
         LogPipeline("Extraction button clicked — starting pipeline");
         LogPipeline($"Selected engine: {SelectedEngine}");
+        LogPipeline("Batch started");
+        LogPipeline($"Concurrency level: {_batchConcurrency}");
 
         IsExtracting      = true;
         IsProgressVisible = true;
@@ -1378,6 +1754,11 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         ProcessedFiles    = 0;
         _extractionStatusText = TranslationSource.Get("ExtractionPreparing");
         OnPropertyChanged(nameof(ExtractionStatusText));
+        _quotaFallbackBannerShown = false;
+        _geminiDisabled = false;
+        _grokDisabled = false;
+        _geminiDisabledReason = string.Empty;
+        _grokDisabledReason = string.Empty;
 
         await Application.Current.Dispatcher.InvokeAsync(() =>
         {
@@ -1398,6 +1779,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         }
 
         _extractionCts = new CancellationTokenSource();
+        var batchStopwatch = Stopwatch.StartNew();
 
         try
         {
@@ -1406,215 +1788,70 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             string? geminiKey = LoadGeminiApiKey();
             string? grokKey = LoadGrokApiKey();
             _internetAvailable = await CheckInternetAsync();
-            bool canUseCloud = _internetAvailable;
-            bool hasGemini = canUseCloud && !string.IsNullOrEmpty(geminiKey);
-            bool hasGrok = canUseCloud && !string.IsNullOrEmpty(grokKey);
+            bool hasGemini = _internetAvailable && !string.IsNullOrEmpty(geminiKey);
+            bool hasGrok = _internetAvailable && !string.IsNullOrEmpty(grokKey);
 
             LogPipeline($"Internet: {_internetAvailable}, Gemini key: {!string.IsNullOrEmpty(geminiKey)}, Grok key: {!string.IsNullOrEmpty(grokKey)}");
 
             string selectedEngine = SelectedEngine;
-            bool preferGemini = hasGemini && (selectedEngine == "auto" || selectedEngine == "gemini");
-            bool preferGrok = hasGrok && (selectedEngine == "grok" || (selectedEngine == "auto" && !hasGemini));
-            bool needServerFallback = false;
+            LogPipeline($"Engine dispatch: selected={selectedEngine}, gemini={hasGemini}, grok={hasGrok}");
 
-            LogPipeline($"Engine dispatch: selected={selectedEngine}, preferGemini={preferGemini}, preferGrok={preferGrok}, fallback={needServerFallback}");
-
-            // Pre-flight check: ensure at least one engine is available
-            if (!preferGemini && !preferGrok && selectedEngine != "ocr")
-            {
+            if (!hasGemini && !hasGrok && selectedEngine != "ocr")
                 LogPipeline("PRE-FLIGHT: No cloud engine available, checking OCR server");
-                // Will fall through to OCR path in foreach
-            }
 
-            foreach (string file in files)
+            var semaphore = new SemaphoreSlim(_batchConcurrency, _batchConcurrency);
+            try
             {
-                if (_extractionCts.Token.IsCancellationRequested)
+                Task[] tasks = files.Select(async file =>
                 {
-                    LogPipeline("Extraction cancelled by user");
-                    break;
-                }
-
-                string fileName = Path.GetFileName(file);
-                _extractionStatusText = TranslationSource.Fmt("ExtractionProcessing", fileName);
-                OnPropertyChanged(nameof(ExtractionStatusText));
-                LogPipeline($"Processing file [{ProcessedFiles + 1}/{TotalFiles}]: {fileName}");
-
-                // Start elapsed-time indicator so the user sees progress during long calls
-                _processingStopwatch.Restart();
-                _processingTimer?.Stop();
-                _processingTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
-                _processingTimer.Tick += (s, e) =>
-                {
-                    var elapsed = _processingStopwatch.Elapsed;
-                    _extractionStatusText = TranslationSource.Fmt("ExtractionProcessingElapsed",
-                        fileName, (int)elapsed.TotalMinutes, elapsed.Seconds);
-                    OnPropertyChanged(nameof(ExtractionStatusText));
-                };
-                _processingTimer.Start();
-
-                InvoiceRowViewModel row;
-
-                try
-                {
-
-                if (selectedEngine == "grok" && hasGrok)
-                {
-                    // Grok-only mode
-                    LogPipeline($"Engine dispatch: Grok-only for {fileName}");
+                    bool entered = false;
                     try
                     {
-                        LogPipeline("HTTP request start (Grok)");
-                        InvoiceResult result = await CallGrokDirectlyAsync(file, grokKey!);
-                        LogPipeline("HTTP response received — success");
-                        row = InvoiceRowViewModel.FromSuccess(file, result);
-                    }
-                    catch (CloudApiException ex)
-                    {
-                        LogPipeline($"HTTP response error: {ex.Message}");
-                        row = InvoiceRowViewModel.FromError(file, ex.Message);
-                    }
-                    catch (Exception ex2)
-                    {
-                        LogPipeline($"Grok exception: {ex2.GetType().Name}: {ex2.Message}");
-                        row = InvoiceRowViewModel.FromError(file, TranslationSource.Fmt("ErrorGemini", $"{ex2.GetType().Name}: {ex2.Message}"));
-                    }
-                }
-                else if (preferGemini && !needServerFallback)
-                {
-                    // Try Gemini first
-                    LogPipeline($"Engine dispatch: Gemini-first for {fileName}");
-                    try
-                    {
-                        LogPipeline("HTTP request start (Gemini)");
-                        InvoiceResult result = await CallGeminiDirectlyAsync(file, geminiKey!);
-                        LogPipeline("HTTP response received — parsing succeeded");
-                        row = InvoiceRowViewModel.FromSuccess(file, result);
-                    }
-                    catch (CloudQuotaExceededException)
-                    {
-                        LogPipeline("Gemini quota exceeded");
+                        await semaphore.WaitAsync(_extractionCts.Token);
+                        entered = true;
 
-                        // Try Grok first when in auto mode, just like other
-                        // Gemini failures do — Grok doesn't share quota with
-                        // Gemini so it may still succeed.
-                        if (selectedEngine == "auto" && hasGrok)
-                        {
-                            LogPipeline("Gemini quota — trying Grok before OCR");
-                            try
-                            {
-                                InvoiceResult grokResult = await CallGrokDirectlyAsync(file, grokKey!);
-                                LogPipeline("Grok succeeded after Gemini quota");
-                                row = InvoiceRowViewModel.FromSuccess(file, grokResult);
-                            }
-                            catch
-                            {
-                                LogPipeline("Grok also failed after Gemini quota — falling back to OCR");
-                                ShowQuotaFallbackBanner();
-                                needServerFallback = true;
-                                row = await ExtractViaServerAsync(file);
-                            }
-                        }
-                        else
-                        {
-                            ShowQuotaFallbackBanner();
-                            needServerFallback = true;
-                            row = await ExtractViaServerAsync(file);
-                        }
-                    }
-                    catch (Exception) when (selectedEngine == "auto")
-                    {
-                        LogPipeline("Gemini failed in auto mode — trying Grok or OCR");
-                        if (hasGrok)
-                        {
-                            try
-                            {
-                                LogPipeline("HTTP request start (Grok fallback)");
-                                InvoiceResult result = await CallGrokDirectlyAsync(file, grokKey!);
-                                LogPipeline("Grok fallback succeeded");
-                                row = InvoiceRowViewModel.FromSuccess(file, result);
-                            }
-                            catch
-                            {
-                                LogPipeline("Grok fallback also failed — trying OCR server");
-                                await EnsureServerReadyAsync();
-                                row = await ExtractViaServerAsync(file);
-                            }
-                        }
-                        else
-                        {
-                            LogPipeline("No Grok key — falling back to OCR server");
-                            await EnsureServerReadyAsync();
-                            row = await ExtractViaServerAsync(file);
-                        }
-                    }
-                    catch (CloudApiException ex)
-                    {
-                        LogPipeline($"Cloud API error: {ex.Message}");
-                        row = InvoiceRowViewModel.FromError(file, ex.Message);
-                    }
-                    catch (Exception ex2)
-                    {
-                        LogPipeline($"Gemini exception: {ex2.GetType().Name}: {ex2.Message}");
-                        row = InvoiceRowViewModel.FromError(file, TranslationSource.Fmt("ErrorGemini", $"{ex2.GetType().Name}: {ex2.Message}"));
-                    }
-                }
-                else if (preferGrok && !needServerFallback)
-                {
-                    // Try Grok (auto mode, no Gemini key available)
-                    LogPipeline($"Engine dispatch: Grok-first for {fileName}");
-                    try
-                    {
-                        LogPipeline("HTTP request start (Grok)");
-                        InvoiceResult result = await CallGrokDirectlyAsync(file, grokKey!);
-                        LogPipeline("HTTP response received — success");
-                        row = InvoiceRowViewModel.FromSuccess(file, result);
-                    }
-                    catch (Exception) when (selectedEngine == "auto")
-                    {
-                        LogPipeline("Grok failed in auto mode — falling back to OCR server");
-                        await EnsureServerReadyAsync();
-                        row = await ExtractViaServerAsync(file);
-                    }
-                    catch (CloudApiException ex)
-                    {
-                        LogPipeline($"Grok API error: {ex.Message}");
-                        row = InvoiceRowViewModel.FromError(file, ex.Message);
-                    }
-                    catch (Exception ex2)
-                    {
-                        LogPipeline($"Grok exception: {ex2.GetType().Name}: {ex2.Message}");
-                        row = InvoiceRowViewModel.FromError(file, TranslationSource.Fmt("ErrorGemini", $"{ex2.GetType().Name}: {ex2.Message}"));
-                    }
-                }
-                else
-                {
-                    // OCR server path
-                    LogPipeline($"Engine dispatch: OCR server for {fileName}");
-                    await EnsureServerReadyAsync();
-                    row = await ExtractViaServerAsync(file);
-                }
+                        if (_extractionCts.Token.IsCancellationRequested)
+                            return;
 
-                    LogPipeline($"Row created: success={!row.HasError}, engine={row.EngineUsed}");
-                }
-                finally
-                {
-                    _processingTimer?.Stop();
-                    _processingTimer = null;
-                }
+                        InvoiceRowViewModel row = await ProcessInvoiceAsync(
+                            file,
+                            selectedEngine,
+                            geminiKey,
+                            grokKey,
+                            hasGemini,
+                            hasGrok);
 
-                InvoiceRowViewModel captured = row;
-                await Application.Current.Dispatcher.InvokeAsync(() =>
-                {
-                    Results.Add(captured);
-                    if (captured.IsIncomplete) IncompleteResults.Add(captured);
-                });
+                        await AddExtractionResultAsync(row);
+                        LogPipeline("UI update triggered — ObservableCollection updated");
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        LogPipeline("Invoice task cancelled by user");
+                    }
+                    catch (Exception ex)
+                    {
+                        LogPipeline($"Invoice task failed: {ex.GetType().Name}: {ex.Message}");
+                        InvoiceRowViewModel errorRow = InvoiceRowViewModel.FromError(file, $"{ex.GetType().Name}: {ex.Message}");
+                        await AddExtractionResultAsync(errorRow);
+                        LogPipeline("UI update triggered — ObservableCollection updated");
+                    }
+                    finally
+                    {
+                        if (entered)
+                            semaphore.Release();
+                    }
+                }).ToArray();
 
-                LogPipeline("UI update triggered — ObservableCollection updated");
-
-                ProcessedFiles += 1;
-                NotifySummaryChanged();
-                RaiseCommandStateChanged();
+                await Task.WhenAll(tasks);
             }
+            finally
+            {
+                semaphore.Dispose();
+            }
+
+            batchStopwatch.Stop();
+            LogPipeline("Batch completed");
+            LogPipeline($"Total duration: {batchStopwatch.Elapsed.TotalSeconds:F2}s");
         }
         catch (OperationCanceledException)
         {
@@ -1639,29 +1876,6 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         }
     }
 
-    /// <summary>
-    /// Shows a warning banner mid-batch when quota fallback activates, and updates
-    /// the per-file progress text so the user knows remaining files will use local OCR.
-    /// Only fires once per batch to avoid banner thrashing.
-    /// </summary>
-    private void ShowQuotaFallbackBanner()
-    {
-        if (_quotaFallbackBannerShown) return;
-        _quotaFallbackBannerShown = true;
-
-        SummaryBannerText = TranslationSource.Get("QuotaFallbackBanner");
-        SummaryBannerColor = "#E67E22"; // Orange — warning, not error
-        ShowSummaryBanner = true;
-        OnPropertyChanged(nameof(SummaryBannerText));
-        OnPropertyChanged(nameof(SummaryBannerColor));
-        OnPropertyChanged(nameof(ShowSummaryBanner));
-
-        // Update the in-progress status text next to the progress ring
-        _extractionStatusText = TranslationSource.Get("ExtractionQuotaFallback");
-        OnPropertyChanged(nameof(ExtractionStatusText));
-    }
-
-    /// <summary>Shows an error banner immediately without waiting for extraction to complete.</summary>
     private void ShowImmediateError(string message)
     {
         SummaryBannerText = message;
@@ -1674,34 +1888,60 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         OnPropertyChanged(nameof(ExtractionStatusText));
     }
 
+    /// <summary>Long timeout for OCR extraction calls (15 min).  OCR is serialized
+    /// server-side by an asyncio.Semaphore(1), so the 4th concurrent file may wait
+    /// ~6 minutes in the server queue before processing even starts.
+    /// HttpClient.Timeout (5 min) is too short for that scenario.
+    /// We create a linked token with a longer timeout instead of relying on the
+    /// shared HttpClient's timeout.</summary>
+    private static readonly TimeSpan OcrExtractionTimeout = TimeSpan.FromMinutes(15);
+
     /// <summary>Extract a file through the local OCR server (starts it lazily if needed).</summary>
     private async Task<InvoiceRowViewModel> ExtractViaServerAsync(string file)
     {
+        LogPipeline("OCR started");
+        CancellationTokenSource? linkedCts = null;
         try
         {
             await EnsureServerReadyAsync();
 
-            InvoiceResult result = await _invoiceClient.ExtractAsync(file, "ocr", _extractionCts?.Token ?? CancellationToken.None);
+            // Create a linked token that includes both the user-cancellation token
+            // and a longer timeout for the OCR call.
+            linkedCts = CancellationTokenSource.CreateLinkedTokenSource(
+                _extractionCts?.Token ?? CancellationToken.None);
+            linkedCts.CancelAfter(OcrExtractionTimeout);
+
+            InvoiceResult result = await _invoiceClient.ExtractAsync(file, "ocr", linkedCts.Token);
+            LogPipeline("OCR completed");
             return InvoiceRowViewModel.FromSuccess(file, result);
+        }
+        catch (OperationCanceledException) when (
+            _extractionCts?.Token.IsCancellationRequested == true)
+        {
+            // Real user cancellation — propagate up to the pipeline
+            LogPipeline("OCR cancelled by user");
+            throw;
         }
         catch (OperationCanceledException)
         {
-            // If this was a real user cancellation, propagate it up to the pipeline
-            if (_extractionCts?.Token.IsCancellationRequested == true)
-                throw;
-
-            // Otherwise it was an HTTP timeout (TaskCanceledException inherits from
-            // OperationCanceledException when the HttpClient's Timeout fires).
+            // Timeout (either the linked CTS timed out or HttpClient.Timeout fired)
+            LogPipeline("OCR completed (timeout)");
             return InvoiceRowViewModel.FromError(file,
-                TranslationSource.Fmt("ErrorTimeout", (int)_apiHttpClient.Timeout.TotalSeconds));
+                TranslationSource.Fmt("ErrorTimeout", (int)OcrExtractionTimeout.TotalSeconds));
         }
         catch (InvoiceExtractionException ex)
         {
+            LogPipeline("OCR completed (error)");
             return InvoiceRowViewModel.FromError(file, MapErrorMessage(ex));
         }
         catch (Exception ex)
         {
+            LogPipeline($"OCR completed (exception: {ex.GetType().Name})");
             return InvoiceRowViewModel.FromError(file, $"{ex.GetType().Name}: {ex.Message}");
+        }
+        finally
+        {
+            linkedCts?.Dispose();
         }
     }
 
@@ -1874,8 +2114,6 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                 Title            = TranslationSource.Get("ExportDialogTitle"),
             };
 
-            if (!saveDialog.ShowDialog().GetValueOrDefault()) return;
-
             try
             {
                 new ExcelWriter().Write(saveDialog.FileName, rowsToExport);
@@ -1901,8 +2139,6 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             if (!openDialog.ShowDialog().GetValueOrDefault()) return;
 
             string existingPath = openDialog.FileName;
-
-            // Check if the file has multiple worksheets
             List<string> sheetNames;
             try
             {
@@ -2189,12 +2425,26 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
 
 internal sealed class CloudQuotaExceededException : Exception
 {
-    public CloudQuotaExceededException(string message) : base(message) { }
+    public CloudQuotaExceededException(string message, HttpStatusCode? statusCode = null, string? responseBody = null) : base(message)
+    {
+        StatusCode = statusCode;
+        ResponseBody = responseBody;
+    }
+
+    public HttpStatusCode? StatusCode { get; }
+    public string? ResponseBody { get; }
 }
 
 internal sealed class CloudApiException : Exception
 {
-    public CloudApiException(string message) : base(message) { }
+    public CloudApiException(string message, HttpStatusCode? statusCode = null, string? responseBody = null) : base(message)
+    {
+        StatusCode = statusCode;
+        ResponseBody = responseBody;
+    }
+
+    public HttpStatusCode? StatusCode { get; }
+    public string? ResponseBody { get; }
 }
 
 internal sealed class RelayCommand : ICommand

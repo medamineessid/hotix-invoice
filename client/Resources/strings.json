@@ -7,6 +7,7 @@
 
   "SidebarNavigation": "Navigation",
   "SidebarExtraction": "Extraction",
+  "PageTitleExtraction": "Invoice Extraction",
   "SidebarSettings": "Settings",
   "SidebarAbout": "About",
   "SidebarVersion": "v1.0.0",

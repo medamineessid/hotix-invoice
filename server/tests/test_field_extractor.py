@@ -226,6 +226,37 @@ class TestLooksLikeLabel:
     def test_value_text(self):
         assert _looks_like_label("123.45") is False
 
+    # ── Long text regression tests ────────────────────────────
+    # These ensure that legitimate long values containing substrings
+    # that happen to match short label tokens are NOT rejected.
+
+    def test_long_client_name_with_no_substring(self):
+        """"Société Nouvelle" contains "no" as substring but not as a word."""
+        assert _looks_like_label("Société Nouvelle SARL") is False
+
+    def test_long_client_name_with_ref_substring(self):
+        """"Référencement" contains "reference" as a substring — flagged
+        as label-like (acceptable, since "reference" is overwhelmingly a
+        label keyword). Same behavior as the original code."""
+        # "reference" matches inside "referencement" via substring
+        assert _looks_like_label("SARL Référencement Plus") is True
+
+    def test_invoice_number_with_ref_prefix(self):
+        """Invoice numbers like REF-2024-001 should NOT be rejected.
+        "ref" is followed by non-whitespace content ("-2024-001"),
+        so the negative lookahead (?!\s*\S) prevents the match."""
+        assert _looks_like_label("REF-2024-001") is False
+
+    def test_invoice_number_no_prefix_no_content(self):
+        """Standalone "NO" without following content IS a label."""
+        assert _looks_like_label("NO") is True
+        assert _looks_like_label("no.") is True
+
+    def test_long_fournisseur_name(self):
+        """Long supplier name should not be rejected by short token matches."""
+        assert _looks_like_label("ETABLISSEMENTS DUPONT ET FILS") is False
+        assert _looks_like_label("CONSTRUCTION MODERNE BATIMENT") is False
+
 
 class TestCleanCandidateValue:
     def test_numeric_field(self):

@@ -546,6 +546,7 @@ The current codebase now has:
 
 The most important invariants to preserve are:
 
+
 1. `server.main` must stay importable as a package module.
 2. The client must keep a single ViewModel instance for the whole app lifetime.
 3. Gemini key saving must go through one path only.

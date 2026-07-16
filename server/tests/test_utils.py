@@ -16,6 +16,7 @@ from server.utils import (
     extract_date,
     normalize_text,
     normalize_text_for_output,
+    validate_amounts,
 )
 
 
@@ -171,6 +172,248 @@ class TestExtractDate:
 
     def test_clean_date_alias(self):
         assert clean_date("01/01/2024") == extract_date("01/01/2024")
+
+
+# ── validate_amounts ───────────────────────────────────────────────────────────
+
+
+class TestValidateAmounts:
+    """Validation and correction of monetary amounts (HT, TVA, Taxe, TTC)."""
+
+    def test_all_none(self):
+        """No amounts → no changes."""
+        fields = {k: None for k in ["montant_ht", "montant_tva", "montant_taxe", "montant_ttc"]}
+        result = validate_amounts(fields)
+        assert result == fields
+
+    def test_only_one_amount(self):
+        """Only one amount found → cannot cross-validate, unchanged."""
+        fields = {
+            "montant_ht": "1250.000",
+            "montant_tva": None,
+            "montant_taxe": None,
+            "montant_ttc": None,
+        }
+        result = validate_amounts(fields)
+        assert result == fields
+
+    def test_ht_and_tva_derive_ttc(self):
+        """HT and TVA present → derive TTC."""
+        fields = {
+            "montant_ht": "1000.000",
+            "montant_tva": "200.000",
+            "montant_taxe": None,
+            "montant_ttc": None,
+        }
+        result = validate_amounts(fields)
+        assert result["montant_ht"] == "1000.000"
+        assert result["montant_tva"] == "200.000"
+        assert result["montant_ttc"] == "1200.000"
+
+    def test_ht_and_ttc_derive_tva(self):
+        """HT and TTC present → derive TVA."""
+        fields = {
+            "montant_ht": "1000.000",
+            "montant_tva": None,
+            "montant_taxe": None,
+            "montant_ttc": "1200.000",
+        }
+        result = validate_amounts(fields)
+        assert result["montant_ht"] == "1000.000"
+        assert result["montant_tva"] == "200.000"
+        assert result["montant_ttc"] == "1200.000"
+
+    def test_tva_and_ttc_derive_ht(self):
+        """TVA and TTC present → derive HT."""
+        fields = {
+            "montant_ht": None,
+            "montant_tva": "200.000",
+            "montant_taxe": None,
+            "montant_ttc": "1200.000",
+        }
+        result = validate_amounts(fields)
+        assert result["montant_ht"] == "1000.000"
+        assert result["montant_tva"] == "200.000"
+        assert result["montant_ttc"] == "1200.000"
+
+    def test_all_three_consistent(self):
+        """All three found and consistent → no changes."""
+        fields = {
+            "montant_ht": "1000.000",
+            "montant_tva": "200.000",
+            "montant_taxe": None,
+            "montant_ttc": "1200.000",
+        }
+        result = validate_amounts(fields)
+        assert result == fields
+
+    def test_all_three_consistent_with_taxe(self):
+        """All three found with taxe → consistent, no changes."""
+        fields = {
+            "montant_ht": "1000.000",
+            "montant_tva": "200.000",
+            "montant_taxe": "50.000",
+            "montant_ttc": "1250.000",
+        }
+        result = validate_amounts(fields)
+        assert result == fields
+
+    def test_ht_equals_tva_duplication(self):
+        """HT and TVA are the same value (duplication error) → derive TVA from TTC - HT."""
+        fields = {
+            "montant_ht": "1250.000",
+            "montant_tva": "1250.000",  # Duplicate of HT (error)
+            "montant_taxe": None,
+            "montant_ttc": "1500.000",
+        }
+        result = validate_amounts(fields)
+        assert result["montant_ht"] == "1250.000"
+        assert result["montant_tva"] == "250.000"  # Corrected: 1500 - 1250
+        assert result["montant_ttc"] == "1500.000"
+
+    def test_ttc_equals_ht_duplication(self):
+        """TTC and HT are the same value (duplication error) → derive TTC from HT + TVA."""
+        fields = {
+            "montant_ht": "1250.000",
+            "montant_tva": "250.000",
+            "montant_taxe": None,
+            "montant_ttc": "1250.000",  # Duplicate of HT (error)
+        }
+        result = validate_amounts(fields)
+        assert result["montant_ht"] == "1250.000"
+        assert result["montant_tva"] == "250.000"
+        assert result["montant_ttc"] == "1500.000"  # Corrected: 1250 + 250
+
+    def test_ttc_equals_tva_duplication(self):
+        """TTC and TVA are the same value (duplication error) → derive TTC."""
+        fields = {
+            "montant_ht": "1000.000",
+            "montant_tva": "200.000",
+            "montant_taxe": None,
+            "montant_ttc": "200.000",  # Duplicate of TVA (error)
+        }
+        result = validate_amounts(fields)
+        assert result["montant_ht"] == "1000.000"
+        assert result["montant_tva"] == "200.000"
+        assert result["montant_ttc"] == "1200.000"  # Corrected: 1000 + 200
+
+    def test_inconsistent_no_duplication(self):
+        """All three found but inconsistent with no obvious duplication → keep HT and TVA, derive TTC."""
+        fields = {
+            "montant_ht": "1000.000",
+            "montant_tva": "150.000",  # Should be 200 for consistent 1200 TTC
+            "montant_taxe": None,
+            "montant_ttc": "1200.000",
+        }
+        result = validate_amounts(fields)
+        assert result["montant_ht"] == "1000.000"
+        assert result["montant_tva"] == "150.000"  # Kept as-is
+        assert result["montant_ttc"] == "1150.000"  # Corrected: 1000 + 150
+
+    def test_with_taxe_present(self):
+        """Taxe present → included in TTC calculation."""
+        fields = {
+            "montant_ht": "1000.000",
+            "montant_tva": "200.000",
+            "montant_taxe": "50.000",
+            "montant_ttc": None,
+        }
+        result = validate_amounts(fields)
+        assert result["montant_ttc"] == "1250.000"  # 1000 + 200 + 50
+
+    def test_french_format_amounts(self):
+        """Amounts in French format (1 250,00) should be parsed correctly."""
+        fields = {
+            "montant_ht": "1 000,00",
+            "montant_tva": "200,00",
+            "montant_taxe": None,
+            "montant_ttc": None,
+        }
+        result = validate_amounts(fields)
+        assert result["montant_ttc"] == "1200.000"
+
+    def test_derived_tva_not_negative(self):
+        """If derived TVA would be negative, don't correct."""
+        fields = {
+            "montant_ht": "1500.000",
+            "montant_tva": None,
+            "montant_taxe": None,
+            "montant_ttc": "1200.000",  # Less than HT — data error
+        }
+        result = validate_amounts(fields)
+        assert result["montant_tva"] is None  # Not set (would be -300)
+
+    def test_small_rounding_difference(self):
+        """Small rounding difference (≤ €0.50) should be considered consistent."""
+        fields = {
+            "montant_ht": "100.000",
+            "montant_tva": "20.000",
+            "montant_taxe": None,
+            "montant_ttc": "120.010",  # Off by €0.01, should be kept as-is
+        }
+        result = validate_amounts(fields)
+        assert result == fields
+
+    def test_large_rounding_difference(self):
+        """Large difference (> €0.50) should trigger correction."""
+        fields = {
+            "montant_ht": "100.000",
+            "montant_tva": "20.000",
+            "montant_taxe": None,
+            "montant_ttc": "130.000",  # Off by €10
+        }
+        result = validate_amounts(fields)
+        assert result["montant_ttc"] == "120.000"  # Corrected: 100 + 20
+
+    def test_non_amount_fields_preserved(self):
+        """Non-amount fields should not be modified."""
+        fields = {
+            "numero_facture": "INV-001",
+            "date": "2024-03-15",
+            "fournisseur": "Supplier SAS",
+            "client": "Client SARL",
+            "montant_ht": "1250.000",
+            "montant_tva": "250.000",
+            "montant_taxe": None,
+            "montant_ttc": None,
+        }
+        result = validate_amounts(fields)
+        assert result["numero_facture"] == "INV-001"
+        assert result["date"] == "2024-03-15"
+        assert result["fournisseur"] == "Supplier SAS"
+        assert result["client"] == "Client SARL"
+        assert result["montant_ttc"] == "1500.000"
+
+    def test_all_fields_present_consistent(self):
+        """All amount fields present and consistent."""
+        fields = {
+            "montant_ht": "1000.000",
+            "montant_tva": "200.000",
+            "montant_taxe": "50.000",
+            "montant_ttc": "1250.000",
+        }
+        result = validate_amounts(fields)
+        assert result == fields
+
+    def test_no_amount_fields_at_all(self):
+        """No amount fields in the dict at all — shouldn't crash."""
+        fields = {"numero_facture": "INV-001"}
+        result = validate_amounts(fields)
+        assert result == fields
+
+    def test_malformed_amount_string(self):
+        """Malformed amount strings should be treated as None."""
+        fields = {
+            "montant_ht": "garbage",
+            "montant_tva": "200.000",
+            "montant_taxe": None,
+            "montant_ttc": None,
+        }
+        result = validate_amounts(fields)
+        # Only TVA is parseable (< 2 available), no change
+        assert result["montant_ht"] == "garbage"  # Preserved as-is
+        assert result["montant_tva"] == "200.000"
+        assert result["montant_ttc"] is None
 
 
 # ── normalize_text / collapse_text / normalize_text_for_output ────────────────
