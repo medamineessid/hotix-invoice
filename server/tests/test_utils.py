@@ -16,6 +16,7 @@ from server.utils import (
     extract_date,
     normalize_text,
     normalize_text_for_output,
+    reconcile_amounts,
     validate_amounts,
 )
 
@@ -414,6 +415,138 @@ class TestValidateAmounts:
         assert result["montant_ht"] == "garbage"  # Preserved as-is
         assert result["montant_tva"] == "200.000"
         assert result["montant_ttc"] is None
+
+
+# ── reconcile_amounts ─────────────────────────────────────────────────────────
+
+
+class TestReconcileAmounts:
+    """Tests for the arithmetic reconciliation pass."""
+
+    def test_ht_and_tva_compute_ttc(self):
+        """HT + TVA present, TTC missing → compute TTC, mark as computed."""
+        fields = {
+            "montant_ht": "1000.000",
+            "montant_tva": "200.000",
+            "montant_taxe": None,
+            "montant_ttc": None,
+        }
+        confs = {"montant_ht": 0.9, "montant_tva": 0.85}
+        result, computed, mismatch = reconcile_amounts(fields, confs)
+        assert result["montant_ttc"] == "1200.000"
+        assert "montant_ttc" in computed
+        assert not mismatch
+
+    def test_ht_and_ttc_compute_tva(self):
+        fields = {
+            "montant_ht": "1000.000",
+            "montant_tva": None,
+            "montant_taxe": None,
+            "montant_ttc": "1200.000",
+        }
+        result, computed, mismatch = reconcile_amounts(fields, {})
+        assert result["montant_tva"] == "200.000"
+        assert "montant_tva" in computed
+        assert not mismatch
+
+    def test_tva_and_ttc_compute_ht(self):
+        fields = {
+            "montant_ht": None,
+            "montant_tva": "200.000",
+            "montant_taxe": None,
+            "montant_ttc": "1200.000",
+        }
+        result, computed, mismatch = reconcile_amounts(fields, {})
+        assert result["montant_ht"] == "1000.000"
+        assert "montant_ht" in computed
+        assert not mismatch
+
+    def test_all_three_consistent_no_change(self):
+        """All 3 amounts present and arithmetic consistent → no change, not computed."""
+        fields = {
+            "montant_ht": "1000.000",
+            "montant_tva": "200.000",
+            "montant_taxe": None,
+            "montant_ttc": "1200.000",
+        }
+        result, computed, mismatch = reconcile_amounts(fields, {})
+        assert result == fields
+        assert len(computed) == 0
+        assert not mismatch
+
+    def test_all_three_present_inconsistent_flags_mismatch(self):
+        """All 3 present but arithmetic doesn't match → flag has_mismatch, do NOT overwrite."""
+        fields = {
+            "montant_ht": "1000.000",
+            "montant_tva": "200.000",
+            "montant_taxe": None,
+            "montant_ttc": "9999.000",  # Way off
+        }
+        result, computed, mismatch = reconcile_amounts(fields, {})
+        assert result == fields  # No overwrites
+        assert len(computed) == 0
+        assert mismatch  # Flagged for user review
+
+    def test_none_or_one_amount_no_op(self):
+        """Fewer than 2 amounts → no changes."""
+        fields = {"montant_ht": "1000.000", "montant_tva": None, "montant_taxe": None, "montant_ttc": None}
+        result, computed, mismatch = reconcile_amounts(fields, {})
+        assert result == fields
+        assert len(computed) == 0
+        assert not mismatch
+
+    def test_negative_derivation_guard(self):
+        """Deriving a negative amount should be prevented."""
+        fields = {
+            "montant_ht": "1500.000",
+            "montant_tva": None,
+            "montant_taxe": None,
+            "montant_ttc": "1000.000",  # Less than HT -> TVA would be negative
+        }
+        result, computed, mismatch = reconcile_amounts(fields, {})
+        assert result["montant_tva"] is None  # Not computed (would be negative)
+        assert len(computed) == 0
+
+    def test_taxe_included_in_ttc_computation(self):
+        """Taxe should be included in TTC computation."""
+        fields = {
+            "montant_ht": "1000.000",
+            "montant_tva": "200.000",
+            "montant_taxe": "50.000",
+            "montant_ttc": None,
+        }
+        result, computed, mismatch = reconcile_amounts(fields, {})
+        assert result["montant_ttc"] == "1250.000"  # 1000 + 200 + 50
+        assert "montant_ttc" in computed
+
+    def test_consistent_with_taxe(self):
+        """All 4 amounts present and consistent → no changes."""
+        fields = {
+            "montant_ht": "1000.000",
+            "montant_tva": "200.000",
+            "montant_taxe": "50.000",
+            "montant_ttc": "1250.000",
+        }
+        result, computed, mismatch = reconcile_amounts(fields, {})
+        assert result == fields
+        assert len(computed) == 0
+        assert not mismatch
+
+    def test_non_amount_fields_preserved(self):
+        """Non-amount fields should not be modified."""
+        fields = {
+            "numero_facture": "INV-001",
+            "date": "2024-03-15",
+            "montant_ht": "1000.000",
+            "montant_tva": "200.000",
+            "montant_taxe": None,
+            "montant_ttc": None,
+        }
+        result, computed, mismatch = reconcile_amounts(fields, {})
+        assert result["numero_facture"] == "INV-001"
+        assert result["date"] == "2024-03-15"
+        assert result["montant_ttc"] == "1200.000"
+        assert "montant_ttc" in computed
 
 
 # ── normalize_text / collapse_text / normalize_text_for_output ────────────────

@@ -40,6 +40,12 @@ public sealed class InvoiceResult
     [JsonPropertyName("gemini_fallback_reason")]
     public string? GeminiFallbackReason { get; set; }
 
+    [JsonPropertyName("computed_fields")]
+    public List<string>? ComputedFields { get; set; }
+
+    [JsonPropertyName("amount_mismatch")]
+    public bool AmountMismatch { get; set; }
+
     [JsonIgnore]
     public bool HasMissingFields =>
         string.IsNullOrWhiteSpace(NumeroFacture)

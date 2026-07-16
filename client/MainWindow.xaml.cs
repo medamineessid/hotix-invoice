@@ -201,7 +201,6 @@ public partial class MainWindow : Window
         SetActiveNav(NavExtraction, NavExtractionIcon, NavExtractionText, false);
         SetActiveNav(NavAbout, NavAboutIcon, NavAboutText, true);
 
-        PageTitle.Text = TranslationSource.Get("NavPageAbout");
         MessageBox.Show(
             TranslationSource.Fmt("AboutMessage", TranslationSource.Get("SidebarVersion")),
             TranslationSource.Get("AboutTitle"),

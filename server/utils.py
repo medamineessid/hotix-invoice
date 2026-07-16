@@ -203,6 +203,54 @@ def clean_date(text: str) -> Optional[str]:
     return extract_date(text)
 
 
+def cluster_rows(lines: Sequence[OCRLine]) -> list[list[OCRLine]]:
+    """Group OCR lines into visual rows based on vertical overlap.
+
+    Lines whose bounding boxes overlap vertically by more than ~50%
+    of the shorter line's height are grouped into the same row.
+    Within each row, lines are sorted left-to-right by x1.
+    Rows are sorted top-to-bottom by their average y-center.
+    """
+    if not lines:
+        return []
+
+    # Sort by y1 initially (top-to-bottom reading order)
+    sorted_lines = sorted(lines, key=lambda l: (l.page_index, l.box.y1))
+
+    rows: list[list[OCRLine]] = []
+    used = [False] * len(sorted_lines)
+
+    for i, line in enumerate(sorted_lines):
+        if used[i]:
+            continue
+
+        current_row = [line]
+        used[i] = True
+
+        for j in range(i + 1, len(sorted_lines)):
+            if used[j]:
+                continue
+            candidate = sorted_lines[j]
+            if candidate.page_index != line.page_index:
+                continue
+
+            # Check vertical overlap: overlap > 50% of the shorter line's height
+            overlap = line.box.vertical_overlap(candidate.box)
+            shorter_height = min(line.box.height, candidate.box.height)
+            if shorter_height > 0 and overlap / shorter_height > 0.5:
+                current_row.append(candidate)
+                used[j] = True
+
+        # Sort within row left-to-right
+        current_row.sort(key=lambda l: l.box.x1)
+        rows.append(current_row)
+
+    # Sort rows top-to-bottom by average y-center
+    rows.sort(key=lambda r: sum(l.box.center_y for l in r) / len(r))
+
+    return rows
+
+
 def _parse_decimal(value: Optional[str]) -> Optional[Decimal]:
     """Parse a French-format amount string (e.g. '1 250,00' or '1250.000') to Decimal."""
     if not value:
@@ -299,3 +347,75 @@ def validate_amounts(fields: dict[str, Optional[str]]) -> dict[str, Optional[str
             result["montant_ht"] = _format_amount(derived_ht)
 
     return result
+
+
+# ── reconcile_amounts ─────────────────────────────────────────────────────────
+
+AMOUNT_MISMATCH_EPSILON = Decimal("0.02")
+RECONCILE_MIN_CONFIDENCE = 0.6  # same as FIELD_CONFIDENCE_THRESHOLD in field_extractor
+
+
+def reconcile_amounts(fields: dict[str, Optional[str]], field_confidences: dict[str, float]) -> tuple[dict[str, Optional[str]], set[str], bool]:
+    """Reconcile monetary amounts (HT, TVA, Taxe, TTC) after extraction.
+
+    Returns (updated_fields, computed_fields, has_mismatch) where:
+    - updated_fields: the fields dict with any computed missing amounts filled in
+    - computed_fields: set of field names that were computed rather than OCR-read
+    - has_mismatch: True if all 3 amounts are present but arithmetic disagrees
+      and no field was overwritten (flagged for user review)
+
+    Rules:
+    - Never overwrite a field that was already extracted with confidence
+      >= RECONCILE_MIN_CONFIDENCE — flag as mismatch instead.
+    - If exactly 2 of {HT, TVA, TTC} are present and both source fields have
+      confidence >= RECONCILE_MIN_CONFIDENCE, compute the missing one.
+    - If all 3 are present but inconsistent (|HT + TVA + Taxe - TTC| > €0.02),
+      set has_mismatch=True but do NOT overwrite.
+    - Computed fields are tracked in computed_fields set.
+    """
+    result = dict(fields)
+    computed: set[str] = set()
+    has_mismatch = False
+
+    ht = _parse_decimal(result.get("montant_ht"))
+    tva = _parse_decimal(result.get("montant_tva"))
+    taxe = _parse_decimal(result.get("montant_taxe"))
+    ttc = _parse_decimal(result.get("montant_ttc"))
+
+    available = sum(1 for x in [ht, tva, ttc] if x is not None)
+
+    if available < 2:
+        return result, computed, has_mismatch
+
+    effective_taxe = taxe or Decimal("0")
+
+    if available == 3 and ht is not None and tva is not None and ttc is not None:
+        expected_ttc = ht + tva + effective_taxe
+        if abs(expected_ttc - ttc) > AMOUNT_MISMATCH_EPSILON:
+            has_mismatch = True
+        return result, computed, has_mismatch
+
+    # Exactly 2 available — derive the third
+    # Only derive if both source fields have sufficient confidence
+    def _above_threshold(field_name: str) -> bool:
+        return field_confidences.get(field_name, 1.0) >= RECONCILE_MIN_CONFIDENCE
+
+    if ht is not None and tva is not None and ttc is None:
+        if _above_threshold("montant_ht") and _above_threshold("montant_tva"):
+            derived_ttc = ht + tva + effective_taxe
+            result["montant_ttc"] = _format_amount(derived_ttc)
+            computed.add("montant_ttc")
+    elif ht is not None and ttc is not None and tva is None:
+        if _above_threshold("montant_ht") and _above_threshold("montant_ttc"):
+            derived_tva = ttc - ht - effective_taxe
+            if derived_tva >= Decimal("0"):
+                result["montant_tva"] = _format_amount(derived_tva)
+                computed.add("montant_tva")
+    elif tva is not None and ttc is not None and ht is None:
+        if _above_threshold("montant_tva") and _above_threshold("montant_ttc"):
+            derived_ht = ttc - tva - effective_taxe
+            if derived_ht >= Decimal("0"):
+                result["montant_ht"] = _format_amount(derived_ht)
+                computed.add("montant_ht")
+
+    return result, computed, has_mismatch

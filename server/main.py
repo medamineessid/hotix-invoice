@@ -26,7 +26,7 @@ from .field_extractor import (
     extract_raw_text,
     compute_confidence,
 )
-from .utils import validate_amounts
+from .utils import reconcile_amounts
 
 from typing import Literal
 from fastapi import Query
@@ -219,8 +219,8 @@ async def _run_gemini_extraction(
     try:
         image_data = await _extract_first_page_bytes(pages[0])
         fields = extract_with_gemini(image_data, "image/png")
-        # Validate and correct monetary amounts (HT, TVA, TTC)
-        fields = validate_amounts(fields)
+        # Reconcile monetary amounts (compute missing, flag mismatches)
+        fields, computed_fields, has_mismatch = reconcile_amounts(fields, {})
         logger.info("Extraction via Gemini Vision successful for %s", Path(filename).name)
         return (
             InvoiceExtractionResponse(
@@ -228,6 +228,8 @@ async def _run_gemini_extraction(
                 confidence=0.95,
                 raw_text="Extraction via Gemini Vision",
                 engine_used="gemini",
+                computed_fields=list(computed_fields),
+                amount_mismatch=has_mismatch,
             ),
             None,
         )
@@ -254,9 +256,9 @@ def _run_ocr_extraction(
         all_lines.extend(result.lines)
 
     fields = extract_invoice_fields(all_lines)
-    # Validate and correct monetary amounts (HT, TVA, TTC)
-    fields = validate_amounts(fields)
     confidences = extract_field_confidences(all_lines)
+    # Reconcile monetary amounts (compute missing, flag mismatches — never overwrite high-confidence)
+    fields, computed_fields, has_mismatch = reconcile_amounts(fields, confidences)
     raw_text = extract_raw_text(all_lines)
     confidence = compute_confidence(confidences)
 
@@ -268,6 +270,8 @@ def _run_ocr_extraction(
         confidence=confidence,
         raw_text=raw_text,
         engine_used="ocr",
+        computed_fields=list(computed_fields),
+        amount_mismatch=has_mismatch,
     )
 
 

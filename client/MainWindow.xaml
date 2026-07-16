@@ -78,9 +78,6 @@
                                    VerticalAlignment="Center" />
                     </Border>
                     <TextBlock Text="HOTIX" Style="{StaticResource SidebarLogoStyle}" />
-                    <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[SplashSubtitle]}"
-                               Style="{StaticResource TextCaption}"
-                               Margin="0,2,0,0" />
                 </StackPanel>
 
                 <!-- ── Navigation ── -->
@@ -214,11 +211,9 @@
 
                     <!-- ══ PAGE TITLE ══ -->
                     <StackPanel Grid.Row="0" Margin="0,0,0,32" MaxWidth="800">
-                        <TextBlock x:Name="PageTitle" Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[PageTitleExtraction]}" Style="{StaticResource TextPageTitle}" />
                         <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[EmptyResultsDesc]}"
                                    Style="{StaticResource TextBody}"
-                                   Foreground="{StaticResource BrushTextSecondary}"
-                                   Margin="0,4,0,0" />
+                                   Foreground="{StaticResource BrushTextSecondary}" />
                     </StackPanel>
 
                     <!-- ══ STEP 1: SOURCE FOLDER + ENGINE ══ -->
@@ -281,42 +276,45 @@
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
 
-                                    <!-- Engine label + picker + indicator -->
+                                    <!-- Info + Label (Column 0, Auto) -->
                                     <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                            <TextBlock x:Name="InfoEngineIcon"
-                                                       Text="ⓘ"
-                                                       FontSize="12"
-                                                       Foreground="{StaticResource BrushTextMuted}"
-                                                       VerticalAlignment="Center"
-                                                       Margin="0,0,12,0"
-                                                       Cursor="Hand"
-                                                       MouseLeftButtonDown="InfoButton_Click" />
-                                            <Popup x:Name="InfoEnginePopup"
-                                                   PlacementTarget="{Binding ElementName=InfoEngineIcon}"
-                                                   Placement="Bottom"
-                                                   AllowsTransparency="True"
-                                                   StaysOpen="False"
-                                                   PopupAnimation="Fade">
-                                                <Border Background="{StaticResource BrushSurface}"
-                                                        BorderBrush="{StaticResource BrushBorder}"
-                                                        BorderThickness="1"
-                                                        CornerRadius="8"
-                                                        Padding="14,10"
-                                                        MaxWidth="300"
-                                                        Effect="{StaticResource ShadowCard}">
-                                                    <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[InfoEngine]}"
-                                                               Style="{StaticResource TextCaption}"
-                                                               TextWrapping="Wrap" />
-                                                </Border>
-                                            </Popup>
-                                            <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ControlEngineLabel]}"
-                                                       Style="{StaticResource CardLabelStyle}"
-                                                       VerticalAlignment="Center" />
-                                        </StackPanel>
+                                        <TextBlock x:Name="InfoEngineIcon"
+                                                   Text="ⓘ"
+                                                   FontSize="12"
+                                                   Foreground="{StaticResource BrushTextMuted}"
+                                                   VerticalAlignment="Center"
+                                                   Margin="0,0,12,0"
+                                                   Cursor="Hand"
+                                                   MouseLeftButtonDown="InfoButton_Click" />
+                                        <Popup x:Name="InfoEnginePopup"
+                                               PlacementTarget="{Binding ElementName=InfoEngineIcon}"
+                                               Placement="Bottom"
+                                               AllowsTransparency="True"
+                                               StaysOpen="False"
+                                               PopupAnimation="Fade">
+                                            <Border Background="{StaticResource BrushSurface}"
+                                                    BorderBrush="{StaticResource BrushBorder}"
+                                                    BorderThickness="1"
+                                                    CornerRadius="8"
+                                                    Padding="14,10"
+                                                    MaxWidth="300"
+                                                    Effect="{StaticResource ShadowCard}">
+                                                <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[InfoEngine]}"
+                                                           Style="{StaticResource TextCaption}"
+                                                           TextWrapping="Wrap" />
+                                            </Border>
+                                        </Popup>
+                                        <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ControlEngineLabel]}"
+                                                   Style="{StaticResource CardLabelStyle}"
+                                                   VerticalAlignment="Center" />
+                                    </StackPanel>
+
+                                    <!-- ComboBox + Settings (Column 1, *) -->
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="12,0,0,0">
                                         <ComboBox x:Name="EngineCombo"
                                                   Style="{StaticResource ComboBoxStyle}"
-                                                  Width="200"
+                                                  MinWidth="200"
+                                                  HorizontalAlignment="Stretch"
                                                   SelectedValuePath="Tag"
                                                   SelectedValue="{Binding SelectedEngine}"
                                                   ToolTip="{Binding ResolvedEngineDisplay}">
@@ -352,7 +350,6 @@
                                                 Margin="8,0,0,0"
                                                 Command="{Binding ToggleSettingsCommand}"
                                                 ToolTip="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ControlSettingsTooltip]}" />
-
                                     </StackPanel>
 
                                     <!-- Run button -->

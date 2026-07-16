@@ -23,6 +23,8 @@ public sealed class InvoiceRowViewModel : INotifyPropertyChanged
     private string? _errorMessage;
     private bool _isSelected;
     private string? _geminiFallbackReason;
+    private HashSet<string> _computedFields = new();
+    private bool _amountMismatch;
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -164,6 +166,40 @@ public sealed class InvoiceRowViewModel : INotifyPropertyChanged
 
     public bool HasGeminiFallback => !string.IsNullOrEmpty(_geminiFallbackReason);
 
+    public HashSet<string> ComputedFields
+    {
+        get => _computedFields;
+        set
+        {
+            if (SetField(ref _computedFields, value))
+            {
+                OnPropertyChanged(nameof(IsComputed));
+            }
+        }
+    }
+
+    public bool AmountMismatch
+    {
+        get => _amountMismatch;
+        set
+        {
+            if (SetField(ref _amountMismatch, value))
+            {
+                OnPropertyChanged(nameof(HasAmountMismatch));
+            }
+        }
+    }
+
+    public bool HasAmountMismatch => _amountMismatch;
+
+    /// <summary>True when any amount field was computed (not OCR-read).</summary>
+    public bool IsComputed => _computedFields.Count > 0;
+
+    public bool MontantHtComputed => _computedFields.Contains("montant_ht");
+    public bool MontantTvaComputed => _computedFields.Contains("montant_tva");
+    public bool MontantTaxeComputed => _computedFields.Contains("montant_taxe");
+    public bool MontantTtcComputed => _computedFields.Contains("montant_ttc");
+
     public string FileDisplay => HasError ? $"{FileName} — {ErrorMessage}" : FileName;
 
     public bool NumeroFactureMissing => string.IsNullOrWhiteSpace(NumeroFacture);
@@ -217,6 +253,10 @@ public sealed class InvoiceRowViewModel : INotifyPropertyChanged
         EngineUsed    = result.EngineUsed,
         HasError      = false,
         GeminiFallbackReason = result.GeminiFallbackReason,
+        ComputedFields = result.ComputedFields != null
+            ? new HashSet<string>(result.ComputedFields)
+            : new HashSet<string>(),
+        AmountMismatch = result.AmountMismatch,
     };
 
     public static InvoiceRowViewModel FromError(string filePath, string message) => new()

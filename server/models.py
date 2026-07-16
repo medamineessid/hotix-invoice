@@ -27,6 +27,14 @@ class InvoiceExtractionResponse(BaseModel):
         default=None,
         description="If engine_used is 'ocr' but Gemini was tried first, contains the Gemini error reason.",
     )
+    computed_fields: list[str] = Field(
+        default_factory=list,
+        description="Field names whose values were computed arithmetically rather than OCR-read.",
+    )
+    amount_mismatch: bool = Field(
+        default=False,
+        description="True when all 3 amounts (HT, TVA, TTC) are present but arithmetic is inconsistent.",
+    )
 
 
 class HealthResponse(BaseModel):

@@ -169,6 +169,27 @@ class TestExtractRawText:
         ]
         assert extract_raw_text(lines) == "hello"
 
+    def test_same_row_joined_with_tab(self):
+        """Lines in the same visual row should be tab-joined."""
+        lines = [
+            OCRLine("TTC",    BoundingBox(0, 0, 30, 20), 0.9, 0, 0),
+            OCRLine("1250.00", BoundingBox(100, 0, 160, 20), 0.95, 0, 1),
+        ]
+        result = extract_raw_text(lines)
+        # Both are in the same row (vertical overlap > 50%)
+        assert "TTC" in result
+        assert "1250.00" in result
+        assert "\t" in result  # joined by tab
+
+    def test_different_rows_newline_separated(self):
+        """Lines in different rows should be newline-separated."""
+        lines = [
+            OCRLine("TTC",    BoundingBox(0, 0, 30, 20), 0.9, 0, 0),
+            OCRLine("1250.00", BoundingBox(0, 50, 60, 70), 0.95, 0, 1),
+        ]
+        result = extract_raw_text(lines)
+        assert "\n" in result  # different rows = newline
+
 
 # ── Internal helpers ──────────────────────────────────────────────────────────
 
@@ -291,3 +312,44 @@ class TestScoreCandidate:
         candidate = OCRLine("123.45", BoundingBox(0, 15, 40, 25), 0.95, 0, 1)
         score = _score_candidate(anchor, candidate, same_line=False)
         assert score > 0
+
+
+# ── Field collision tests ────────────────────────────────────────────────────
+
+
+class TestFieldCollisions:
+    """Tests for the field collision prevention mechanism."""
+
+    def test_two_amount_labels_close_together_no_collision(self):
+        """Two amount labels with distinct values on different lines should
+        each get their own candidate without collision."""
+        lines = [
+            OCRLine("Total HT", BoundingBox(0, 0, 50, 15), 0.9, 0, 0),
+            OCRLine("1250.00",  BoundingBox(0, 20, 60, 35), 0.95, 0, 1),
+            OCRLine("TVA",     BoundingBox(0, 40, 40, 55), 0.9, 0, 2),
+            OCRLine("250.00",  BoundingBox(0, 60, 60, 75), 0.95, 0, 3),
+        ]
+        fields = extract_invoice_fields(lines)
+        assert fields["montant_ht"] is not None
+        assert fields["montant_tva"] is not None
+        # Values should be different
+        assert fields["montant_ht"] != fields["montant_tva"]
+
+    def test_same_row_label_value_pair(self):
+        """A label with its value on the same row (to the right)."""
+        lines = [
+            OCRLine("TTC:",    BoundingBox(0, 0, 30, 20), 0.9, 0, 0),
+            OCRLine("1250.00", BoundingBox(100, 0, 160, 20), 0.95, 0, 1),
+        ]
+        fields = extract_invoice_fields(lines)
+        assert fields["montant_ttc"] is not None
+
+    def test_below_row_label_value_pair(self):
+        """A label with its value in the row below."""
+        lines = [
+            OCRLine("Total TTC", BoundingBox(0, 0, 60, 15), 0.9, 0, 0),
+            OCRLine("1250.00",   BoundingBox(0, 30, 60, 45), 0.95, 0, 1),
+        ]
+        fields = extract_invoice_fields(lines)
+        assert fields["montant_ttc"] is not None
+        assert float(fields["montant_ttc"]) == 1250.0  # noqa: PLR2004
