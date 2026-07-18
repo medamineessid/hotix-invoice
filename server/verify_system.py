@@ -43,7 +43,14 @@ def main() -> int:
             pdfinfo_path = shutil.which("pdfinfo", path=poppler_env)
 
     if not pdfinfo_path:
-        return fail("Poppler/pdfinfo is not on PATH or POPPLER_PATH")
+        return fail(
+            "Poppler/pdfinfo not found.\n"
+            "  Fix 1: Download Poppler from "
+            "https://github.com/oschwartz10612/poppler-windows/releases "
+            "and set POPPLER_PATH to the bin/ folder.\n"
+            "  Fix 2: Or place the extracted folder at "
+            "installer/vendor/poppler/ relative to the repo root."
+        )
 
     try:
         result = subprocess.run(

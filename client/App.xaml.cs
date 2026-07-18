@@ -306,11 +306,17 @@ public partial class App : Application
 
     /// <summary>
     /// Resolves the Poppler binary directory for PDF support by checking
-    /// the same candidate locations as ServerPathResolver.
+    /// POPPLER_PATH env var first, then the same candidate locations as
+    /// ServerPathResolver.
     /// </summary>
     private static string? ResolvePopplerPath()
     {
         string appDir = AppDomain.CurrentDomain.BaseDirectory;
+        // Check POPPLER_PATH env var first (user/system-level override)
+        string? envPath = Environment.GetEnvironmentVariable("POPPLER_PATH");
+        if (!string.IsNullOrEmpty(envPath) && Directory.Exists(envPath))
+            return envPath;
+
         string[] candidates = new[]
         {
             Path.Combine(appDir, "poppler", "bin"),
