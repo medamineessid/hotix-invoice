@@ -1,8 +1,10 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
+using System.Text;
 using System.Threading.Tasks;
 using System.Windows;
 using Sentry;
@@ -15,6 +17,13 @@ public partial class App : Application
     private static string? _pythonPath;
     private static string? _workingDir;
     private static readonly HttpClient _healthClient = new() { Timeout = TimeSpan.FromSeconds(1) };
+
+    // ── Server logging ──────────────────────────────────────────────
+    private static readonly object _serverLogLock = new();
+    /// <summary>Full path to the server log file. Public so callers can surface it in error messages.</summary>
+    public static string ServerLogPath => Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "Hotix", "logs", "server.log");
 
     public App()
     {
@@ -156,6 +165,56 @@ public partial class App : Application
         {
             progress?.Report(TranslationSource.Get("ServerStartingOcr"));
 
+            // ── Pre-check: verify system environment ──
+            LogServerLine("Running system pre-check: " + _pythonPath + " -m server.verify_system");
+            try
+            {
+                var psi = new ProcessStartInfo
+                {
+                    FileName = _pythonPath,
+                    Arguments = "-m server.verify_system",
+                    WorkingDirectory = _workingDir,
+                    CreateNoWindow = true,
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                };
+                // Pass the POPPLER_PATH env var so the pre-check can find pdfinfo
+                string? preCheckPopplerDir = ResolvePopplerPath();
+                if (preCheckPopplerDir != null)
+                    psi.EnvironmentVariables["POPPLER_PATH"] = preCheckPopplerDir;
+
+                using (var checkProcess = Process.Start(psi))
+                {
+                    if (checkProcess != null)
+                    {
+                        string checkStdout = await checkProcess.StandardOutput.ReadToEndAsync();
+                        string checkStderr = await checkProcess.StandardError.ReadToEndAsync();
+                        checkProcess.WaitForExit(15_000);
+
+                        if (checkProcess.ExitCode != 0)
+                        {
+                            string checkOutput = (checkStdout + checkStderr).Trim();
+                            LogServerLine("Pre-check FAILED (exit " + checkProcess.ExitCode + "): " + checkOutput);
+                            throw new InvalidOperationException(
+                                TranslationSource.Fmt("ServerStartingFailed", ServerLogPath) +
+                                "\n\nSystem pre-check failed:\n" + checkOutput);
+                        }
+
+                        LogServerLine("Pre-check passed");
+                    }
+                }
+            }
+            catch (InvalidOperationException)
+            {
+                throw; // rethrow our own pre-check failure
+            }
+            catch (Exception ex)
+            {
+                // Pre-check itself crashed (e.g. file not found) — log and continue
+                LogServerLine("Pre-check crashed (continuing anyway): " + ex.GetType().Name + ": " + ex.Message);
+            }
+
             ServerProcess = new Process
             {
                 StartInfo = new ProcessStartInfo
@@ -177,24 +236,34 @@ public partial class App : Application
             if (popplerDir != null)
                 ServerProcess.StartInfo.EnvironmentVariables["POPPLER_PATH"] = popplerDir;
 
+            // Drain stdout/stderr to prevent pipe-buffer deadlock
+            ServerProcess.OutputDataReceived += (s, e) => { if (e.Data != null) LogServerLine(e.Data); };
+            ServerProcess.ErrorDataReceived += (s, e) => { if (e.Data != null) LogServerLine(e.Data); };
+
             ServerProcess.Start();
+            ServerProcess.BeginOutputReadLine();
+            ServerProcess.BeginErrorReadLine();
+
+            LogServerLine("Server process started, polling /health...");
 
             // Poll /health until ready (max 30 seconds)
             var stopwatch = Stopwatch.StartNew();
             while (stopwatch.Elapsed < TimeSpan.FromSeconds(30))
             {
                 double elapsed = stopwatch.Elapsed.TotalSeconds;
-                if (elapsed > 15)                    progress?.Report(TranslationSource.Get("ServerStartingModels"));
-                    else if (elapsed > 5)
-                        progress?.Report(TranslationSource.Get("ServerStartingAlmost"));
-                    else
-                        progress?.Report(TranslationSource.Get("ServerStartingOcr"));
+                if (elapsed > 15)
+                    progress?.Report(TranslationSource.Get("ServerStartingModels"));
+                else if (elapsed > 5)
+                    progress?.Report(TranslationSource.Get("ServerStartingAlmost"));
+                else
+                    progress?.Report(TranslationSource.Get("ServerStartingOcr"));
 
                 try
                 {
                     using var response = await _healthClient.GetAsync("http://127.0.0.1:8000/health");
                     if (response.IsSuccessStatusCode)
                     {
+                        LogServerLine("Server is healthy and ready.");
                         progress?.Report(TranslationSource.Get("ServerStartingReady"));
                         return true;
                     }
@@ -204,14 +273,34 @@ public partial class App : Application
                 await Task.Delay(500);
             }
 
-            // Timeout — clean up
+            // Timeout — capture diagnostics before cleaning up
+            LogServerLine("TIMEOUT: Server did not become healthy within 30 seconds.");
+            string logTail = GetLogTail(20);
+            string logPath = ServerLogPath;
+            LogServerLine($"Log file location: {logPath}");
+
             CleanupServer();
-            return false;
+
+            // Surface the last log lines so the timeout is diagnosable
+            string timeoutDetail = string.IsNullOrEmpty(logTail)
+                ? $"Log file: {logPath}"
+                : $"Log file: {logPath}\n\nLast log lines:\n{logTail}";
+            throw new InvalidOperationException(
+                TranslationSource.Fmt("ServerStartingFailed", logPath) +
+                $"\n\n{timeoutDetail}");
         }
-        catch
+        catch (Exception ex)
         {
+            LogServerLine($"UNHANDLED ERROR starting server: {ex.GetType().Name}: {ex.Message}");
+            string logTail = GetLogTail(20);
+            string logPath = ServerLogPath;
+            string timeoutDetail = string.IsNullOrEmpty(logTail)
+                ? $"Log file: {logPath}"
+                : $"Log file: {logPath}\n\nLast log lines:\n{logTail}";
             CleanupServer();
-            return false;
+            throw new InvalidOperationException(
+                TranslationSource.Fmt("ServerStartingFailed", logPath) +
+                $"\n\n{timeoutDetail}");
         }
     }
 
@@ -242,6 +331,71 @@ public partial class App : Application
             ServerProcess.WaitForExit(3000);
         }
         catch { /* ignored */ }
+    }
+
+    /// <summary>
+    /// Appends a timestamped line to %LOCALAPPDATA%\Hotix\logs\server.log.
+    /// Thread-safe (locked). Rotates the file at 5MB by moving to .old.
+    /// Silently ignores all I/O errors — logging is best-effort only.
+    /// </summary>
+    private static void LogServerLine(string line)
+    {
+        try
+        {
+            string logPath = ServerLogPath;
+            string logDir = Path.GetDirectoryName(logPath)!;
+            Directory.CreateDirectory(logDir);
+
+            lock (_serverLogLock)
+            {
+                var fi = new FileInfo(logPath);
+                if (fi.Exists && fi.Length > 5 * 1024 * 1024)
+                {
+                    // Rotate: rename current → .old, start fresh
+                    string oldPath = logPath + ".old";
+                    if (File.Exists(oldPath))
+                        File.Delete(oldPath);
+                    File.Move(logPath, oldPath);
+                }
+
+                File.AppendAllText(logPath,
+                    $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] {line}{Environment.NewLine}");
+            }
+        }
+        catch { /* best-effort logging */ }
+    }
+
+    /// <summary>
+    /// Returns the last N lines from the server log file, or null if the file
+    /// doesn't exist or can't be read. Used to surface startup errors in the UI.
+    /// </summary>
+    private static string? GetLogTail(int lineCount)
+    {
+        try
+        {
+            string logPath = ServerLogPath;
+            if (!File.Exists(logPath))
+                return null;
+
+            // Read from the end (efficient for large files)
+            var lines = new List<string>();
+            using var fs = new FileStream(logPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+            using var reader = new StreamReader(fs, Encoding.UTF8);
+
+            // Read all lines (the log will be small under normal startup)
+            string? line;
+            while ((line = reader.ReadLine()) != null)
+            {
+                lines.Add(line);
+
+                // If we've accumulated more entries than needed, drop the oldest
+                if (lines.Count > lineCount)
+                    lines.RemoveAt(0);
+            }
+
+            return lines.Count > 0 ? string.Join(Environment.NewLine, lines) : null;
+        }
+        catch { return null; }
     }
 
     private void HandleGlobalException(Exception ex)

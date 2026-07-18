@@ -25,7 +25,7 @@
   "ServerStartingAlmost": "Almost ready...",
   "ServerStartingReady": "Server ready",
   "ServerStartingAlready": "Server already ready",
-  "ServerStartingFailed": "The OCR server could not start. Check the application logs.",
+  "ServerStartingFailed": "The OCR server could not start. Check the logs at {0}.",
   "ServerStartFailPrefix": "Failed to start server: ",
   "ServerDiedTitle": "The OCR server stopped",
   "ServerDiedRestarting": "Restarting server...",
@@ -246,5 +246,7 @@
   "UpdateCheckTitle": "Update Available",
   "UpdateCheckNewVersion": "A new version of HOTIX is available: {0}. You are using {1}.",
   "UpdateCheckReleaseLink": "Download update",
-  "UpdateCheckDismiss": "Dismiss"
+  "UpdateCheckDismiss": "Dismiss",
+
+  "KeySecuredNotification": "Your API keys have been secured with encryption."
 }

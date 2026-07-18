@@ -76,9 +76,9 @@ class OCRLine:
 
 
 STRIP_CHARS = " :-\t\r\n"
-AMOUNT_CLEANER = re.compile(r"[^\d,\.\\-]")
+AMOUNT_CLEANER = re.compile(r"[^\d,.\-]")
 MULTISPACE = re.compile(r"\s+")
-DATE_DD_MM_YYYY = re.compile(r"\b(\d{1,2})[\\/\\-](\d{1,2})[\\/\\-](\d{2,4})\b")
+DATE_DD_MM_YYYY = re.compile(r"\b(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})\b")
 MONTH_NAME_PATTERN = re.compile(
     r"\b(\d{1,2})\s+([a-zÀ-ÿ]+)\s+(\d{4})\b",
     re.IGNORECASE,
@@ -130,7 +130,7 @@ def extract_amount(text: str) -> Optional[str]:
 
     cleaned = collapse_text(text)
     cleaned = cleaned.replace("TND", "").replace("DT", "").replace("€", "").replace("$", "").replace("£", "")
-    cleaned = re.sub(r"[^\d,\.\\-\s]", "", cleaned).strip()
+    cleaned = re.sub(r"[^\d,.\-\s]", "", cleaned).strip()
 
     if not cleaned:
         return None
@@ -391,8 +391,20 @@ def reconcile_amounts(fields: dict[str, Optional[str]], field_confidences: dict[
 
     if available == 3 and ht is not None and tva is not None and ttc is not None:
         expected_ttc = ht + tva + effective_taxe
-        if abs(expected_ttc - ttc) > AMOUNT_MISMATCH_EPSILON:
-            has_mismatch = True
+        if abs(expected_ttc - ttc) <= AMOUNT_MISMATCH_EPSILON:
+            return result, computed, has_mismatch  # Already consistent
+
+        # Mismatch — if taxe is missing and within reasonable range, derive it to reconcile
+        if taxe is None:
+            derived_taxe = ttc - ht - tva
+            max_main = max(ht, tva) if ht is not None and tva is not None else ttc or Decimal("0")
+            if (derived_taxe >= Decimal("0")
+                and derived_taxe <= max_main * Decimal("2")
+                and abs(ht + tva + derived_taxe - ttc) <= AMOUNT_MISMATCH_EPSILON):
+                result["montant_taxe"] = _format_amount(derived_taxe)
+                computed.add("montant_taxe")
+                return result, computed, False  # Reconciled, no mismatch
+        has_mismatch = True
         return result, computed, has_mismatch
 
     # Exactly 2 available — derive the third

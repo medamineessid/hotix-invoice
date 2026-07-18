@@ -6,6 +6,8 @@ using System.Net;
 using System.Net.Http;
 using System.Net.Http.Json;
 using System.Runtime.CompilerServices;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Input;
@@ -26,6 +28,11 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
 
     private readonly HttpClient _apiHttpClient;
     private readonly InvoiceClient _invoiceClient;
+
+    // ── Shared HttpClient instances (reuse across calls instead of per-call new) ──
+    private static readonly HttpClient _httpQuickClient = new() { Timeout = TimeSpan.FromSeconds(3) };
+    private static readonly HttpClient _httpShortClient = new() { Timeout = TimeSpan.FromSeconds(10) };
+    private static readonly HttpClient _httpCloudClient = new() { Timeout = TimeSpan.FromSeconds(30) };
 
     private string _selectedEngine = "auto";
     private bool _geminiAvailable;
@@ -591,7 +598,8 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     {
         try
         {
-            using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(3) };
+            // Use shared instance directly (no 'using' — static client is disposed on shutdown)
+            var client = _httpQuickClient;
             using var response = await client.GetAsync("https://www.google.com/generate_204",
                 HttpCompletionOption.ResponseContentRead);
             return response.IsSuccessStatusCode;
@@ -608,7 +616,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     // ── Gemini Direct API (client-side) ───────────────────────────────────
 
     /// <summary>
-    /// Loads the Gemini API key from memory or appsettings.json.
+    /// Loads the Gemini API key from memory or appsettings.json (decrypting if stored encrypted).
     /// </summary>
     private string? LoadGeminiApiKey()
     {
@@ -625,11 +633,16 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                 var doc = JsonDocument.Parse(File.ReadAllText(path));
                 if (doc.RootElement.TryGetProperty("gemini_api_key", out var el))
                 {
-                    string? key = el.GetString();
-                    if (!string.IsNullOrEmpty(key))
+                    string? stored = el.GetString();
+                    if (!string.IsNullOrEmpty(stored))
                     {
-                        _geminiKeyInput = key;
-                        return key;
+                        // Try DPAPI decryption first, fall back to plaintext for old format
+                        string? decrypted = DecryptString(stored) ?? stored;
+                        if (!string.IsNullOrEmpty(decrypted))
+                        {
+                            _geminiKeyInput = decrypted;
+                            return decrypted;
+                        }
                     }
                 }
             }
@@ -640,7 +653,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     }
 
     /// <summary>
-    /// Loads the Grok API key from memory or appsettings.json.
+    /// Loads the Grok API key from memory or appsettings.json (decrypting if stored encrypted).
     /// </summary>
     private string? LoadGrokApiKey()
     {
@@ -657,11 +670,16 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                 var doc = JsonDocument.Parse(File.ReadAllText(path));
                 if (doc.RootElement.TryGetProperty("grok_api_key", out var el))
                 {
-                    string? key = el.GetString();
-                    if (!string.IsNullOrEmpty(key))
+                    string? stored = el.GetString();
+                    if (!string.IsNullOrEmpty(stored))
                     {
-                        _grokKeyInput = key;
-                        return key;
+                        // Try DPAPI decryption first, fall back to plaintext for old format
+                        string? decrypted = DecryptString(stored) ?? stored;
+                        if (!string.IsNullOrEmpty(decrypted))
+                        {
+                            _grokKeyInput = decrypted;
+                            return decrypted;
+                        }
                     }
                 }
             }
@@ -686,7 +704,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
 
         try
         {
-            using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
+            var client = _httpShortClient; // reuse shared instance (no 'using' — static)
             string apiUrl = string.Format(GeminiApiBaseTemplate, GeminiDefaultModel);
             var body = new { contents = new[] { new { parts = new[] { new { text = "ping" } } } } };
             var response = await client.PostAsJsonAsync(
@@ -734,6 +752,8 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
 
         try
         {
+            // Grok validation sets per-call Authorization header, so use a fresh client
+            // to avoid polluting the shared _httpShortClient's DefaultRequestHeaders.
             using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
             client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", apiKey);
 
@@ -798,7 +818,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         };
 
         string geminiApiUrl = string.Format(GeminiApiBaseTemplate, ResolvedGeminiModel);
-        using var geminiClient = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
+        var geminiClient = _httpCloudClient; // reuse shared instance
         var response = await geminiClient.PostAsJsonAsync(
             $"{geminiApiUrl}?key={apiKey}", requestBody);
 
@@ -884,6 +904,8 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             response_format = new { type = "json_object" }
         };
 
+        // Grok API calls set per-call Authorization header, so use a fresh client
+        // to avoid polluting the shared _httpCloudClient's DefaultRequestHeaders.
         using var grokClient = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
         grokClient.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", apiKey);
 
@@ -1059,7 +1081,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                 IsServerRunning = false;
                 (RetryServerCommand as RelayCommand)?.RaiseCanExecuteChanged();
                 throw new InvalidOperationException(
-                    TranslationSource.Get("ServerStartingFailed"));
+                    TranslationSource.Fmt("ServerStartingFailed", App.ServerLogPath));
             }
 
             (RetryServerCommand as RelayCommand)?.RaiseCanExecuteChanged();
@@ -1102,10 +1124,10 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
 
         try
         {
-            // Clear from appsettings.json
-            string appSettingsPath = ResolveAppSettingsPath();
-            var settings = new { gemini_api_key = "", grok_api_key = _grokKeyInput, default_engine = SelectedEngine, batch_concurrency = _batchConcurrency };
-            await File.WriteAllTextAsync(appSettingsPath, JsonSerializer.Serialize(settings, new JsonSerializerOptions { WriteIndented = true }));
+            // Read existing settings, mutate only gemini_api_key, write back full object
+            var settings = ReadAppSettings();
+            settings["gemini_api_key"] = "";
+            await WriteAppSettingsAsync(settings);
         }
         catch (Exception ex)
         {
@@ -1123,7 +1145,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             {
                 try
                 {
-                    using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
+                    var client = _httpShortClient; // reuse shared instance (no 'using' — static)
                     var payload = new { api_key = GeminiKeyInput };
                     var response = await client.PostAsJsonAsync(
                         "http://127.0.0.1:8000/validate-gemini-key", payload);
@@ -1161,10 +1183,16 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                 }
             }
 
-            // Save to appsettings.json (same location server reads from)
-            string appSettingsPath = ResolveAppSettingsPath();
-            var settings = new { gemini_api_key = GeminiKeyInput, grok_api_key = _grokKeyInput, default_engine = SelectedEngine, gemini_model = _geminiModel, grok_model = _grokModel, batch_concurrency = _batchConcurrency };
-            await File.WriteAllTextAsync(appSettingsPath, JsonSerializer.Serialize(settings, new JsonSerializerOptions { WriteIndented = true }));
+            // Save to appsettings.json with DPAPI-encrypted key
+            var settings = ReadAppSettings();
+            settings["gemini_api_key"] = EncryptString(GeminiKeyInput);
+            settings["grok_api_key"] = string.IsNullOrEmpty(_grokKeyInput)
+                ? "" : EncryptString(_grokKeyInput);
+            settings["default_engine"] = SelectedEngine;
+            settings["gemini_model"] = _geminiModel;
+            settings["grok_model"] = _grokModel;
+            settings["batch_concurrency"] = _batchConcurrency;
+            await WriteAppSettingsAsync(settings);
         }
         catch (Exception ex)
         {
@@ -1179,10 +1207,10 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
 
         try
         {
-            // Clear from appsettings.json
-            string appSettingsPath = ResolveAppSettingsPath();
-            var settings = new { gemini_api_key = _geminiKeyInput, grok_api_key = "", default_engine = SelectedEngine, batch_concurrency = _batchConcurrency };
-            await File.WriteAllTextAsync(appSettingsPath, JsonSerializer.Serialize(settings, new JsonSerializerOptions { WriteIndented = true }));
+            // Read existing settings, mutate only grok_api_key, write back full object
+            var settings = ReadAppSettings();
+            settings["grok_api_key"] = "";
+            await WriteAppSettingsAsync(settings);
         }
         catch (Exception ex)
         {
@@ -1199,7 +1227,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             {
                 try
                 {
-                    using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
+                    var client = _httpShortClient; // reuse shared instance (no 'using' — static)
                     var payload = new { api_key = GrokKeyInput };
                     var response = await client.PostAsJsonAsync(
                         "http://127.0.0.1:8000/validate-grok-key", payload);
@@ -1235,10 +1263,14 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                 }
             }
 
-            // Save to appsettings.json
-            string appSettingsPath = ResolveAppSettingsPath();
-            var settings = new { gemini_api_key = _geminiKeyInput, grok_api_key = GrokKeyInput, default_engine = SelectedEngine, batch_concurrency = _batchConcurrency };
-            await File.WriteAllTextAsync(appSettingsPath, JsonSerializer.Serialize(settings, new JsonSerializerOptions { WriteIndented = true }));
+            // Save to appsettings.json with DPAPI-encrypted key
+            var settings = ReadAppSettings();
+            settings["grok_api_key"] = EncryptString(GrokKeyInput);
+            settings["gemini_api_key"] = string.IsNullOrEmpty(_geminiKeyInput)
+                ? "" : EncryptString(_geminiKeyInput);
+            settings["default_engine"] = SelectedEngine;
+            settings["batch_concurrency"] = _batchConcurrency;
+            await WriteAppSettingsAsync(settings);
         }
         catch (Exception ex)
         {
@@ -1255,18 +1287,65 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             if (File.Exists(appSettingsPath))
             {
                 var doc = JsonDocument.Parse(File.ReadAllText(appSettingsPath));
+                bool migrated = false;
+
                 if (doc.RootElement.TryGetProperty("gemini_api_key", out var el))
                 {
-                    string? key = el.GetString();
-                    if (!string.IsNullOrEmpty(key))
-                        GeminiKeyInput = key;
+                    string? stored = el.GetString();
+                    if (!string.IsNullOrEmpty(stored))
+                    {
+                        string? decrypted = DecryptString(stored);
+                        if (decrypted != null)
+                        {
+                            GeminiKeyInput = decrypted; // New encrypted format
+                        }
+                        else
+                        {
+                            // Old plaintext — use directly and re-save encrypted (migration)
+                            GeminiKeyInput = stored;
+                            migrated = true;
+                        }
+                    }
                 }
+
                 if (doc.RootElement.TryGetProperty("grok_api_key", out var grokEl))
                 {
-                    string? key = grokEl.GetString();
-                    if (!string.IsNullOrEmpty(key))
-                        GrokKeyInput = key;
+                    string? stored = grokEl.GetString();
+                    if (!string.IsNullOrEmpty(stored))
+                    {
+                        string? decrypted = DecryptString(stored);
+                        if (decrypted != null)
+                        {
+                            GrokKeyInput = decrypted; // New encrypted format
+                        }
+                        else
+                        {
+                            // Old plaintext — use directly and re-save encrypted (migration)
+                            GrokKeyInput = stored;
+                            migrated = true;
+                        }
+                    }
                 }
+
+                // One-time migration: re-save with encryption if old plaintext was found
+                if (migrated)
+                {
+                    var settings = ReadAppSettings();
+                    if (!string.IsNullOrEmpty(GeminiKeyInput))
+                        settings["gemini_api_key"] = EncryptString(GeminiKeyInput);
+                    if (!string.IsNullOrEmpty(GrokKeyInput))
+                        settings["grok_api_key"] = EncryptString(GrokKeyInput);
+                    _ = WriteAppSettingsAsync(settings); // fire-and-forget
+
+                    // Notify the user that their keys were secured
+                    _ = Application.Current.Dispatcher.InvokeAsync(() =>
+                    {
+                        SummaryBannerText = TranslationSource.Get("KeySecuredNotification");
+                        SummaryBannerColor = "#2ECC71";
+                        ShowSummaryBanner = true;
+                    });
+                }
+
                 if (doc.RootElement.TryGetProperty("default_engine", out var engineEl))
                     SelectedEngine = engineEl.GetString() ?? "auto";
 
@@ -1290,6 +1369,92 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     public static string ResolveAppSettingsPath()
     {
         return ServerPathResolver.ResolveAppSettingsPath();
+    }
+
+    // ── DPAPI Encryption / Decryption ────────────────────────────────────
+
+    /// <summary>
+    /// Encrypts a string using Windows DPAPI with CurrentUser scope.
+    /// The encrypted result is Base64-encoded for JSON storage.
+    /// Only the current Windows user can decrypt it.
+    /// </summary>
+    private static string EncryptString(string plaintext)
+    {
+        byte[] bytes = Encoding.UTF8.GetBytes(plaintext);
+        byte[] encrypted = ProtectedData.Protect(bytes, null, DataProtectionScope.CurrentUser);
+        return Convert.ToBase64String(encrypted);
+    }
+
+    /// <summary>
+    /// Decrypts a DPAPI-encrypted Base64 string.
+    /// Returns null if the value is not valid encrypted data
+    /// (e.g. old plaintext from before encryption was added).
+    /// </summary>
+    private static string? DecryptString(string ciphertext)
+    {
+        try
+        {
+            byte[] encrypted = Convert.FromBase64String(ciphertext);
+            byte[] bytes = ProtectedData.Unprotect(encrypted, null, DataProtectionScope.CurrentUser);
+            return Encoding.UTF8.GetString(bytes);
+        }
+        catch
+        {
+            return null; // Not valid encrypted data — caller can treat as plaintext
+        }
+    }
+
+    // ── Crash-safe Settings IO ───────────────────────────────────────────
+
+    /// <summary>
+    /// Reads the current appsettings.json into a mutable Dictionary.
+    /// Returns an empty dictionary if the file doesn't exist or can't be parsed.
+    /// </summary>
+    private static Dictionary<string, object?> ReadAppSettings()
+    {
+        try
+        {
+            string path = ResolveAppSettingsPath();
+            if (!File.Exists(path))
+                return new Dictionary<string, object?>();
+
+            var doc = JsonDocument.Parse(File.ReadAllText(path));
+            var result = new Dictionary<string, object?>();
+            foreach (var prop in doc.RootElement.EnumerateObject())
+            {
+                result[prop.Name] = prop.Value.ValueKind switch
+                {
+                    JsonValueKind.String => prop.Value.GetString(),
+                    JsonValueKind.True => (object?)true,
+                    JsonValueKind.False => (object?)false,
+                    JsonValueKind.Number => prop.Value.TryGetInt32(out var i)
+                        ? (object?)i
+                        : prop.Value.GetRawText(),
+                    _ => prop.Value.GetRawText()
+                };
+            }
+            return result;
+        }
+        catch
+        {
+            return new Dictionary<string, object?>();
+        }
+    }
+
+    /// <summary>
+    /// Atomically writes settings to appsettings.json via a temp file.
+    /// If the process crashes mid-write, the original file is never corrupted.
+    /// </summary>
+    private static async Task WriteAppSettingsAsync(Dictionary<string, object?> settings)
+    {
+        string appSettingsPath = ResolveAppSettingsPath();
+        string tempPath = appSettingsPath + ".tmp";
+        string dir = Path.GetDirectoryName(appSettingsPath)!;
+        Directory.CreateDirectory(dir);
+
+        string json = JsonSerializer.Serialize(settings, new JsonSerializerOptions { WriteIndented = true });
+        await File.WriteAllTextAsync(tempPath, json);
+        File.Replace(tempPath, appSettingsPath, null); // atomic replace (no backup)
     }
 
     // ── Folder / File Selection ──────────────────────────────────────────
@@ -1637,27 +1802,23 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                             {
                                 TryMarkGrokDisabled(grokEx.Message);
                                 LogPipeline("Grok fallback also failed — trying OCR server");
-                                await EnsureServerReadyAsync();
                                 row = await ExtractViaServerAsync(file);
                             }
                             catch (CloudApiException grokEx) when (grokEx.StatusCode.HasValue && IsPermanentCloudFailure(grokEx.StatusCode.Value))
                             {
                                 TryMarkGrokDisabled(grokEx.Message);
                                 LogPipeline("Grok fallback also failed — trying OCR server");
-                                await EnsureServerReadyAsync();
                                 row = await ExtractViaServerAsync(file);
                             }
                             catch
                             {
                                 LogPipeline("Grok fallback also failed — trying OCR server");
-                                await EnsureServerReadyAsync();
                                 row = await ExtractViaServerAsync(file);
                             }
                         }
                         else
                         {
                             LogPipeline("No Grok key — falling back to OCR server");
-                            await EnsureServerReadyAsync();
                             row = await ExtractViaServerAsync(file);
                         }
                     }
@@ -1690,7 +1851,6 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                 catch (Exception) when (selectedEngine == "auto")
                 {
                     LogPipeline("Grok failed in auto mode — falling back to OCR server");
-                    await EnsureServerReadyAsync();
                     row = await ExtractViaServerAsync(file);
                 }
                 catch (CloudQuotaExceededException ex)
@@ -1778,6 +1938,29 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             return;
         }
 
+        // ── Ensure server is ready before processing any files ──
+        // This is called once at the batch level, not per-file.
+        // If the server fails to start, show a single banner and abort
+        // without populating the Results list with per-file errors.
+        try
+        {
+            await EnsureServerReadyAsync();
+        }
+        catch (Exception ex)
+        {
+            LogPipeline($"Server startup failed — aborting batch: {ex.GetType().Name}: {ex.Message}");
+            IsServerRunning = false; // Ensure sidebar indicator updates instantly
+            IsExtracting = false;
+            IsProgressVisible = false;
+            _extractionStatusText = string.Empty;
+            OnPropertyChanged(nameof(ExtractionStatusText));
+            OnPropertyChanged(nameof(HasErrors));
+            SummaryBannerText = ex.Message;
+            SummaryBannerColor = "#C0392B";
+            ShowSummaryBanner = true;
+            return;
+        }
+
         _extractionCts = new CancellationTokenSource();
         var batchStopwatch = Stopwatch.StartNew();
 
@@ -1807,10 +1990,14 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                     bool entered = false;
                     try
                     {
-                        await semaphore.WaitAsync(_extractionCts.Token);
+                        // Capture to local for null-safety (Dispose may null the field mid-batch)
+                        var extractionCts = _extractionCts;
+                        if (extractionCts == null) return;
+
+                        await semaphore.WaitAsync(extractionCts.Token);
                         entered = true;
 
-                        if (_extractionCts.Token.IsCancellationRequested)
+                        if (extractionCts.Token.IsCancellationRequested)
                             return;
 
                         InvoiceRowViewModel row = await ProcessInvoiceAsync(
@@ -1903,8 +2090,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         CancellationTokenSource? linkedCts = null;
         try
         {
-            await EnsureServerReadyAsync();
-
+            // Server readiness is ensured by the batch-level call before the loop.
             // Create a linked token that includes both the user-cancellation token
             // and a longer timeout for the OCR call.
             linkedCts = CancellationTokenSource.CreateLinkedTokenSource(
@@ -1954,7 +2140,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     {
         try
         {
-            await EnsureServerReadyAsync();
+            // Server readiness is ensured by the batch-level call before the loop.
             InvoiceResult result = await _invoiceClient.ExtractAsync(filePath, SelectedEngine);
             return InvoiceRowViewModel.FromSuccess(filePath, result);
         }
@@ -2113,6 +2299,8 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                 InitialDirectory = defaultDir,
                 Title            = TranslationSource.Get("ExportDialogTitle"),
             };
+
+            if (saveDialog.ShowDialog() != true) return;
 
             try
             {
@@ -2415,9 +2603,14 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     public void Dispose()
     {
         _engineStatusTimer?.Stop();
+        // Cancel only — disposal is owned by the per-batch finally block
+        // to avoid ObjectDisposedException racing with background tasks
+        // that may still be reading _extractionCts.Token.
         _extractionCts?.Cancel();
-        _extractionCts?.Dispose();
         _apiHttpClient.Dispose();
+        _httpQuickClient.Dispose();
+        _httpShortClient.Dispose();
+        _httpCloudClient.Dispose();
     }
 }
 

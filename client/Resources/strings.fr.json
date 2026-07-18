@@ -25,7 +25,7 @@
   "ServerStartingAlmost": "Presque prêt...",
   "ServerStartingReady": "Serveur prêt",
   "ServerStartingAlready": "Serveur déjà prêt",
-  "ServerStartingFailed": "Le serveur OCR n'a pas pu démarrer. Vérifiez les logs dans le dossier de l'application.",
+  "ServerStartingFailed": "Le serveur OCR n'a pas pu démarrer. Vérifiez les logs dans {0}.",
   "ServerStartFailPrefix": "Échec du démarrage du serveur : ",
   "ServerDiedTitle": "Le serveur OCR s'est arrêté",
   "ServerDiedRestarting": "Redémarrage du serveur...",
@@ -246,5 +246,7 @@
   "UpdateCheckTitle": "Mise à jour disponible",
   "UpdateCheckNewVersion": "Une nouvelle version de HOTIX est disponible : {0}. Vous utilisez la version {1}.",
   "UpdateCheckReleaseLink": "Télécharger la mise à jour",
-  "UpdateCheckDismiss": "Ignorer"
+  "UpdateCheckDismiss": "Ignorer",
+
+  "KeySecuredNotification": "Vos clés API ont été sécurisées par chiffrement."
 }

@@ -39,6 +39,18 @@ from .gemini_extractor import extract_with_gemini, GeminiExtractionError, load_g
 # permit ensures correctness and predictable memory usage.
 _ocr_semaphore = asyncio.Semaphore(1)
 
+# ── OCR Engine Recycling ─────────────────────────────────────────────────────
+# PaddleOCR can accumulate memory over repeated calls.  Recycling the engine
+# after a fixed number of files releases and re-allocates the underlying
+# models, bounding the peak memory footprint.
+OCR_ENGINE_RECYCLE_INTERVAL: int = 25
+
+# Try to import psutil for RSS memory measurement; fall back gracefully.
+try:
+    import psutil as _psutil
+except ImportError:
+    _psutil = None  # type: ignore[assignment]
+
 logging.basicConfig(
     level=os.getenv("HOTIX_LOG_LEVEL", "INFO"),
     format="%(asctime)s %(levelname)s %(name)s %(message)s",
@@ -62,9 +74,55 @@ if sentry_dsn:
 SUPPORTED_SUFFIXES = {".pdf", ".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff"}
 
 
+def _get_rss_mb() -> float | None:
+    """Return current process RSS in MB, or None if psutil is not available."""
+    if _psutil is None:
+        return None
+    try:
+        return _psutil.Process().memory_info().rss / (1024 * 1024)
+    except Exception:
+        return None
+
+
+def _recycle_ocr_engine(app_state) -> float | None:
+    """Recycle the OCR engine: release the old instance and create a fresh one.
+
+    Logs RSS before and after the swap so the memory impact is visible in logs.
+    Returns the RSS delta in MB, or None if measurement is unavailable.
+    """
+    rss_before = _get_rss_mb()
+    rss_after: float | None = None
+
+    logger.info(
+        "Recycling OCR engine after %d requests (RSS before: %s)",
+        app_state.ocr_request_counter,
+        f"{rss_before:.1f} MB" if rss_before is not None else "N/A",
+    )
+
+    # Release the old engine
+    old = getattr(app_state, "ocr_engine", None)
+    if old is not None:
+        del old
+
+    # Create a fresh engine
+    app_state.ocr_engine = PaddleOcrEngine()
+    app_state.ocr_request_counter = 0
+
+    rss_after = _get_rss_mb()
+    logger.info(
+        "OCR engine recycled (RSS after: %s, delta: %s)",
+        f"{rss_after:.1f} MB" if rss_after is not None else "N/A",
+        f"{rss_after - rss_before:.1f} MB" if (rss_before is not None and rss_after is not None) else "N/A",
+    )
+
+    return (rss_after - rss_before) if (rss_before is not None and rss_after is not None) else None
+
+
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     app.state.ocr_engine = PaddleOcrEngine()
+    app.state.ocr_request_counter = 0
+    app.state.ocr_recycle_lock = asyncio.Lock()
 
     # Pre-warm PaddleOCR so model loading doesn't block the first real request
     logger.info("Pre-warming PaddleOCR model...")
@@ -170,6 +228,25 @@ async def validate_gemini_key(request: dict) -> dict:
         error_str = str(exc)[:500]
         logger.warning("Key validation failed: %s", error_str)
         return {"valid": False, "error": error_str}
+
+
+@app.post("/admin/recycle-engine")
+async def admin_recycle_engine() -> dict:
+    """Force-recycle the OCR engine on demand (for diagnostics/testing).
+
+    Acquires both _ocr_semaphore (to ensure no extraction is in progress)
+    and ocr_recycle_lock (to prevent concurrent recycling with the
+    interval-triggered path).
+    """
+    async with _ocr_semaphore:
+        async with app.state.ocr_recycle_lock:
+            rss_delta = await asyncio.to_thread(_recycle_ocr_engine, app.state)
+    logger.info("Manual engine recycle triggered via /admin/recycle-engine")
+    return {
+        "status": "ok",
+        "engine_recycled": True,
+        "rss_delta_mb": round(rss_delta, 1) if rss_delta is not None else None,
+    }
 
 
 @app.get("/engine-status")
@@ -332,6 +409,15 @@ async def extract(
         # --- OCR Path ---
         async with _ocr_semaphore:
             result = await asyncio.to_thread(_run_ocr_extraction, pages, filename, ocr_engine)
+
+            # Increment request counter and recycle engine if threshold reached
+            app.state.ocr_request_counter += 1
+            if app.state.ocr_request_counter >= OCR_ENGINE_RECYCLE_INTERVAL:
+                async with app.state.ocr_recycle_lock:
+                    # Double-check after acquiring lock
+                    if app.state.ocr_request_counter >= OCR_ENGINE_RECYCLE_INTERVAL:
+                        _recycle_ocr_engine(app.state)
+
         if gemini_fallback_reason:
             result.gemini_fallback_reason = gemini_fallback_reason
         return result
