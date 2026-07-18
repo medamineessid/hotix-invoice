@@ -488,7 +488,7 @@
                             <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,0">
                                 <controls:ProgressRing x:Name="ProgressRingControl"
                                                        Width="32" Height="32"
-                                                       Percentage="{Binding ProgressPercentage}"
+                                                       Percentage="{Binding ProgressPercentage, Mode=OneWay}"
                                                        StrokeThickness="3"
                                                        TrackColor="{StaticResource BrushBorderLight}"
                                                        ProgressColor="{StaticResource BrushAccent}" />

@@ -27,7 +27,7 @@ from .field_extractor import (
     cross_validate_fields,
     compute_confidence,
 )
-from .utils import reconcile_amounts
+from .utils import reconcile_amounts, detect_amount_collision
 
 from typing import Literal
 from fastapi import Query
@@ -224,9 +224,15 @@ async def _run_gemini_extraction(
         gemini_issues = cross_validate_fields(fields)
         # Reconcile monetary amounts (compute missing, flag mismatches)
         fields, computed_fields, has_mismatch = reconcile_amounts(fields, {})
-        # Confidence with penalties (Gemini has high base OCR confidence)
-        gemini_confidences = {k: 0.95 for k in fields}
-        gemini_confidence = compute_confidence(gemini_confidences, fields, gemini_issues)
+        # Compute confidence: base on field completeness, penalize for mismatches/collisions
+        # Formula: (non-null fields / 8) * 0.95, capped at 0.5 if has_mismatch or collision
+        non_null_count = sum(1 for v in fields.values() if v is not None)
+        base_confidence = (non_null_count / 8) * 0.95
+        collision = detect_amount_collision(fields)
+        if has_mismatch or collision:
+            gemini_confidence = min(base_confidence, 0.5)
+        else:
+            gemini_confidence = base_confidence
         logger.info(
             "Extraction via Gemini Vision successful for %s. Issues: %s",
             Path(filename).name, gemini_issues,
@@ -273,6 +279,10 @@ def _run_ocr_extraction(
     raw_text = extract_raw_text(all_lines)
     # Confidence with penalties for extraction quality issues
     confidence = compute_confidence(confidences, fields, issues)
+    # Cap confidence at 0.5 if mismatch or collision detected
+    collision = detect_amount_collision(fields)
+    if has_mismatch or collision:
+        confidence = min(confidence, 0.5)
 
     field_names = [k for k, v in fields.items() if v is not None]
     logger.info(

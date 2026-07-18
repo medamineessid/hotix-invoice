@@ -446,7 +446,7 @@ def _select_best_selection_for_field(field: str, rows: list[list[OCRLine]], all_
     for anchor in anchors:
         if excluded_ids and id(anchor) in excluded_ids:
             continue
-        same_line_selection = _selection_from_same_line(field, anchor, selection)
+        same_line_selection = _selection_from_same_line(field, anchor, selection, excluded_ids)
         if same_line_selection is not None:
             selection = same_line_selection
 
@@ -457,8 +457,14 @@ def _select_best_selection_for_field(field: str, rows: list[list[OCRLine]], all_
     return selection
 
 
-def _selection_from_same_line(field: str, anchor: OCRLine, current_selection: FieldSelection) -> FieldSelection | None:
-    """Create a selection when the value is embedded in the same OCR line as the label."""
+def _selection_from_same_line(field: str, anchor: OCRLine, current_selection: FieldSelection, excluded_ids: set[int] | None = None) -> FieldSelection | None:
+    """Create a selection when the value is embedded in the same OCR line as the label.
+    
+    If excluded_ids is provided, the anchor itself is skipped if its id is in the set.
+    """
+
+    if excluded_ids and id(anchor) in excluded_ids:
+        return None
 
     same_line_value = _extract_inline_value(field, anchor.text)
     if same_line_value is None:

@@ -353,3 +353,19 @@ class TestFieldCollisions:
         fields = extract_invoice_fields(lines)
         assert fields["montant_ttc"] is not None
         assert float(fields["montant_ttc"]) == 1250.0  # noqa: PLR2004
+
+
+    def test_two_amount_labels_same_value_line_collision_prevention(self):
+        """Two amount labels (HT, TVA) positioned so both anchors' geometric
+        search would independently pick the same value line — assert the two
+        resolved fields end up with DIFFERENT OCR lines (or one is left null).
+        This tests that Step 3 fallback respects claimed_lines."""
+        lines = [
+            OCRLine("Total HT", BoundingBox(0, 0, 50, 15), 0.9, 0, 0),
+            OCRLine("TVA",      BoundingBox(0, 40, 40, 55), 0.9, 0, 1),
+            OCRLine("1250.00",  BoundingBox(0, 70, 60, 85), 0.95, 0, 2),
+        ]
+        fields = extract_invoice_fields(lines)
+        ht_val = fields["montant_ht"]
+        tva_val = fields["montant_tva"]
+        assert ht_val is None or tva_val is None or ht_val != tva_val

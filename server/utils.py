@@ -76,9 +76,9 @@ class OCRLine:
 
 
 STRIP_CHARS = " :-\t\r\n"
-AMOUNT_CLEANER = re.compile(r"[^\d,\.\-]")
+AMOUNT_CLEANER = re.compile(r"[^\d,\.\\-]")
 MULTISPACE = re.compile(r"\s+")
-DATE_DD_MM_YYYY = re.compile(r"\b(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})\b")
+DATE_DD_MM_YYYY = re.compile(r"\b(\d{1,2})[\\/\\-](\d{1,2})[\\/\\-](\d{2,4})\b")
 MONTH_NAME_PATTERN = re.compile(
     r"\b(\d{1,2})\s+([a-zÀ-ÿ]+)\s+(\d{4})\b",
     re.IGNORECASE,
@@ -130,7 +130,7 @@ def extract_amount(text: str) -> Optional[str]:
 
     cleaned = collapse_text(text)
     cleaned = cleaned.replace("TND", "").replace("DT", "").replace("€", "").replace("$", "").replace("£", "")
-    cleaned = re.sub(r"[^\d,\.\-\s]", "", cleaned).strip()
+    cleaned = re.sub(r"[^\d,\.\\-\s]", "", cleaned).strip()
 
     if not cleaned:
         return None
@@ -417,5 +417,36 @@ def reconcile_amounts(fields: dict[str, Optional[str]], field_confidences: dict[
             if derived_ht >= Decimal("0"):
                 result["montant_ht"] = _format_amount(derived_ht)
                 computed.add("montant_ht")
+    elif ht is not None and tva is not None and ttc is not None and taxe is None:
+        # All three main amounts present, taxe is the only missing one
+        if _above_threshold("montant_ht") and _above_threshold("montant_tva") and _above_threshold("montant_ttc"):
+            derived_taxe = ttc - ht - tva
+            if derived_taxe >= Decimal("0"):
+                result["montant_taxe"] = _format_amount(derived_taxe)
+                computed.add("montant_taxe")
 
     return result, computed, has_mismatch
+
+
+def detect_amount_collision(fields: dict[str, Optional[str]]) -> bool:
+    """Detect if any two of {montant_ht, montant_tva, montant_taxe, montant_ttc}
+    have the identical numeric value (collision).
+    
+    Returns True if a collision is detected, False otherwise.
+    Collisions indicate a likely OCR or extraction error and should cap confidence at 0.5.
+    """
+    amounts = {}
+    for key in ["montant_ht", "montant_tva", "montant_taxe", "montant_ttc"]:
+        val = fields.get(key)
+        if val:
+            parsed = _parse_decimal(val)
+            if parsed is not None:
+                amounts[key] = parsed
+    
+    # Check if any two amounts are equal
+    amount_values = list(amounts.values())
+    for i, v1 in enumerate(amount_values):
+        for v2 in amount_values[i+1:]:
+            if v1 == v2:
+                return True
+    return False

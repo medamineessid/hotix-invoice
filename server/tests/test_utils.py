@@ -626,3 +626,88 @@ class TestBoundingBox:
         bb = BoundingBox(1.0, 2.0, 3.0, 4.0)
         with pytest.raises(Exception):
             bb.x1 = 99.0  # type: ignore[misc]
+
+
+    def test_derive_taxe_when_only_missing(self):
+        """When HT, TVA, TTC are present and taxe is missing, derive taxe."""
+        fields = {
+            "montant_ht": "1000.000",
+            "montant_tva": "200.000",
+            "montant_taxe": None,
+            "montant_ttc": "1250.000",
+        }
+        confs = {"montant_ht": 0.9, "montant_tva": 0.85, "montant_ttc": 0.9}
+        result, computed, mismatch = reconcile_amounts(fields, confs)
+        assert result["montant_taxe"] == "50.000"
+        assert "montant_taxe" in computed
+        assert not mismatch
+
+    def test_derive_taxe_negative_guard(self):
+        """If derived taxe would be negative, don't compute it."""
+        fields = {
+            "montant_ht": "1000.000",
+            "montant_tva": "200.000",
+            "montant_taxe": None,
+            "montant_ttc": "1100.000",  # Less than HT + TVA
+        }
+        result, computed, mismatch = reconcile_amounts(fields, {})
+        assert result["montant_taxe"] is None
+        assert "montant_taxe" not in computed
+
+
+class TestDetectAmountCollision:
+    """Tests for amount collision detection."""
+
+    def test_no_collision(self):
+        fields = {
+            "montant_ht": "1000.000",
+            "montant_tva": "200.000",
+            "montant_taxe": None,
+            "montant_ttc": "1200.000",
+        }
+        assert detect_amount_collision(fields) is False
+
+    def test_ht_equals_tva_collision(self):
+        fields = {
+            "montant_ht": "1000.000",
+            "montant_tva": "1000.000",
+            "montant_taxe": None,
+            "montant_ttc": "1200.000",
+        }
+        assert detect_amount_collision(fields) is True
+
+    def test_ht_equals_ttc_collision(self):
+        fields = {
+            "montant_ht": "1000.000",
+            "montant_tva": "200.000",
+            "montant_taxe": None,
+            "montant_ttc": "1000.000",
+        }
+        assert detect_amount_collision(fields) is True
+
+    def test_tva_equals_taxe_collision(self):
+        fields = {
+            "montant_ht": "1000.000",
+            "montant_tva": "50.000",
+            "montant_taxe": "50.000",
+            "montant_ttc": "1100.000",
+        }
+        assert detect_amount_collision(fields) is True
+
+    def test_all_null_no_collision(self):
+        fields = {
+            "montant_ht": None,
+            "montant_tva": None,
+            "montant_taxe": None,
+            "montant_ttc": None,
+        }
+        assert detect_amount_collision(fields) is False
+
+    def test_partial_null_no_collision(self):
+        fields = {
+            "montant_ht": "1000.000",
+            "montant_tva": None,
+            "montant_taxe": None,
+            "montant_ttc": None,
+        }
+        assert detect_amount_collision(fields) is False
