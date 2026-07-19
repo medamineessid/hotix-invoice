@@ -55,8 +55,6 @@ FIELD_ALIASES: dict[str, tuple[str, ...]] = {
         "n°facture",
         "numéro de facture",
         "numero de facture",
-        "numéro",
-        "numero",
         "facture n°",
         "facture no",
         "facture nº",
@@ -64,13 +62,8 @@ FIELD_ALIASES: dict[str, tuple[str, ...]] = {
         "no facture",
         "n° de facture",
         "n de facture",
-        "référence",
-        "reference",
-        "ref",
-        "no",
-        "facture",
-        "invoice",
         "invoice n°",
+        "invoice no",
         "invoice #",
     ),
     "date": (
@@ -384,7 +377,11 @@ def _extract_field_selections(ocr_lines: Sequence[OCRLine]) -> dict[str, FieldSe
     proposals: list[tuple[str, OCRLine, float, Optional[str], float]] = []
 
     for field in FIELD_ORDER:
-        selection = _select_best_selection_for_field(field, rows, all_lines, FieldSelection(value=None, confidence=0.0, score=float("-inf"), ocr_line=None))
+        if field == "numero_facture":
+            # Use specialized extraction to avoid false positives from broad anchors
+            selection = _extract_numero_facture(rows, all_lines)
+        else:
+            selection = _select_best_selection_for_field(field, rows, all_lines, FieldSelection(value=None, confidence=0.0, score=float("-inf"), ocr_line=None))
         if selection.ocr_line is not None and selection.score > float("-inf"):
             proposals.append((field, selection.ocr_line, selection.score, selection.value, selection.confidence))
             _debug_log(
@@ -502,8 +499,13 @@ def _selection_from_geometric_search(field: str, anchor: OCRLine, rows: list[lis
             continue
         if line.box.x1 < anchor.box.x2:
             continue
-        if not _candidate_is_plausible(line):
-            continue
+        # Use field-specific plausibility check for numero_facture
+        if field == "numero_facture":
+            if not _candidate_is_plausible_numero_facture(line):
+                continue
+        else:
+            if not _candidate_is_plausible(line):
+                continue
         score = _score_same_row_right(anchor, line)
         candidates.append((line, score))
 
@@ -511,8 +513,13 @@ def _selection_from_geometric_search(field: str, anchor: OCRLine, rows: list[lis
     for line in _lines_below(anchor_row_idx, rows):
         if excluded_ids and id(line) in excluded_ids:
             continue
-        if not _candidate_is_plausible(line):
-            continue
+        # Use field-specific plausibility check for numero_facture
+        if field == "numero_facture":
+            if not _candidate_is_plausible_numero_facture(line):
+                continue
+        else:
+            if not _candidate_is_plausible(line):
+                continue
         score = _score_below_row(anchor, line)
         candidates.append((line, score))
 
@@ -533,10 +540,22 @@ def _selection_from_geometric_search(field: str, anchor: OCRLine, rows: list[lis
 
 
 def _contains_any_alias(text: str, aliases: Sequence[str]) -> bool:
-    """Return True when the normalized text contains any alias."""
+    """Return True when the normalized text contains any alias.
+
+    Uses word-boundary matching (\\b) to prevent false positives from short
+    aliases — e.g. "no" matching inside "nom", or "ht" matching inside "echt".
+    """
 
     normalized = normalize_text(text)
-    return any(normalize_text(alias) in normalized for alias in aliases)
+    for alias in aliases:
+        alias_normalized = normalize_text(alias)
+        if not alias_normalized:
+            continue
+        # Word-boundary anchored pattern prevents substring false matches
+        pattern = re.compile(r"\b" + re.escape(alias_normalized) + r"\b")
+        if pattern.search(normalized):
+            return True
+    return False
 
 
 def _extract_inline_value(field: str, text: str) -> Optional[str]:
@@ -575,6 +594,40 @@ def _candidate_is_plausible(candidate: OCRLine) -> bool:
     return not _looks_like_label(normalized)
 
 
+def _candidate_is_plausible_numero_facture(candidate: OCRLine) -> bool:
+    """Field-specific plausibility check for invoice numbers.
+    
+    Rejects candidates that:
+    - Don't contain at least one digit (invoice numbers always have digits)
+    - Match an obvious address pattern (number + street type, or multiple commas)
+    - Look like a label
+    """
+    normalized = normalize_text(candidate.text)
+    if not normalized:
+        return False
+    if len(normalized) < 2:
+        return False
+    
+    # Must contain at least one digit
+    if not any(c.isdigit() for c in normalized):
+        return False
+    
+    # Reject if it looks like a label
+    if _looks_like_label(normalized):
+        return False
+    
+    # Reject obvious address patterns:
+    # - Starts with digit followed by street-type word (e.g. "123 rue", "45 avenue")
+    # - Contains multiple commas (suggests full address line)
+    if re.match(r"^\d+\s+(rue|avenue|boulevard|place|chemin|allée|allee|cour|impasse|quai|square|passage|cours|voie|route|chemin|montée|montee|cote|côte|ruelle|impasse)", normalized):
+        return False
+    
+    if normalized.count(",") >= 2:
+        return False
+    
+    return True
+
+
 def _clean_candidate_value(field: str, value: str) -> Optional[str]:
     """Normalize a candidate value for the requested field type."""
 
@@ -601,23 +654,139 @@ def _clean_candidate_value(field: str, value: str) -> Optional[str]:
 def _looks_like_label(text: str) -> bool:
     """Return True when the text still looks like a label rather than a value.
 
-    Uses regex patterns to avoid false positives where short label tokens
-    (e.g. "no", "ref") appear as substrings inside legitimate values.
+    Uses regex patterns with word boundaries (\\b) for short tokens to avoid
+    false positives where e.g. "ht" matches inside "echt", or "no" matches
+    inside "nouvelle".
     Example: "Société Nouvelle SARL" must NOT match "no" (inside "nouvelle").
     "REF-2024-001" must NOT match "ref" (it's an invoice number, not a label).
     """
 
     normalized = normalize_text(text)
     label_patterns = [
-        "facture", "date", "fournisseur", "client",
-        "vendeur", "emetteur", "acheteur", "destinataire",
-        "ht", "tva", "taxe", "ttc",
-        "montant", "total", "netapayer",
+        # Invoice metadata (long words — substring match is safe)
+        "facture", "fournisseur", "vendeur", "emetteur",
+        "acheteur", "destinataire",
+        # Monetary field labels (long — substring match is safe)
+        "montant", "netapayer",
+        # References (long — substring match is safe)
         "reference", "numero",
+        # Product/item descriptions
+        "designation", "description", "produit", "article",
+        # Address fields
+        "adresse", "rue", "avenue", "boulevard", "place", "chemin",
+        "code postal", "codepostal", "ville", "pays",
+        # Additional common invoice labels
+        "quantite", "quantité", "prix", "unite", "unité",
+        "remise", "escompte", "livraison", "port",
+        # Short tokens — use word boundaries to avoid substring false matches
+        r"\bdate\b",
+        r"\bclient\b",
+        r"\bht\b",
+        r"\btva\b",
+        r"\btaxe\b",
+        r"\bttc\b",
+        r"\btotal\b",
         r"\bno\b[.\s]*$",
         r"\bref\b[.\s]*$",
     ]
     return any(re.search(pattern, normalized) for pattern in label_patterns)
+
+
+# ── Specialized extraction: numero_facture ──────────────────────────────────
+
+# Strict anchor patterns that explicitly pair invoice-number identifiers
+# with "facture"/"invoice" to avoid false positives.
+_NUMERO_FACTURE_ANCHORS = (
+    "n° facture", "n°facture", "n° de facture",
+    "numéro de facture", "numero de facture",
+    "facture n°", "facture no", "facture nº", "nº facture",
+    "no facture", "n facture", "n de facture",
+    "invoice number", "invoice n°", "invoice no", "invoice #",
+)
+
+
+def _extract_numero_facture(rows: list[list[OCRLine]], all_lines: Sequence[OCRLine]) -> FieldSelection:
+    """Extract invoice number with strict anchor matching to avoid false positives.
+
+    Only uses compound anchors that pair an invoice-number keyword
+    ("n°", "numéro", "facture", "invoice") together, not standalone
+    tokens like "numero" or "ref" that cause false matches.
+    """
+    selection = FieldSelection(value=None, confidence=0.0, score=float("-inf"))
+
+    # Find anchors matching the strict compound patterns
+    anchors = [line for line in all_lines if _contains_any_alias(line.text, _NUMERO_FACTURE_ANCHORS)]
+
+    for anchor in anchors:
+        # Try same-line extraction first (e.g. "N° Facture: INV-2024-001")
+        same_line = _selection_from_same_line("numero_facture", anchor, selection)
+        if same_line is not None:
+            quality_boost = _invoice_number_quality_score(same_line.value or "")
+            adjusted = FieldSelection(
+                value=same_line.value,
+                confidence=same_line.confidence,
+                score=same_line.score + quality_boost * 100.0,
+                ocr_line=same_line.ocr_line,
+            )
+            if adjusted.score > selection.score:
+                selection = adjusted
+
+        # Try geometric search (value on same row to right, or row below)
+        geometric = _selection_from_geometric_search("numero_facture", anchor, rows, selection)
+        if geometric is not None:
+            quality_boost = _invoice_number_quality_score(geometric.value or "")
+            adjusted = FieldSelection(
+                value=geometric.value,
+                confidence=geometric.confidence,
+                score=geometric.score + quality_boost * 100.0,
+                ocr_line=geometric.ocr_line,
+            )
+            if adjusted.score > selection.score:
+                selection = adjusted
+
+    _debug_log(
+        f"_extract_numero_facture: final={selection.value!r} "
+        f"score={selection.score:.1f} "
+        f"anchors_found={len(anchors)}"
+    )
+    return selection
+
+
+def _invoice_number_quality_score(value: str) -> float:
+    """Score how likely a text value is a real invoice number vs a false positive.
+
+    Returns a quality boost between -0.3 and +0.3.
+    Positive for invoice-like patterns (INV, FAC, year prefixes).
+    Negative for very short values, pure-digit short strings, or date-like patterns.
+    """
+    if not value:
+        return -0.3
+
+    score: float = 0.0
+
+    # Boost if it looks like an invoice number pattern
+    if any(pattern in value.upper() for pattern in ["INV", "FAC"]):
+        score += 0.25
+
+    # Boost if it contains a recent year (common in invoice IDs)
+    if any(year in value for year in ["2026", "2025", "2024", "2023"]):
+        score += 0.2
+
+    # Penalize very short values (likely false positives like "42" or "001")
+    if len(value) < 3:
+        score -= 0.3
+    elif len(value) < 5:
+        score -= 0.1
+
+    # Penalize if only digits and short (could be quantity, PO reference)
+    if value.isdigit() and len(value) < 6:
+        score -= 0.2
+
+    # Penalize if it looks like a date
+    if re.match(r"\d{1,2}[/-]\d{1,2}[/-]\d{2,4}", value):
+        score -= 0.3
+
+    return max(-0.3, min(0.3, score))
 
 
 # ── Scoring functions ────────────────────────────────────────────────────────

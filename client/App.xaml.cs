@@ -143,19 +143,35 @@ public partial class App : Application
     /// </summary>
     public static async Task<bool> StartServerAsync(IProgress<string>? progress = null)
     {
-        // If the process is already running, check health quickly
-        if (ServerProcess != null && !ServerProcess.HasExited)
+        // ── Kill any existing server process before starting a new one ──
+        // HasExited can lag — the process may have crashed without the OS
+        // having fully reaped it yet, leaving the port locked.
+        if (ServerProcess != null)
         {
-            try
+            if (!ServerProcess.HasExited)
             {
-                using var response = await _healthClient.GetAsync("http://127.0.0.1:8000/health");
-                if (response.IsSuccessStatusCode)
+                try
                 {
-                    progress?.Report(TranslationSource.Get("ServerStartingAlready"));
-                    return true;
+                    using var response = await _healthClient.GetAsync("http://127.0.0.1:8000/health");
+                    if (response.IsSuccessStatusCode)
+                    {
+                        progress?.Report(TranslationSource.Get("ServerStartingAlready"));
+                        return true;
+                    }
                 }
+                catch { /* server not ready yet — will kill and restart below */ }
+
+                // Health check failed — kill the unresponsive/stale process
+                LogServerLine("Existing server process is unhealthy — killing before restart");
+                try
+                {
+                    ServerProcess.Kill();
+                    ServerProcess.WaitForExit(2000);
+                }
+                catch { /* process already gone */ }
             }
-            catch { /* server not ready yet, will wait below */ }
+            ServerProcess.Dispose();
+            ServerProcess = null;
         }
 
         if (string.IsNullOrEmpty(_pythonPath) || string.IsNullOrEmpty(_workingDir))
@@ -294,10 +310,27 @@ public partial class App : Application
             LogServerLine($"UNHANDLED ERROR starting server: {ex.GetType().Name}: {ex.Message}");
             string logTail = GetLogTail(20);
             string logPath = ServerLogPath;
+            bool portInUse = false;
+            // Check for WSAEADDRINUSE (errno 10048) — port already bound
+            if (logTail != null)
+            {
+                string lower = logTail.ToLowerInvariant();
+                portInUse = lower.Contains("10048") || lower.Contains("address already in use");
+            }
+            if (!portInUse && ex.Message != null)
+            {
+                portInUse = ex.Message.Contains("10048") ||
+                    (ex.InnerException?.Message?.Contains("10048") == true);
+            }
+            CleanupServer();
+            if (portInUse)
+            {
+                throw new InvalidOperationException(
+                    TranslationSource.Get("ServerPortInUse"));
+            }
             string timeoutDetail = string.IsNullOrEmpty(logTail)
                 ? $"Log file: {logPath}"
                 : $"Log file: {logPath}\n\nLast log lines:\n{logTail}";
-            CleanupServer();
             throw new InvalidOperationException(
                 TranslationSource.Fmt("ServerStartingFailed", logPath) +
                 $"\n\n{timeoutDetail}");
@@ -330,13 +363,26 @@ public partial class App : Application
 
     private static void CleanupServer()
     {
-        if (ServerProcess == null || ServerProcess.HasExited) return;
-        try
+        if (ServerProcess == null)
+            return;
+        if (!ServerProcess.HasExited)
         {
-            ServerProcess.Kill();
-            ServerProcess.WaitForExit(3000);
+            try
+            {
+                LogServerLine("Cleaning up server process...");
+                ServerProcess.Kill();
+                ServerProcess.WaitForExit(3000);
+                LogServerLine("Server process terminated");
+                // Brief wait for OS to fully release the port
+                System.Threading.Thread.Sleep(500);
+            }
+            catch (Exception ex)
+            {
+                LogServerLine("Cleanup exception (ignored): " + ex.GetType().Name + ": " + ex.Message);
+            }
         }
-        catch { /* ignored */ }
+        ServerProcess.Dispose();
+        ServerProcess = null;
     }
 
     /// <summary>

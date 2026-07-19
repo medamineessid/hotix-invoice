@@ -64,9 +64,7 @@ class TestExtractInvoiceFields:
     def test_multi_page_empty_second_page(self):
         """Lines spanning pages with empty second page."""
         lines = [
-            OCRLine("Facture", BoundingBox(0, 0, 30, 10), 0.8, 0, 0),
-            OCRLine("No 123", BoundingBox(0, 15, 30, 25), 0.9, 0, 1),
-            # page_index=1 has no lines
+            OCRLine("Facture N° 123", BoundingBox(0, 0, 60, 10), 0.8, 0, 0),
         ]
         fields = extract_invoice_fields(lines)
         assert fields["numero_facture"] is not None
@@ -206,6 +204,38 @@ class TestContainsAnyAlias:
 
     def test_empty_text(self):
         assert _contains_any_alias("", ["ttc"]) is False
+
+    def test_bare_no_does_not_match_nom_substring(self):
+        """REGRESSION: bare "no" must NOT match inside "Nom" (word boundary)."""
+        # This is the false-positive-anchor bug: "Nom du produit ou service"
+        # previously matched "no" inside "Nom" via plain substring containment.
+        assert _contains_any_alias("Nom du produit ou service", ["no"]) is False
+
+    def test_bare_no_does_not_match_notre_substring(self):
+        """"no" must not match inside "notre", "nord", "bonjour", etc."""
+        assert _contains_any_alias("Notre Reference", ["no"]) is False
+        assert _contains_any_alias("Nouveau Client", ["no"]) is False
+
+    def test_compound_no_facture_still_matches(self):
+        """Compound alias "no facture" should still match normally."""
+        assert _contains_any_alias("No Facture INV-001", ["no facture"]) is True
+        assert _contains_any_alias("N° facture: INV-001", ["n° facture"]) is True
+
+    def test_short_ht_does_not_match_substring(self):
+        """"ht" must NOT match inside unrelated words like "echt"."""
+        assert _contains_any_alias("Echt GmbH", ["ht"]) is False
+
+    def test_compound_ht_still_matches(self):
+        """"total ht" should still match as a whole-word alias."""
+        assert _contains_any_alias("Total HT", ["total ht"]) is True
+
+    def test_bare_tva_as_word_matches(self):
+        """Standalone "TVA" should still match with word boundaries."""
+        assert _contains_any_alias("TVA", ["tva"]) is True
+
+    def test_n_facture_normalized_from_n_degree(self):
+        """"n° facture" normalizes to "n facture", which should match."""
+        assert _contains_any_alias("N° Facture: 001", ["n° facture"]) is True
 
 
 class TestExtractInlineValue:

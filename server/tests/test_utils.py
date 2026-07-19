@@ -113,6 +113,51 @@ class TestExtractAmount:
         assert result is not None
         assert float(result) == 123.45  # noqa: PLR2004
 
+    # ── Percentage + amount on same line ─────────────────────────────────────
+    # These test the real-world case where an OCR line contains both a
+    # percentage ("20%") and a currency amount ("20.00").  The old code
+    # stripped "%" then greedily merged both numbers into "2020.00".
+
+    def test_tva_percentage_and_amount_same_line(self):
+        """TVA 20% 20.00 € → extract 20.000 (the real amount, not the %)."""
+        result = extract_amount("TVA   20%   20.00 €")
+        assert result is not None
+        assert float(result) == 20.0  # noqa: PLR2004
+
+    def test_tva_percentage_and_amount_french_format(self):
+        """20,00% 20,00 € → extract 20.000 with French decimal comma."""
+        result = extract_amount("TVA 20,00% 20,00 €")
+        assert result is not None
+        assert float(result) == 20.0  # noqa: PLR2004
+
+    def test_percentage_only_returns_none(self):
+        """"20%" without a following amount should return None."""
+        result = extract_amount("TVA 20%")
+        assert result is None
+
+    def test_percentage_without_percent_sign_preserves_normal(self):
+        """A line with no % should work exactly as before."""
+        result = extract_amount("Total HT 100.00 €")
+        assert result is not None
+        assert float(result) == 100.0  # noqa: PLR2004
+
+    def test_multiple_percentages_no_amount(self):
+        """"20% 20%" with no real amount → None."""
+        result = extract_amount("TVA 20% 20%")
+        assert result is None
+
+    def test_percentage_with_taxe_reference(self):
+        """Taxe 5% 5.00 € → extract 5.000 (margin amounts like taxe)."""
+        result = extract_amount("Taxe 5% 5.00 €")
+        assert result is not None
+        assert float(result) == 5.0  # noqa: PLR2004
+
+    def test_normal_amount_not_affected_by_percentage_removal(self):
+        """Plain amount without % should still work."""
+        result = extract_amount("1250.00")
+        assert result is not None
+        assert float(result) == 1250.0  # noqa: PLR2004
+
     # ── clean_amount alias ────────────────────────────────────────────────────
 
     def test_clean_amount_alias(self):
@@ -463,7 +508,7 @@ class TestReconcileAmounts:
         assert not mismatch
 
     def test_all_three_consistent_no_change(self):
-        """All 3 amounts present and arithmetic consistent → no change, not computed."""
+        """All 3 amounts present and arithmetic consistent → taxe is derived (was None)."""
         fields = {
             "montant_ht": "1000.000",
             "montant_tva": "200.000",
@@ -471,8 +516,9 @@ class TestReconcileAmounts:
             "montant_ttc": "1200.000",
         }
         result, computed, mismatch = reconcile_amounts(fields, {})
-        assert result == fields
-        assert len(computed) == 0
+        # HT (1000) + TVA (200) = TTC (1200), so taxe is derived as 0
+        assert result["montant_taxe"] == "0.000"
+        assert "montant_taxe" in computed
         assert not mismatch
 
     def test_all_three_present_inconsistent_flags_mismatch(self):
@@ -650,6 +696,44 @@ class TestBoundingBox:
             "montant_tva": "200.000",
             "montant_taxe": None,
             "montant_ttc": "1100.000",  # Less than HT + TVA
+        }
+        result, computed, mismatch = reconcile_amounts(fields, {})
+        assert result["montant_taxe"] is None
+        assert "montant_taxe" not in computed
+
+    def test_derive_taxe_exact_match(self):
+        """HT=100, TVA=20, TTC=120, taxe=None → should derive taxe=0.000 (exact match)."""
+        fields = {
+            "montant_ht": "100.000",
+            "montant_tva": "20.000",
+            "montant_taxe": None,
+            "montant_ttc": "120.000",
+        }
+        result, computed, mismatch = reconcile_amounts(fields, {})
+        assert result["montant_taxe"] == "0.000"
+        assert "montant_taxe" in computed
+        assert not mismatch
+
+    def test_derive_taxe_positive_difference(self):
+        """HT=100, TVA=20, TTC=125, taxe=None → should derive taxe=5.000 (difference)."""
+        fields = {
+            "montant_ht": "100.000",
+            "montant_tva": "20.000",
+            "montant_taxe": None,
+            "montant_ttc": "125.000",
+        }
+        result, computed, mismatch = reconcile_amounts(fields, {})
+        assert result["montant_taxe"] == "5.000"
+        assert "montant_taxe" in computed
+        assert not mismatch
+
+    def test_derive_taxe_impossible_negative(self):
+        """HT=100, TVA=20, TTC=110, taxe=None → should reject as impossible (negative taxe)."""
+        fields = {
+            "montant_ht": "100.000",
+            "montant_tva": "20.000",
+            "montant_taxe": None,
+            "montant_ttc": "110.000",  # Less than HT + TVA
         }
         result, computed, mismatch = reconcile_amounts(fields, {})
         assert result["montant_taxe"] is None

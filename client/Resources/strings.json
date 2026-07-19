@@ -26,6 +26,8 @@
   "ServerStartingReady": "Server ready",
   "ServerStartingAlready": "Server already ready",
   "ServerStartingFailed": "The OCR server could not start. Check the logs at {0}.",
+  "ServerPortInUse": "Port 8000 is already in use. Close HOTIX if it's running elsewhere, then click Retry.",
+  "ServerHealthCheckFailed": "The OCR server did not respond. This can take 30+ seconds on first startup while loading models. Retry.",
   "ServerStartFailPrefix": "Failed to start server: ",
   "ServerDiedTitle": "The OCR server stopped",
   "ServerDiedRestarting": "Restarting server...",
@@ -247,6 +249,8 @@
   "UpdateCheckNewVersion": "A new version of HOTIX is available: {0}. You are using {1}.",
   "UpdateCheckReleaseLink": "Download update",
   "UpdateCheckDismiss": "Dismiss",
+
+  "FieldValueComputed": "Calculated",
 
   "KeySecuredNotification": "Your API keys have been secured with encryption."
 }

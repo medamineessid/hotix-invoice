@@ -1,0 +1,194 @@
+[
+  {
+    "text": "Facture",
+    "box": {
+      "x1": 10,
+      "y1": 10,
+      "x2": 70,
+      "y2": 25
+    },
+    "confidence": 0.95,
+    "page_index": 0,
+    "line_index": 0
+  },
+  {
+    "text": "REF-2024-555",
+    "box": {
+      "x1": 100,
+      "y1": 10,
+      "x2": 220,
+      "y2": 25
+    },
+    "confidence": 0.9,
+    "page_index": 0,
+    "line_index": 1
+  },
+  {
+    "text": "Date",
+    "box": {
+      "x1": 10,
+      "y1": 35,
+      "x2": 50,
+      "y2": 50
+    },
+    "confidence": 0.95,
+    "page_index": 0,
+    "line_index": 2
+  },
+  {
+    "text": "19/03/2024",
+    "box": {
+      "x1": 100,
+      "y1": 35,
+      "x2": 200,
+      "y2": 50
+    },
+    "confidence": 0.9,
+    "page_index": 0,
+    "line_index": 3
+  },
+  {
+    "text": "Description",
+    "box": {
+      "x1": 10,
+      "y1": 60,
+      "x2": 100,
+      "y2": 75
+    },
+    "confidence": 0.95,
+    "page_index": 0,
+    "line_index": 4
+  },
+  {
+    "text": "Creation graphique",
+    "box": {
+      "x1": 100,
+      "y1": 60,
+      "x2": 280,
+      "y2": 75
+    },
+    "confidence": 0.95,
+    "page_index": 0,
+    "line_index": 5
+  },
+  {
+    "text": "Fournisseur",
+    "box": {
+      "x1": 10,
+      "y1": 85,
+      "x2": 100,
+      "y2": 100
+    },
+    "confidence": 0.95,
+    "page_index": 0,
+    "line_index": 6
+  },
+  {
+    "text": "Atelier Creation Design",
+    "box": {
+      "x1": 100,
+      "y1": 85,
+      "x2": 300,
+      "y2": 100
+    },
+    "confidence": 0.95,
+    "page_index": 0,
+    "line_index": 7
+  },
+  {
+    "text": "Client",
+    "box": {
+      "x1": 10,
+      "y1": 125,
+      "x2": 60,
+      "y2": 140
+    },
+    "confidence": 0.95,
+    "page_index": 0,
+    "line_index": 8
+  },
+  {
+    "text": "Agence Publicite Plus",
+    "box": {
+      "x1": 100,
+      "y1": 125,
+      "x2": 300,
+      "y2": 140
+    },
+    "confidence": 0.95,
+    "page_index": 0,
+    "line_index": 9
+  },
+  {
+    "text": "Montant HT",
+    "box": {
+      "x1": 10,
+      "y1": 175,
+      "x2": 100,
+      "y2": 190
+    },
+    "confidence": 0.95,
+    "page_index": 0,
+    "line_index": 10
+  },
+  {
+    "text": "3200.00",
+    "box": {
+      "x1": 100,
+      "y1": 175,
+      "x2": 200,
+      "y2": 190
+    },
+    "confidence": 0.9,
+    "page_index": 0,
+    "line_index": 11
+  },
+  {
+    "text": "TVA",
+    "box": {
+      "x1": 10,
+      "y1": 200,
+      "x2": 50,
+      "y2": 215
+    },
+    "confidence": 0.95,
+    "page_index": 0,
+    "line_index": 12
+  },
+  {
+    "text": "640.00",
+    "box": {
+      "x1": 100,
+      "y1": 200,
+      "x2": 200,
+      "y2": 215
+    },
+    "confidence": 0.9,
+    "page_index": 0,
+    "line_index": 13
+  },
+  {
+    "text": "TTC",
+    "box": {
+      "x1": 10,
+      "y1": 225,
+      "x2": 50,
+      "y2": 240
+    },
+    "confidence": 0.95,
+    "page_index": 0,
+    "line_index": 14
+  },
+  {
+    "text": "3840.00",
+    "box": {
+      "x1": 100,
+      "y1": 225,
+      "x2": 200,
+      "y2": 240
+    },
+    "confidence": 0.9,
+    "page_index": 0,
+    "line_index": 15
+  }
+]

@@ -1,0 +1,194 @@
+[
+  {
+    "text": "Numero de Facture",
+    "box": {
+      "x1": 10,
+      "y1": 10,
+      "x2": 120,
+      "y2": 25
+    },
+    "confidence": 0.95,
+    "page_index": 0,
+    "line_index": 0
+  },
+  {
+    "text": "2024-00123",
+    "box": {
+      "x1": 130,
+      "y1": 10,
+      "x2": 230,
+      "y2": 25
+    },
+    "confidence": 0.9,
+    "page_index": 0,
+    "line_index": 1
+  },
+  {
+    "text": "Date",
+    "box": {
+      "x1": 10,
+      "y1": 35,
+      "x2": 50,
+      "y2": 50
+    },
+    "confidence": 0.95,
+    "page_index": 0,
+    "line_index": 2
+  },
+  {
+    "text": "17/03/2024",
+    "box": {
+      "x1": 130,
+      "y1": 35,
+      "x2": 230,
+      "y2": 50
+    },
+    "confidence": 0.9,
+    "page_index": 0,
+    "line_index": 3
+  },
+  {
+    "text": "Adresse Fournisseur",
+    "box": {
+      "x1": 10,
+      "y1": 60,
+      "x2": 150,
+      "y2": 75
+    },
+    "confidence": 0.95,
+    "page_index": 0,
+    "line_index": 4
+  },
+  {
+    "text": "123 rue de la Paix",
+    "box": {
+      "x1": 130,
+      "y1": 60,
+      "x2": 300,
+      "y2": 75
+    },
+    "confidence": 0.9,
+    "page_index": 0,
+    "line_index": 5
+  },
+  {
+    "text": "Fournisseur",
+    "box": {
+      "x1": 10,
+      "y1": 85,
+      "x2": 100,
+      "y2": 100
+    },
+    "confidence": 0.95,
+    "page_index": 0,
+    "line_index": 6
+  },
+  {
+    "text": "Construction Moderne SARL",
+    "box": {
+      "x1": 130,
+      "y1": 85,
+      "x2": 350,
+      "y2": 100
+    },
+    "confidence": 0.95,
+    "page_index": 0,
+    "line_index": 7
+  },
+  {
+    "text": "Client",
+    "box": {
+      "x1": 10,
+      "y1": 125,
+      "x2": 60,
+      "y2": 140
+    },
+    "confidence": 0.95,
+    "page_index": 0,
+    "line_index": 8
+  },
+  {
+    "text": "Mairie de Villefranche",
+    "box": {
+      "x1": 130,
+      "y1": 125,
+      "x2": 320,
+      "y2": 140
+    },
+    "confidence": 0.95,
+    "page_index": 0,
+    "line_index": 9
+  },
+  {
+    "text": "Montant HT",
+    "box": {
+      "x1": 10,
+      "y1": 175,
+      "x2": 100,
+      "y2": 190
+    },
+    "confidence": 0.95,
+    "page_index": 0,
+    "line_index": 10
+  },
+  {
+    "text": "5000.00",
+    "box": {
+      "x1": 130,
+      "y1": 175,
+      "x2": 230,
+      "y2": 190
+    },
+    "confidence": 0.9,
+    "page_index": 0,
+    "line_index": 11
+  },
+  {
+    "text": "TVA",
+    "box": {
+      "x1": 10,
+      "y1": 200,
+      "x2": 50,
+      "y2": 215
+    },
+    "confidence": 0.95,
+    "page_index": 0,
+    "line_index": 12
+  },
+  {
+    "text": "1000.00",
+    "box": {
+      "x1": 130,
+      "y1": 200,
+      "x2": 230,
+      "y2": 215
+    },
+    "confidence": 0.9,
+    "page_index": 0,
+    "line_index": 13
+  },
+  {
+    "text": "TTC",
+    "box": {
+      "x1": 10,
+      "y1": 225,
+      "x2": 50,
+      "y2": 240
+    },
+    "confidence": 0.95,
+    "page_index": 0,
+    "line_index": 14
+  },
+  {
+    "text": "6000.00",
+    "box": {
+      "x1": 130,
+      "y1": 225,
+      "x2": 230,
+      "y2": 240
+    },
+    "confidence": 0.9,
+    "page_index": 0,
+    "line_index": 15
+  }
+]

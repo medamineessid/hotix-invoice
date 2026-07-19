@@ -1105,6 +1105,17 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
 
     private async Task RetryServerAsync()
     {
+        // Reset state before retrying — force a fresh health check
+        IsExtracting = false;
+        IsServerRunning = false;
+        ShowSummaryBanner = false;
+        await Application.Current.Dispatcher.InvokeAsync(() =>
+        {
+            Results.Clear();
+            IncompleteResults.Clear();
+        });
+        NotifySummaryChanged();
+
         try
         {
             await EnsureServerReadyAsync();
@@ -1959,6 +1970,30 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             SummaryBannerColor = "#C0392B";
             ShowSummaryBanner = true;
             return;
+        }
+
+        // ── Pre-flight health check ──
+        try
+        {
+            using var healthResponse = await _apiHttpClient.GetAsync(
+                "http://127.0.0.1:8000/health",
+                CancellationToken.None);
+            if (!healthResponse.IsSuccessStatusCode)
+            {
+                IsServerRunning = false;
+                throw new InvalidOperationException(
+                    TranslationSource.Get("ServerHealthCheckFailed"));
+            }
+        }
+        catch (InvalidOperationException)
+        {
+            throw; // rethrow our own health-check failure (shown as server-level banner)
+        }
+        catch (Exception)
+        {
+            IsServerRunning = false;
+            throw new InvalidOperationException(
+                TranslationSource.Get("ServerHealthCheckFailed"));
         }
 
         _extractionCts = new CancellationTokenSource();

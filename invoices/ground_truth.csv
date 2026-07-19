@@ -1,0 +1,6 @@
+invoice_id,numero_facture,date,fournisseur,client,montant_ht,montant_tva,montant_taxe,montant_ttc
+synthetic_000,INV-2024-001,2024-03-15,SARL Dupont et Fils,Entreprise Martin EURL,1250.000,250.000,0.000,1500.000
+synthetic_001,FAC-2024-0042,2024-03-16,Societe Nouvelle SARL,Cabinet Conseil Associes,2500.000,500.000,0.000,3000.000
+synthetic_002,2024-00123,2024-03-17,Construction Moderne SARL,Mairie de Villefranche,5000.000,1000.000,0.000,6000.000
+synthetic_003,INV-2024-789,2024-03-18,Etablissements Leclerc,Pharmacie du Centre,750.000,150.000,0.000,900.000
+synthetic_004,REF-2024-555,2024-03-19,Atelier Creation Design,Agence Publicite Plus,3200.000,640.000,0.000,3840.000

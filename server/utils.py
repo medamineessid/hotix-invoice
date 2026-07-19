@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+import logging
 import re
 import unicodedata
+
+
+logger = logging.getLogger(__name__)
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
@@ -130,6 +134,9 @@ def extract_amount(text: str) -> Optional[str]:
 
     cleaned = collapse_text(text)
     cleaned = cleaned.replace("TND", "").replace("DT", "").replace("€", "").replace("$", "").replace("£", "")
+    # Remove percentage patterns BEFORE stripping non-numeric characters.
+    # Prevents "20% 20.00 €" from merging into "2020.00" after % is stripped.
+    cleaned = re.sub(r"-?\d[\d.,]*\s*%", "", cleaned)
     cleaned = re.sub(r"[^\d,.\-\s]", "", cleaned).strip()
 
     if not cleaned:
@@ -392,18 +399,33 @@ def reconcile_amounts(fields: dict[str, Optional[str]], field_confidences: dict[
     if available == 3 and ht is not None and tva is not None and ttc is not None:
         expected_ttc = ht + tva + effective_taxe
         if abs(expected_ttc - ttc) <= AMOUNT_MISMATCH_EPSILON:
-            return result, computed, has_mismatch  # Already consistent
+            # Amounts are arithmetically consistent.
+            # If taxe is missing, derive it (even if derived = 0, fill it in).
+            if taxe is None:
+                derived_taxe = ttc - ht - tva
+                logger.debug("Reconcile: amounts consistent, deriving taxe=%s (HT=%s, TVA=%s, TTC=%s)",
+                             derived_taxe, ht, tva, ttc)
+                if derived_taxe >= Decimal("0"):
+                    result["montant_taxe"] = _format_amount(derived_taxe)
+                    computed.add("montant_taxe")
+                else:
+                    logger.debug("Reconcile: derived taxe=%s is negative, rejecting", derived_taxe)
+            return result, computed, has_mismatch
 
         # Mismatch — if taxe is missing and within reasonable range, derive it to reconcile
         if taxe is None:
             derived_taxe = ttc - ht - tva
+            logger.debug("Reconcile: amounts inconsistent, trying to derive taxe=%s (HT=%s, TVA=%s, TTC=%s)",
+                         derived_taxe, ht, tva, ttc)
             max_main = max(ht, tva) if ht is not None and tva is not None else ttc or Decimal("0")
             if (derived_taxe >= Decimal("0")
                 and derived_taxe <= max_main * Decimal("2")
                 and abs(ht + tva + derived_taxe - ttc) <= AMOUNT_MISMATCH_EPSILON):
+                logger.debug("Reconcile: derived taxe=%s accepted, reconciling", derived_taxe)
                 result["montant_taxe"] = _format_amount(derived_taxe)
                 computed.add("montant_taxe")
                 return result, computed, False  # Reconciled, no mismatch
+            logger.debug("Reconcile: derived taxe=%s rejected (out of range or impossible)", derived_taxe)
         has_mismatch = True
         return result, computed, has_mismatch
 
