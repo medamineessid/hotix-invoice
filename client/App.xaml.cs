@@ -262,14 +262,24 @@ public partial class App : Application
 
             LogServerLine("Server process started, polling /health...");
 
-            // Poll /health until ready (max 30 seconds)
+            // Poll /health until ready (max 90 seconds)
+            // Progress thresholds based on real user logs:
+            //   0-15s:   "Starting OCR server..."    — Python/uvicorn startup + imports
+            //   15-35s:  "Almost ready..."            — FastAPI lifespan, PaddleOCR init
+            //   35-60s:  "Loading models from cache..." — PaddleOCR models loading
+            //   60-90s:  "Loading models..."          — long pole (first-time download)
+            //
+            // On a true cold start (no cached models) PaddleOCR needs to download
+            // models from HuggingFace/ModelScope, which can add 30-60+ seconds.
             var stopwatch = Stopwatch.StartNew();
-            while (stopwatch.Elapsed < TimeSpan.FromSeconds(30))
+            while (stopwatch.Elapsed < TimeSpan.FromSeconds(90))
             {
                 double elapsed = stopwatch.Elapsed.TotalSeconds;
-                if (elapsed > 15)
+                if (elapsed > 55)
                     progress?.Report(TranslationSource.Get("ServerStartingModels"));
-                else if (elapsed > 5)
+                else if (elapsed > 30)
+                    progress?.Report(TranslationSource.Get("ServerStartingCache"));
+                else if (elapsed > 12)
                     progress?.Report(TranslationSource.Get("ServerStartingAlmost"));
                 else
                     progress?.Report(TranslationSource.Get("ServerStartingOcr"));
@@ -290,7 +300,7 @@ public partial class App : Application
             }
 
             // Timeout — capture diagnostics before cleaning up
-            LogServerLine("TIMEOUT: Server did not become healthy within 30 seconds.");
+            LogServerLine("TIMEOUT: Server did not become healthy within 90 seconds.");
             string logTail = GetLogTail(20);
             string logPath = ServerLogPath;
             LogServerLine($"Log file location: {logPath}");

@@ -11,6 +11,7 @@ from server.utils import (
     OCRLine,
     clean_amount,
     clean_date,
+    cluster_rows,
     collapse_text,
     detect_amount_collision,
     extract_amount,
@@ -796,3 +797,106 @@ class TestDetectAmountCollision:
             "montant_ttc": None,
         }
         assert detect_amount_collision(fields) is False
+
+
+# ── cluster_rows ───────────────────────────────────────────────────────────────
+
+
+class TestClusterRows:
+    """Tests for visual row clustering (vertical overlap + horizontal-gap splitting)."""
+
+    def test_empty(self):
+        assert cluster_rows([]) == []
+
+    def test_single_line(self):
+        lines = [OCRLine("hello", BoundingBox(0, 0, 30, 20), 0.9, 0, 0)]
+        rows = cluster_rows(lines)
+        assert len(rows) == 1
+        assert len(rows[0]) == 1
+
+    def test_two_lines_same_row(self):
+        """Two lines with vertical overlap should be in the same row."""
+        lines = [
+            OCRLine("TTC:",    BoundingBox(0, 0, 30, 20), 0.9, 0, 0),
+            OCRLine("1250.00", BoundingBox(100, 0, 160, 20), 0.95, 0, 1),
+        ]
+        rows = cluster_rows(lines)
+        assert len(rows) == 1
+        assert len(rows[0]) == 2
+
+    def test_two_lines_different_rows(self):
+        """Two non-overlapping lines should be in different rows."""
+        lines = [
+            OCRLine("TTC:",    BoundingBox(0, 0, 30, 20), 0.9, 0, 0),
+            OCRLine("1250.00", BoundingBox(0, 50, 60, 70), 0.95, 0, 1),
+        ]
+        rows = cluster_rows(lines)
+        assert len(rows) == 2
+        assert len(rows[0]) == 1
+        assert len(rows[1]) == 1
+
+    def test_same_row_close_gap_stays_merged(self):
+        """Label+value pair with a small gap should stay in the same sub-row.
+        Gap = 10px, height = 20px → 10 < 3 * 20 = 60 → MERGED."""
+        lines = [
+            OCRLine("TVA:",   BoundingBox(0, 0, 30, 20), 0.9, 0, 0),
+            OCRLine("20.00 €", BoundingBox(40, 0, 100, 20), 0.95, 0, 1),
+        ]
+        rows = cluster_rows(lines)
+        assert len(rows) == 1
+        assert len(rows[0]) == 2
+
+    def test_same_row_large_gap_splits_columns(self):
+        """Two-column layout: items at same y-height but far apart horizontally
+        should be split into separate sub-rows.
+        Gap = 300px, height = 15px → 300 > 3 * 15 = 45 → SPLIT."""
+        lines = [
+            # Left column: supplier info
+            OCRLine("SARL Dupont", BoundingBox(30, 0, 120, 15), 0.9, 0, 0),
+            # Right column: invoice metadata (same y-range, far to the right)
+            OCRLine("Facture N° INV-001", BoundingBox(450, 0, 600, 15), 0.9, 0, 1),
+        ]
+        rows = cluster_rows(lines)
+        # Should be split into 2 sub-rows (different columns)
+        assert len(rows) == 2
+        assert len(rows[0]) == 1
+        assert len(rows[1]) == 1
+
+    def test_two_column_header_respects_columns(self):
+        """Real-world two-column invoice header: left=supplier+address,
+        right=invoice metadata.  All items at similar y heights but far
+        apart horizontally should be split by column."""
+        lines = [
+            # Left column: supplier
+            OCRLine("Construction Moderne SARL", BoundingBox(50, 10, 200, 30), 0.9, 0, 0),
+            OCRLine("123 Rue de Paris",          BoundingBox(50, 35, 170, 55), 0.9, 0, 1),
+            # Right column: invoice metadata
+            OCRLine("Facture N° 2024-00123",     BoundingBox(500, 10, 680, 30), 0.9, 0, 2),
+            OCRLine("Date : 17/03/2024",         BoundingBox(500, 35, 640, 55), 0.9, 0, 3),
+        ]
+        rows = cluster_rows(lines)
+        # We expect 4 distinct single-item rows because:
+        # - Row 0: "Construction Moderne SARL" (left) and "Facture N° 2024-00123" (right)
+        #   have vertical overlap but a huge horizontal gap → split into 2 sub-rows
+        # - Row 1: "123 Rue de Paris" (left) and "Date : 17/03/2024" (right)
+        #   same story → split into 2 sub-rows
+        # So we get 4 rows total
+        assert len(rows) >= 3  # At least 3 rows (could be 4)
+        # Check that no single row contains both column data
+        for row in rows:
+            texts = [l.text for l in row]
+            # No row should contain items from both columns
+            has_left = any("SARL" in t or "Rue" in t for t in texts)
+            has_right = any("Facture" in t or "Date" in t for t in texts)
+            assert not (has_left and has_right), f"Row merged columns: {texts}"
+
+    def test_three_close_items_stay_together(self):
+        """Three close items on same row should all be in one sub-row."""
+        lines = [
+            OCRLine("Designation", BoundingBox(0, 0, 60, 20), 0.9, 0, 0),
+            OCRLine("Qty",        BoundingBox(70, 0, 100, 20), 0.9, 0, 1),
+            OCRLine("Price",      BoundingBox(110, 0, 150, 20), 0.9, 0, 2),
+        ]
+        rows = cluster_rows(lines)
+        assert len(rows) == 1
+        assert len(rows[0]) == 3

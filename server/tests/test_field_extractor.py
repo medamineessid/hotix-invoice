@@ -11,6 +11,7 @@ from server.field_extractor import (
     _extract_field_selections,
     _extract_inline_value,
     _looks_like_label,
+    _matches_alias_relaxed,
     _score_candidate,
     extract_field_confidences,
     extract_invoice_fields,
@@ -347,6 +348,113 @@ class TestScoreCandidate:
 # ── Field collision tests ────────────────────────────────────────────────────
 
 
+# ── Relaxed alias matching ──────────────────────────────────────────────────
+
+
+class TestMatchesAliasRelaxed:
+    """Tests for stopword-tolerant alias subsequence matching."""
+
+    def test_exact_match(self):
+        """Exact match should work."""
+        assert _matches_alias_relaxed("n° de facture", ["n° de facture"]) is True
+
+    def test_inserted_stopword(self):
+        """"n° de la facture d'origine" should match "n° de facture".
+        "la" is an inserted stopword between "de" and "facture"."""
+        assert _matches_alias_relaxed("n° de la facture d'origine", ["n° de facture"]) is True
+
+    def test_inserted_multiple_stopwords(self):
+        """Multiple inserted stopwords should be tolerated."""
+        assert _matches_alias_relaxed(
+            "n° de la de la facture", ["n° de facture"]
+        ) is True
+
+    def test_missing_alias_token(self):
+        """If a required alias token is missing, should NOT match."""
+        # "facture" is missing
+        assert _matches_alias_relaxed("n° de la commande", ["n° de facture"]) is False
+
+    def test_tokens_in_wrong_order(self):
+        """If alias tokens appear in wrong order, should NOT match."""
+        assert _matches_alias_relaxed("facture de n°", ["n° de facture"]) is False
+
+    def test_compound_n_facture_with_inserted_la(self):
+        """"n° de la facture" matching "n° facture" (skipping "de")."""
+        assert _matches_alias_relaxed("n° de la facture", ["n° facture"]) is True
+
+    def test_no_false_positive_on_unrelated_text(self):
+        """Unrelated text should not match."""
+        assert _matches_alias_relaxed("bonjour le monde", ["n° de facture"]) is False
+
+    def test_empty_text(self):
+        assert _matches_alias_relaxed("", ["n° de facture"]) is False
+
+    def test_multi_word_alias_with_no_stopwords(self):
+        """Alias that doesn't have stopwords should still match when text has extra words."""
+        assert _matches_alias_relaxed(
+            "invoice number INV-2024-001", ["invoice number"]
+        ) is True
+
+
+# ── Fournisseur alias tests ───────────────────────────────────────────────────
+
+
+class TestFournisseurAliases:
+    """Tests for fournisseur alias matching."""
+
+    def test_votre_entreprise_label(self):
+        """"Votre entreprise" should be recognized as a fournisseur label."""
+        lines = [
+            OCRLine("Votre entreprise", BoundingBox(0, 0, 80, 15), 0.9, 0, 0),
+            OCRLine("SARL Dupont et Fils", BoundingBox(0, 20, 110, 35), 0.95, 0, 1),
+        ]
+        fields = extract_invoice_fields(lines)
+        assert fields["fournisseur"] is not None
+        assert "Dupont" in (fields["fournisseur"] or "")
+
+    def test_votre_entreprise_lowercase(self):
+        """Case-insensitive matching for "votre entreprise"."""
+        lines = [
+            OCRLine("Votre Entreprise", BoundingBox(0, 0, 80, 15), 0.9, 0, 0),
+            OCRLine("ACME Inc.", BoundingBox(0, 20, 80, 35), 0.95, 0, 1),
+        ]
+        fields = extract_invoice_fields(lines)
+        assert fields["fournisseur"] is not None
+
+
+# ── Numero facture with stopwords ─────────────────────────────────────────────
+
+
+class TestNumeroFactureStopwords:
+    """Tests for numero_facture extraction with inserted stopwords."""
+
+    def test_inserted_la_in_alias(self):
+        """"n° de la facture d'origine" should still extract the invoice number."""
+        lines = [
+            OCRLine("n° de la facture d'origine : INV-2024-001", BoundingBox(0, 0, 200, 20), 0.9, 0, 0),
+        ]
+        fields = extract_invoice_fields(lines)
+        assert fields["numero_facture"] is not None
+        assert "INV-2024-001" in (fields["numero_facture"] or "")
+
+    def test_inserted_stopword_separate_line(self):
+        """Anchor with inserted stopword, value on same row to the right."""
+        lines = [
+            OCRLine("n° de la facture d'origine", BoundingBox(0, 0, 160, 20), 0.9, 0, 0),
+            OCRLine("INV-2024-001", BoundingBox(170, 0, 280, 20), 0.95, 0, 1),
+        ]
+        fields = extract_invoice_fields(lines)
+        assert fields["numero_facture"] is not None
+
+    def test_normal_numero_facture_still_works(self):
+        """Normal "N° Facture" without stopwords should still work."""
+        lines = [
+            OCRLine("N° Facture: INV-001", BoundingBox(0, 0, 120, 20), 0.9, 0, 0),
+        ]
+        fields = extract_invoice_fields(lines)
+        assert fields["numero_facture"] == "INV-001"
+
+
 class TestFieldCollisions:
     """Tests for the field collision prevention mechanism."""
 
@@ -399,3 +507,100 @@ class TestFieldCollisions:
         ht_val = fields["montant_ht"]
         tva_val = fields["montant_tva"]
         assert ht_val is None or tva_val is None or ht_val != tva_val
+
+
+# ── Two-column layout regression tests ────────────────────────────────────────
+
+
+class TestTwoColumnLayout:
+    """Integration tests for two-column invoice layouts where labels (left)
+    and values (right) are at the same row height but far apart horizontally.
+
+    On real SumUp-style invoices, the amounts section (left: Total HT, TVA,
+    Total TTC; right: 100.00, 20.00, 120.00) can have a 300-500 px gap between
+    label and value columns — enough to trigger the 5x cluster_rows split but
+    close enough that below-row search must still find them.
+    """
+
+    def test_amounts_two_column_with_gap(self):
+        """Label column left (x=0-50), value column right (x=350-400).
+        Same y-heights so vertical overlap merges them, then 5x split
+        separates into sub-rows. Labels must still find their values
+        via below-row geometric search."""
+        lines = [
+            # Invoice header (full-width, single column)
+            OCRLine("Facture N° INV-2024-001", BoundingBox(50, 0, 300, 20), 0.95, 0, 0),
+            OCRLine("Date: 15/03/2024", BoundingBox(50, 25, 200, 45), 0.95, 0, 1),
+            # Two-column amounts section: labels left, values right
+            # Same row height (y=50..70) — vertical overlap > 50% → same row
+            # Then 5x split: gap = 350-50 = 300, height = 20, 5*20 = 100 < 300 → SPLIT
+            OCRLine("Total HT", BoundingBox(0, 50, 50, 70), 0.9, 0, 2),
+            OCRLine("100.00", BoundingBox(350, 50, 410, 70), 0.95, 0, 3),
+            # TVA row (y=75..95)
+            OCRLine("TVA", BoundingBox(0, 75, 40, 95), 0.9, 0, 4),
+            OCRLine("20.00", BoundingBox(350, 75, 410, 95), 0.95, 0, 5),
+            # Total TTC row (y=100..120)
+            OCRLine("Total TTC", BoundingBox(0, 100, 60, 120), 0.9, 0, 6),
+            OCRLine("120.00", BoundingBox(350, 100, 410, 120), 0.95, 0, 7),
+        ]
+        fields = extract_invoice_fields(lines)
+
+        # All amounts must be found despite the two-column split
+        assert fields["montant_ht"] is not None, f"HT should be found, got: {fields['montant_ht']}"
+        assert fields["montant_tva"] is not None, f"TVA should be found, got: {fields['montant_tva']}"
+        assert fields["montant_ttc"] is not None, f"TTC should be found, got: {fields['montant_ttc']}"
+
+        # Verify correct values
+        assert abs(float(fields["montant_ht"]) - 100.0) < 0.01, f"Expected ~100.0, got {fields['montant_ht']}"
+        assert abs(float(fields["montant_tva"]) - 20.0) < 0.01, f"Expected ~20.0, got {fields['montant_tva']}"
+        assert abs(float(fields["montant_ttc"]) - 120.0) < 0.01, f"Expected ~120.0, got {fields['montant_ttc']}"
+
+        # Invoice number and date should also be found
+        assert fields["numero_facture"] is not None
+        assert fields["date"] is not None
+
+    def test_two_column_header_client_left_invoice_right(self):
+        """Two-column header with client info left, invoice metadata right.
+        Neither column should contaminate the other's field extraction."""
+        lines = [
+            # Left column — client/supplier info
+            OCRLine("Fournisseur:", BoundingBox(0, 0, 80, 15), 0.9, 0, 0),
+            OCRLine("SARL Dupont", BoundingBox(0, 20, 120, 35), 0.95, 0, 1),
+            OCRLine("Client:", BoundingBox(0, 50, 60, 65), 0.9, 0, 2),
+            OCRLine("Mairie de Ville", BoundingBox(0, 70, 140, 85), 0.95, 0, 3),
+            # Right column — invoice metadata
+            OCRLine("N° Facture:", BoundingBox(350, 0, 440, 15), 0.9, 0, 4),
+            OCRLine("INV-2024-001", BoundingBox(350, 20, 460, 35), 0.95, 0, 5),
+            OCRLine("Date:", BoundingBox(350, 50, 400, 65), 0.9, 0, 6),
+            OCRLine("15/03/2024", BoundingBox(350, 70, 440, 85), 0.95, 0, 7),
+        ]
+        fields = extract_invoice_fields(lines)
+
+        # Invoice number should come from right column, not left
+        assert fields["numero_facture"] is not None
+        assert "INV-2024-001" in fields["numero_facture"]
+
+        # Date should come from right column
+        assert fields["date"] == "2024-03-15"
+
+        # Fournisseur should come from left column
+        assert fields["fournisseur"] is not None
+        assert "Dupont" in fields["fournisseur"]
+
+        # Client should come from left column
+        assert fields["client"] is not None
+        assert "Mairie" in fields["client"]
+
+    def test_amounts_with_percentage_and_gap(self):
+        """TVA with percentage on same line + two-column gap.
+        This is the exact pattern that was failing on the real SumUp invoice:
+        "TVA    20%    20.00 €" — percentage must be stripped, gap must
+        not prevent value extraction."""
+        lines = [
+            # Label with percentage inline, value to the right
+            OCRLine("TVA 20%", BoundingBox(0, 0, 60, 20), 0.9, 0, 0),
+            OCRLine("20.00", BoundingBox(350, 0, 410, 20), 0.95, 0, 1),
+        ]
+        fields = extract_invoice_fields(lines)
+        assert fields["montant_tva"] is not None
+        assert abs(float(fields["montant_tva"]) - 20.0) < 0.01

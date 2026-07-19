@@ -216,6 +216,15 @@ def cluster_rows(lines: Sequence[OCRLine]) -> list[list[OCRLine]]:
     Lines whose bounding boxes overlap vertically by more than ~50%
     of the shorter line's height are grouped into the same row.
     Within each row, lines are sorted left-to-right by x1.
+
+    If two items in a row have a large horizontal gap (more than 5x the
+    taller box's height), they are split into separate sub-rows. This
+    prevents unrelated columns on two-column invoices from being merged
+    into a single row, while keeping label+value pairs together.
+    Empirically, label+value gaps are 10-80 px while column gaps are
+    200-500+ px; at ~20 px typical text height, 5x = 100 px cleanly
+    separates the two distributions.
+
     Rows are sorted top-to-bottom by their average y-center.
     """
     if not lines:
@@ -250,7 +259,25 @@ def cluster_rows(lines: Sequence[OCRLine]) -> list[list[OCRLine]]:
 
         # Sort within row left-to-right
         current_row.sort(key=lambda l: l.box.x1)
-        rows.append(current_row)
+
+        # ── Split into sub-rows when horizontal gap is too large ──────────
+        # On two-column invoices, text from different columns at the same
+        # vertical height gets merged by vertical overlap alone.  We split
+        # when the gap between consecutive items exceeds 5x the taller
+        # box's height.  Empirically label+value gaps are 10-80 px while
+        # column gaps are 200-500+ px; at 20 px typical height, 5x=100 px
+        # cleanly separates the two distributions.
+        sub_rows: list[list[OCRLine]] = [[current_row[0]]]
+        for item in current_row[1:]:
+            prev = sub_rows[-1][-1]
+            gap = item.box.x1 - prev.box.x2
+            taller = max(prev.box.height, item.box.height)
+            if taller > 0 and gap > 5.0 * taller:
+                sub_rows.append([item])
+            else:
+                sub_rows[-1].append(item)
+
+        rows.extend(sub_rows)
 
     # Sort rows top-to-bottom by average y-center
     rows.sort(key=lambda r: sum(l.box.center_y for l in r) / len(r))

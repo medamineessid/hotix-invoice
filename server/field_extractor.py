@@ -49,89 +49,328 @@ FIELD_ORDER = (
 )
 
 FIELD_ALIASES: dict[str, tuple[str, ...]] = {
+    # ── Invoice number ───────────────────────────────────────────────────
+    # French: n°, numéro, référence facture
+    # English: invoice number, ref
+    # Also covers inserted stopwords via _matches_alias_relaxed fallback
     "numero_facture": (
+        # French — "n°" variants (full form only; "n° fact" would
+        # match "N° Facture" prefix and extract "ure" as garbage)
         "n° facture",
         "n facture",
         "n°facture",
+        "n° de facture",
+        "n de facture",
+        # French — "numéro" variants
         "numéro de facture",
         "numero de facture",
+        "numéro facture",
+        "numero facture",
+        # French — "facture n°" variants
         "facture n°",
         "facture no",
         "facture nº",
         "nº facture",
         "no facture",
-        "n° de facture",
-        "n de facture",
+        # French — "réf" variants (full form only; "réf fact" would
+        # match "Réf Facture" prefix and extract "ure" as garbage)
+        "réf facture",
+        "ref facture",
+        "référence facture",
+        "reference facture",
+        # English
+        "invoice number",
         "invoice n°",
         "invoice no",
         "invoice #",
+        "invoice id",
+        "invoice ref",
+        "inv no",
+        # Purchase order / order number (sometimes used as invoice ref)
+        "n° commande",
+        "numero commande",
+        "numéro commande",
+        "order number",
+        "purchase order",
+        "po number",
     ),
+    # ── Date ────────────────────────────────────────────────────────────
+    # French: date, date d'émission, émise le
+    # English: date, invoice date, issued date
     "date": (
+        # French — core
         "date",
         "date de facturation",
         "date facture",
-        "date invoice",
+        "date de la facture",
+        "date d'émission",
+        "date d'emission",
+        "date d'émission de la facture",
+        "date d'emission de la facture",
+        "date de création",
+        "date de creation",
+        "date de création de la facture",
+        "date de creation de la facture",
+        "date d'échéance",
+        "date d'echeance",
+        "date d'échéance de la facture",
+        "date d'echeance de la facture",
+        "échéance",
+        "echeance",
+        "date limite",
+        "date d'expédition",
+        "date d'expedition",
+        # French — "émise le" / "émis le"
         "émise le",
         "emise le",
+        "émis le",
+        "emis le",
+        "délivrée le",
+        "delivree le",
+        # French — varying word order
+        "facture du",
+        # English (no duplicates — "date" is already in French section)
         "invoice date",
+        "date of invoice",
+        "issued date",
+        "issue date",
+        "date issued",
+        "invoice dated",
+        "date d'invoice",
+        # Due date
+        "due date",
+        "payment due",
     ),
+    # ── Supplier (fournisseur) ──────────────────────────────────────────
+    # French: fournisseur, vendeur, votre entreprise, société, expéditeur
+    # English: supplier, seller, vendor, from, bill from
+    # Tunisian: same as French
     "fournisseur": (
+        # French
         "fournisseur",
         "vendeur",
         "émetteur",
         "emetteur",
+        "expéditeur",
+        "expediteur",
+        "votre entreprise",
+        "nos coordonnées",
+        "nos informations",
+        "informations société",
+        "informations entreprise",
+        "coordonnées société",
+        "coordonnées",
+        "société",
+        "societe",
+        "entreprise",
+        "prestataire",
+        "émetteur de la facture",
+        "emetteur de la facture",
+        # English
         "supplier",
+        "seller",
+        "vendor",
+        "from",
+        "bill from",
+        "billing provider",
+        "provider",
     ),
+    # ── Client ──────────────────────────────────────────────────────────
+    # French: client, acheteur, destinataire, facturé à, livré à
+    # English: customer, bill to, ship to
     "client": (
+        # French
         "client",
         "acheteur",
         "destinataire",
+        "facturé à",
+        "facture a",
+        "facturée à",
+        "facturee a",
+        "livré à",
+        "livre a",
+        "livrée à",
+        "livree a",
+        "expédié à",
+        "expedie a",
+        "à l'attention de",
+        "a l'attention de",
+        "attention de",
+        "coordonnées client",
+        "informations client",
+        # English
         "customer",
+        "bill to",
+        "billing address",
+        "ship to",
+        "shipping address",
+        "sold to",
     ),
+    # ── Montant HT (subtotal / taxable amount) ──────────────────────────
+    # French: montant HT, total HT, sous-total HT, base HT
+    # English: subtotal, net amount, taxable amount
+    # Tunisian: same as French (TND)
     "montant_ht": (
+        # French — "HT" variants
         "montant ht",
         "total ht",
         "sous-total ht",
         "sous total ht",
         "ht",
+        "base ht",
+        "base imposable",
+        # French — "hors taxe" variants
         "montant hors taxe",
         "montant hors taxes",
         "total hors taxe",
+        "total hors taxes",
+        "sous-total hors taxe",
+        "sous total hors taxe",
+        # French — abbreviated
         "h.t",
-        "base ht",
+        "h.t.",
+        "base h.t",
+        "total h.t",
+        "montant h.t",
+        # English
+        "subtotal",
+        "sub total",
+        "sub-total",
+        "net amount",
+        "net total",
+        "total before tax",
+        "taxable amount",
+        "amount before tax",
+        "total before vat",
     ),
+    # ── Montant TVA (VAT amount) ───────────────────────────────────────
+    # French: TVA, montant TVA, total TVA
+    # English: VAT, VAT amount, sales tax, GST
+    # Tunisian: same as French (TVA rates differ but label is same)
     "montant_tva": (
+        # French
         "tva",
         "montant tva",
         "total tva",
         "t.v.a",
+        "t.v.a.",
+        "tva due",
+        "montant de la tva",
+        "tva collectée",
+        "tva collectee",
+        "tva facturée",
+        "tva facturee",
+        "tva sur débits",
+        "tva sur debits",
+        "tva sur encaissements",
+        "base tva",
+        # English / International
         "vat",
+        "vat amount",
+        "total vat",
+        "amount vat",
+        "vat due",
+        "vat to pay",
+        "sales tax",
+        "tax amount",
+        "gst",
+        "gst amount",
+        "hst",
+        "pst",
     ),
+    # ── Montant Taxe (other taxes / stamp duty) ────────────────────────
+    # French: taxe, timbre fiscal, contribution
+    # Tunisian: timbre fiscal (stamp duty is very common)
+    # English: tax, stamp duty, excise
     "montant_taxe": (
+        # French
         "taxe",
         "montant taxe",
         "total taxe",
-        "tax",
-        "contribution",
+        # Tunisian — timbre fiscal (stamp duty on invoices)
         "timbre",
+        "timbre fiscal",
+        "timbre fiscale",
+        "droit d'enregistrement",
+        "droit d'enregistrement",
+        "droit de timbre",
+        # French — other specific taxes
+        "contribution",
+        "taxe spécifique",
+        "taxe specifique",
+        "taxe d'enregistrement",
+        "taxe d'enregistrement",
+        "taxe de séjour",
+        "taxe de sejour",
+        "taxe à l'importation",
+        "taxe a l'importation",
+        # English
+        "tax",
+        "other tax",
+        "additional tax",
+        "stamp duty",
+        "excise",
+        "duty",
+        "customs duty",
+        "withholding tax",
     ),
+    # ── Montant TTC (total / amount due) ───────────────────────────────
+    # French: TTC, net à payer, total général, à payer, montant dû
+    # English: total, grand total, amount due, payable
+    # Tunisian: same as French
     "montant_ttc": (
+        # French — "TTC" variants
         "ttc",
         "montant ttc",
         "total ttc",
+        "t.t.c",
+        "t.t.c.",
+        "total t.t.c",
+        # French — "net à payer" variants
         "net à payer",
         "net a payer",
-        "total ttc",
-        "t.t.c",
+        "net à payer ttc",
+        "net a payer ttc",
+        "nette à payer",
+        "nette a payer",
+        # French — "total" variants
         "total général",
         "total general",
+        "total facture",
+        "total à payer",
+        "total a payer",
+        "montant total",
+        "montant facture",
+        # French — "à payer" / due variants
         "à payer",
         "a payer",
         "montant dû",
         "montant du",
+        "montant à payer",
+        "montant a payer",
+        "solde à payer",
+        "solde a payer",
+        "solde dû",
+        "solde du",
+        "reste à payer",
+        "reste a payer",
+        # French — "règlement"
+        "règlement",
+        "reglement",
+        # English
         "total",
-        "total invoice",
+        "total amount",
         "grand total",
+        "total invoice",
+        "invoice total",
+        "amount due",
+        "total due",
+        "net amount due",
+        "amount payable",
+        "payable",
+        "balance due",
+        "outstanding",
+        "total to pay",
     ),
 }
 
@@ -157,6 +396,21 @@ FIELD_CONFIDENCE_THRESHOLD = 0.6
 
 # How far below an anchor (in rows) to search for a value candidate
 MAX_LOOKAHEAD_ROWS = 4
+
+# Hard pixel-distance cap for value candidates.
+# Even if a candidate is within the row-index window (MAX_LOOKAHEAD_ROWS),
+# it is rejected if its real pixel distance from the anchor exceeds this
+# threshold.  This prevents header anchors from reaching footer content
+# on sparsely-detected pages where few rows span a large physical area.
+# Empirically: 250px covers ~6-8 lines of text (enough for any legitimate
+# label-value pair in the same page region) while rejecting cross-section
+# merges (header↔body, body↔footer).
+MAX_CANDIDATE_VERTICAL_GAP = 250.0
+
+# Maximum horizontal gap for a same-row-right candidate.
+# Prevents merging unrelated text columns when cluster_rows places them
+# in the same sub-row (though the 5x height split usually handles this).
+MAX_CANDIDATE_HORIZONTAL_GAP = 500.0
 
 # Constants for same-row-right matching
 SAME_ROW_H_OVERLAP_THRESHOLD = 0.3  # min horizontal overlap ratio for "same row"
@@ -499,6 +753,10 @@ def _selection_from_geometric_search(field: str, anchor: OCRLine, rows: list[lis
             continue
         if line.box.x1 < anchor.box.x2:
             continue
+        # Hard cap: reject candidates too far to the right (unrelated column)
+        h_gap = line.box.x1 - anchor.box.x2
+        if h_gap > MAX_CANDIDATE_HORIZONTAL_GAP:
+            continue
         # Use field-specific plausibility check for numero_facture
         if field == "numero_facture":
             if not _candidate_is_plausible_numero_facture(line):
@@ -512,6 +770,12 @@ def _selection_from_geometric_search(field: str, anchor: OCRLine, rows: list[lis
     # (b) Below-row candidates
     for line in _lines_below(anchor_row_idx, rows):
         if excluded_ids and id(line) in excluded_ids:
+            continue
+        # Hard cap: reject candidates more than MAX_CANDIDATE_VERTICAL_GAP
+        # pixels below the anchor.  Prevents header anchors from reaching
+        # footer content on pages with sparse text detection.
+        v_gap = anchor.box.vertical_gap(line.box)
+        if v_gap > MAX_CANDIDATE_VERTICAL_GAP:
             continue
         # Use field-specific plausibility check for numero_facture
         if field == "numero_facture":
@@ -555,6 +819,45 @@ def _contains_any_alias(text: str, aliases: Sequence[str]) -> bool:
         pattern = re.compile(r"\b" + re.escape(alias_normalized) + r"\b")
         if pattern.search(normalized):
             return True
+    return False
+
+
+# ── Relaxed alias matching (subsequence) ────────────────────────────────────
+
+# No stopword list is needed — _matches_alias_relaxed uses pure subsequence
+# matching so ANY inserted words (not just stopwords) between required alias
+# tokens are tolerated.  This is safe because _NUMERO_FACTURE_ANCHORS all
+# require at least 2 core tokens to match in order, making false positives
+# very unlikely on real invoice text.
+
+
+def _matches_alias_relaxed(text: str, aliases: Sequence[str]) -> bool:
+    """Return True when the text matches an alias allowing inserted words.
+
+    For each alias, checks whether all alias tokens appear in the text in
+    order as a subsequence.  Any extra tokens in the text are simply skipped
+    — they are not required to be stopwords.  This handles variants like
+    "n° de la facture d'origine" matching the alias "n° de facture".
+
+    Only used for _NUMERO_FACTURE_ANCHORS — regular field aliases use the
+    strict word-boundary _contains_any_alias to avoid false positives.
+    """
+
+    normalized = normalize_text(text)
+    text_tokens = normalized.split()
+
+    for alias in aliases:
+        alias_norm = normalize_text(alias)
+        alias_tokens = alias_norm.split()
+
+        # Check if alias tokens appear as a subsequence of text tokens
+        alias_idx = 0
+        for token in text_tokens:
+            if alias_idx < len(alias_tokens) and token == alias_tokens[alias_idx]:
+                alias_idx += 1
+                if alias_idx == len(alias_tokens):
+                    return True
+
     return False
 
 
@@ -673,8 +976,11 @@ def _looks_like_label(text: str) -> bool:
         # Product/item descriptions
         "designation", "description", "produit", "article",
         # Address fields
+        # NOTE: "ville" is intentionally excluded — city names like
+        # "Mairie de Villefranche" contain "ville" as a substring,
+        # causing false-positive label rejection for valid client names.
         "adresse", "rue", "avenue", "boulevard", "place", "chemin",
-        "code postal", "codepostal", "ville", "pays",
+        "code postal", "codepostal", "pays",
         # Additional common invoice labels
         "quantite", "quantité", "prix", "unite", "unité",
         "remise", "escompte", "livraison", "port",
@@ -696,59 +1002,100 @@ def _looks_like_label(text: str) -> bool:
 
 # Strict anchor patterns that explicitly pair invoice-number identifiers
 # with "facture"/"invoice" to avoid false positives.
+# Strict anchor patterns for numero_facture — kept in sync with FIELD_ALIASES["numero_facture"].
+# These require compound phrases (two+ tokens) to avoid false positives from bare "n°" or "no".
+# Relaxed subsequence matching (_matches_alias_relaxed) is used as Phase 2 fallback.
+# NOTE: Short truncated forms like "n° fact" and "réf fact" are intentionally excluded
+# because _extract_inline_value would extract "ure" (the remainder of "Facture") as garbage.
 _NUMERO_FACTURE_ANCHORS = (
-    "n° facture", "n°facture", "n° de facture",
-    "numéro de facture", "numero de facture",
-    "facture n°", "facture no", "facture nº", "nº facture",
-    "no facture", "n facture", "n de facture",
-    "invoice number", "invoice n°", "invoice no", "invoice #",
+    # French — "n°" variants (full forms only)
+    "n° facture", "n facture", "n°facture", "n° de facture", "n de facture",
+    # French — "numéro" variants
+    "numéro de facture", "numero de facture", "numéro facture", "numero facture",
+    # French — "facture n°" variants
+    "facture n°", "facture no", "facture nº", "nº facture", "no facture",
+    # French — "réf" variants (full forms only)
+    "réf facture", "ref facture", "référence facture", "reference facture",
+    # English
+    "invoice number", "invoice n°", "invoice no", "invoice #", "invoice id",
+    "invoice ref", "inv no",
+    # Order / PO number (often same line as invoice number)
+    "n° commande", "numero commande", "numéro commande",
+    "order number", "purchase order", "po number",
 )
 
 
 def _extract_numero_facture(rows: list[list[OCRLine]], all_lines: Sequence[OCRLine]) -> FieldSelection:
-    """Extract invoice number with strict anchor matching to avoid false positives.
+    """Extract invoice number with strict + relaxed anchor matching.
 
-    Only uses compound anchors that pair an invoice-number keyword
-    ("n°", "numéro", "facture", "invoice") together, not standalone
-    tokens like "numero" or "ref" that cause false matches.
+    Phase 1: strict compound anchors (word-boundary matched).
+    Phase 2: if Phase 1 yields no usable value, try relaxed subsequence
+    matching which tolerates inserted stopwords — e.g. "n° de la facture
+    d'origine" matching "n° de facture".
     """
     selection = FieldSelection(value=None, confidence=0.0, score=float("-inf"))
 
-    # Find anchors matching the strict compound patterns
-    anchors = [line for line in all_lines if _contains_any_alias(line.text, _NUMERO_FACTURE_ANCHORS)]
+    # Phase 1: strict word-boundary matching (prevents false positives)
+    strict_anchors = [line for line in all_lines if _contains_any_alias(line.text, _NUMERO_FACTURE_ANCHORS)]
+    _debug_log(f"_extract_numero_facture: strict anchors found = {len(strict_anchors)}")
 
-    for anchor in anchors:
-        # Try same-line extraction first (e.g. "N° Facture: INV-2024-001")
-        same_line = _selection_from_same_line("numero_facture", anchor, selection)
-        if same_line is not None:
-            quality_boost = _invoice_number_quality_score(same_line.value or "")
-            adjusted = FieldSelection(
-                value=same_line.value,
-                confidence=same_line.confidence,
-                score=same_line.score + quality_boost * 100.0,
-                ocr_line=same_line.ocr_line,
-            )
-            if adjusted.score > selection.score:
-                selection = adjusted
+    for anchor in strict_anchors:
+        selection = _process_numero_anchor(anchor, rows, selection)
 
-        # Try geometric search (value on same row to right, or row below)
-        geometric = _selection_from_geometric_search("numero_facture", anchor, rows, selection)
-        if geometric is not None:
-            quality_boost = _invoice_number_quality_score(geometric.value or "")
-            adjusted = FieldSelection(
-                value=geometric.value,
-                confidence=geometric.confidence,
-                score=geometric.score + quality_boost * 100.0,
-                ocr_line=geometric.ocr_line,
-            )
-            if adjusted.score > selection.score:
-                selection = adjusted
+    # Phase 2: if strict matching found nothing, try relaxed subsequence matching
+    # to handle inserted stopwords (e.g. "n° de la facture d'origine").
+    if selection.value is None:
+        relaxed_anchors = [
+            line for line in all_lines
+            if _matches_alias_relaxed(line.text, _NUMERO_FACTURE_ANCHORS)
+            and not _contains_any_alias(line.text, _NUMERO_FACTURE_ANCHORS)  # avoid re-processing
+        ]
+        _debug_log(f"_extract_numero_facture: relaxed anchors found = {len(relaxed_anchors)}")
+        for anchor in relaxed_anchors:
+            selection = _process_numero_anchor(anchor, rows, selection)
 
     _debug_log(
         f"_extract_numero_facture: final={selection.value!r} "
         f"score={selection.score:.1f} "
-        f"anchors_found={len(anchors)}"
+        f"strict_anchors={len(strict_anchors)}"
     )
+    return selection
+
+
+def _process_numero_anchor(anchor: OCRLine, rows: list[list[OCRLine]], current_selection: FieldSelection) -> FieldSelection:
+    """Try to extract a numero_facture value from a single anchor line.
+
+    Tries same-line extraction first, then geometric search.
+    Returns the best selection found (or the original if nothing better).
+    """
+    selection = current_selection
+
+    # Try same-line extraction first (e.g. "N° Facture: INV-2024-001")
+    same_line = _selection_from_same_line("numero_facture", anchor, selection)
+    if same_line is not None:
+        quality_boost = _invoice_number_quality_score(same_line.value or "")
+        adjusted = FieldSelection(
+            value=same_line.value,
+            confidence=same_line.confidence,
+            score=same_line.score + quality_boost * 100.0,
+            ocr_line=same_line.ocr_line,
+        )
+        if adjusted.score > selection.score:
+            selection = adjusted
+
+    # Try geometric search (value on same row to right, or row below)
+    geometric = _selection_from_geometric_search("numero_facture", anchor, rows, selection)
+    if geometric is not None:
+        quality_boost = _invoice_number_quality_score(geometric.value or "")
+        adjusted = FieldSelection(
+            value=geometric.value,
+            confidence=geometric.confidence,
+            score=geometric.score + quality_boost * 100.0,
+            ocr_line=geometric.ocr_line,
+        )
+        if adjusted.score > selection.score:
+            selection = adjusted
+
     return selection
 
 
