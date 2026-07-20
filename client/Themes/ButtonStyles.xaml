@@ -48,7 +48,7 @@
             </Trigger>
             <Trigger Property="IsEnabled" Value="False">
                 <Setter TargetName="Border" Property="Opacity" Value="0.5" />
-                <Setter Property="Cursor" Value="NotAllowed" />
+                <Setter Property="Cursor" Value="No" />
                 <Setter TargetName="Content" Property="Opacity" Value="0.5" />
             </Trigger>
         </ControlTemplate.Triggers>
@@ -140,7 +140,7 @@
     </Style>
 
     <!-- ═══ Small Icon Button (window controls, close) ═══ -->
-    <Style x:Key="ButtonIconStyle" TargetType="Button" BasedOn="{StaticResource ButtonSecondaryStyle}">
+    <Style x:Key="ButtonIconStyle" TargetType="ButtonBase" BasedOn="{StaticResource ButtonSecondaryStyle}">
         <Setter Property="Width"  Value="36" />
         <Setter Property="Height" Value="36" />
         <Setter Property="Padding" Value="0" />
@@ -150,7 +150,7 @@
         <Setter Property="Effect" Value="{x:Null}" />
         <Setter Property="Template">
             <Setter.Value>
-                <ControlTemplate TargetType="Button">
+                <ControlTemplate TargetType="ButtonBase">
                     <Border x:Name="Border"
                             Background="{TemplateBinding Background}"
                             CornerRadius="{StaticResource RadiusSmall}">

@@ -270,12 +270,6 @@
                                            Foreground="{StaticResource BrushTextSecondary}"
                                            TextWrapping="Wrap"
                                            HorizontalAlignment="Center" />
-                                <Button Content="Add Files +"
-                                        Style="{StaticResource ButtonPrimaryStyle}"
-                                        Margin="0,16,0,0"
-                                        MinWidth="140"
-                                        HorizontalAlignment="Center"
-                                        Click="AddButton_Click" />
                             </StackPanel>
                         </Border>
 

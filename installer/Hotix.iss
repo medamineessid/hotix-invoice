@@ -718,15 +718,30 @@ end;
 
 function NextButtonClick(CurPageID: Integer): Boolean;
 var
-  AppResultCode: Integer;
+  ResultCode: Integer;
 begin
   Result := True;
+  
   if CurPageID = wpFinished then
   begin
     if InstallSuccess then
     begin
-      { Launch the app on finish }
-      Exec(ExpandConstant('{app}\client\{#MyAppExeName}'), '', ExpandConstant('{app}'), SW_SHOW, ewNoWait, AppResultCode);
+      { Launch app and wait for it to exit }
+      WriteLog('Launching app...');
+      if Exec(ExpandConstant('{app}\client\{#MyAppExeName}'), '', ExpandConstant('{app}'), SW_SHOW, ewWaitUntilTerminated, ResultCode) then
+      begin
+        if ResultCode = 0 then
+        begin
+          WriteLog('App exited normally (exit code 0)');
+        end else
+        begin
+          WriteLog('App exited with code: ' + IntToStr(ResultCode));
+        end;
+      end else
+      begin
+        WriteLog('ERROR: Could not launch app at {app}\client\{#MyAppExeName}');
+        MsgBox('Erreur: Impossible de lancer l''application. V�rifiez l''installation.', mbError, MB_OK);
+      end;
     end;
   end;
 end;

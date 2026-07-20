@@ -94,6 +94,8 @@
   "BtnExportTooltip": "Export results to Excel (Ctrl+E)",
   "BtnClear": "Clear",
   "BtnClearTooltip": "Clear all results",
+  "ClearConfirmMessage": "Clear {0} results?",
+  "ClearConfirmTitle": "Confirm Clear",
   "BtnRerunErrors": "Re-run errors",
   "BtnRerunErrorsTooltip": "Re-run extraction only for errored files",
 

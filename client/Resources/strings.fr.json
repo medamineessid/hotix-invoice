@@ -94,6 +94,8 @@
   "BtnExportTooltip": "Exporter les résultats vers Excel (Ctrl+E)",
   "BtnClear": "Effacer",
   "BtnClearTooltip": "Effacer tous les résultats",
+  "ClearConfirmMessage": "Effacer {0} résultats ?",
+  "ClearConfirmTitle": "Confirmation d'effacement",
   "BtnRerunErrors": "Relancer les erreurs",
   "BtnRerunErrorsTooltip": "Relancer l'extraction uniquement pour les fichiers en erreur",
 
