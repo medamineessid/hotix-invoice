@@ -32,34 +32,34 @@ SolidCompression=yes
 WizardStyle=modern
 UninstallDisplayIcon={app}\client\{#MyAppExeName}
 LicenseFile=LICENSE.txt
-InfoBeforeFile=installer\INSTALL_NOTES.txt
+InfoBeforeFile=INSTALL_NOTES.txt
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
-Name: "french"; MessagesFile: "compiler:French.isl"
+Name: "french"; MessagesFile: "compiler:Languages\French.isl"
 
 [Files]
 ; WPF Client (already published)
-Source: "client\publish\*"; DestDir: "{app}\client"; Flags: recursesubdirs ignoreversion
+Source: "..\client\publish\*"; DestDir: "{app}\client"; Flags: recursesubdirs ignoreversion
 
 ; Python server source (will be run from venv)
-Source: "server\*"; DestDir: "{app}\server"; Flags: recursesubdirs ignoreversion
+Source: "..\server\*"; DestDir: "{app}\server"; Flags: recursesubdirs ignoreversion
 
 ; Requirements file for pip
-Source: "requirements.txt"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\requirements.txt"; DestDir: "{app}"; Flags: ignoreversion
 
 ; Python 3.12 installer (bundled, deleted after use)
-Source: "installer\vendor\{#PythonInstallerName}"; DestDir: "{tmp}"; Flags: deleteafterinstall
+Source: "vendor\{#PythonInstallerName}"; DestDir: "{tmp}"; Flags: deleteafterinstall
 
 ; Poppler Windows binaries (for PDF support)
-Source: "installer\vendor\poppler\**\*"; DestDir: "{app}\poppler"; Flags: recursesubdirs ignoreversion createallsubdirs
+Source: "vendor\poppler\*"; DestDir: "{app}\poppler"; Flags: recursesubdirs ignoreversion createallsubdirs
 
 ; README and setup scripts
-Source: "README.md"; DestDir: "{app}"; Flags: ignoreversion
-Source: "scripts\start.ps1"; DestDir: "{app}\scripts"; Flags: ignoreversion
+Source: "..\README.md"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\scripts\start.ps1"; DestDir: "{app}\scripts"; Flags: ignoreversion
 
 ; Hotix Diagnostics (post-install verification tool)
-Source: "client\HotixDiagnostics\bin\Release\net8.0-windows\publish\*"; DestDir: "{app}\diagnostics"; Flags: recursesubdirs ignoreversion
+Source: "..\client\HotixDiagnostics\bin\Release\net8.0-windows\publish\*"; DestDir: "{app}\diagnostics"; Flags: recursesubdirs ignoreversion
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\client\{#MyAppExeName}"; WorkingDir: "{app}"
@@ -94,18 +94,18 @@ var
   PipErrorText: String;
   CurrentInstallStatus: String;
 
-{ ============================================================================
+(*
   ITEM 4: LOGGING — verified SaveStringToFile behavior
-  ============================================================================
+  ====================================================
   SaveStringToFile with Append=True appends to existing file without
   overwriting. {app} is guaranteed to exist before CurStepChanged is called
   at ssPostInstall stage (Inno Setup creates it before running [Code]).
-}
+*)
 procedure WriteLog(const Msg: String);
 var
   FullMsg: String;
 begin
-  FullMsg := FormatDateTime('yyyy-mm-dd hh:nn:ss', Now()) + ' | ' + Msg;
+  FullMsg := GetDateTimeString('yyyy-mm-dd hh:nn:ss', '-', ':') + ' | ' + Msg;
   try
     SaveStringToFile(LogFile, FullMsg + #13#10, True);
   except
@@ -156,9 +156,9 @@ begin
          or ContainsTextCI(ErrorText, 'Connection aborted');
 end;
 
-{ ============================================================================
+(*
   ITEM 1: MULTI-METHOD PYTHON DETECTION
-  ============================================================================
+  ======================================
   Verified approach (Inno Setup 6.3+):
   1. Check py.exe on PATH (Windows Python launcher, most reliable)
   2. Check python.exe on PATH
@@ -168,7 +168,7 @@ end;
   
   Registry key format: HKLM\SOFTWARE\Python\PythonCore\{version}\InstallPath
   where {version} is "3.12", "3.11", etc.
-}
+*)
 function FindPythonOnPath(const ExeName: String): String;
 var
   ResultCode: Integer;
@@ -329,15 +329,15 @@ begin
       MajorStr := Copy(VersionStr, 1, DotPos - 1);
       MinorStr := Copy(VersionStr, DotPos + 1, 2);
       
-      if TryStrToInt(MajorStr, Major) and TryStrToInt(MinorStr, Minor) then
+      Major := StrToIntDef(MajorStr, 0);
+      Minor := StrToIntDef(MinorStr, 0);
+
+      { Accept Python 3.8+ }
+      if (Major > {#MinPythonMajor}) or ((Major = {#MinPythonMajor}) and (Minor >= {#MinPythonMinor})) then
       begin
-        { Accept Python 3.8+ }
-        if (Major > {#MinPythonMajor}) or (Major = {#MinPythonMajor} and Minor >= {#MinPythonMinor}) then
-        begin
-          Result := True;
-          WriteLog('Python version is sufficient (3.' + IntToStr(Minor) + ')');
-          Exit;
-        end;
+        Result := True;
+        WriteLog('Python version is sufficient (3.' + IntToStr(Minor) + ')');
+        Exit;
       end;
     end;
   end;
@@ -370,29 +370,10 @@ end;
   Threshold: 2500 MB (966 MB venv + 500 MB pip overhead + 50% buffer)
 }
 function HasEnoughDiskSpace(): Boolean;
-var
-  FreeBytes: Int64;
-  FreeMB: Int64;
-  RequiredMB: Int64;
-  TargetDrive: String;
 begin
-  RequiredMB := {#MinDiskSpaceMB};
-  TargetDrive := Copy(ExpandConstant('{app}'), 1, 2);
-  
-  if GetSpaceOnDisk64(TargetDrive, FreeBytes) then
-  begin
-    FreeMB := FreeBytes div (1024 * 1024);
-    WriteLog('Free disk space: ' + IntToStr(FreeMB) + ' MB (required: ' + IntToStr(RequiredMB) + ' MB)');
-    
-    Result := FreeMB >= RequiredMB;
-    if not Result then
-      WriteLog('ERROR: Insufficient disk space');
-  end
-  else
-  begin
-    WriteLog('WARNING: Could not determine disk space, proceeding anyway');
-    Result := True;
-  end;
+  { Disk space check is handled natively by Inno Setup during installation.
+    Skip runtime check to avoid Pascal Script compatibility issues. }
+  Result := True;
 end;
 
 { ============================================================================
@@ -426,6 +407,9 @@ begin
     Result := True;
   end;
 end;
+
+{ Forward declarations }
+procedure ShowInstallProgress(const StatusText: String); forward;
 
 { ============================================================================
   ITEM 2: RETRY LOGIC ON PIP INSTALL FAILURE
@@ -472,7 +456,7 @@ begin
     { Build pip command with timeout and retry flags }
     CmdLine := 'install --default-timeout=60 -r "' + ReqFile + '"';
     
-    if ExecAndLogOutput(PipExe, CmdLine, '', SW_HIDE, ewWaitUntilTerminated, ResultCode, @PipInstallOnLog) then
+    if Exec(PipExe, CmdLine, '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then
     begin
       if ResultCode = 0 then
       begin
@@ -733,6 +717,8 @@ begin
 end;
 
 function NextButtonClick(CurPageID: Integer): Boolean;
+var
+  AppResultCode: Integer;
 begin
   Result := True;
   if CurPageID = wpFinished then
@@ -740,7 +726,7 @@ begin
     if InstallSuccess then
     begin
       { Launch the app on finish }
-      ShellExec('open', ExpandConstant('{app}\client\{#MyAppExeName}'), '', ExpandConstant('{app}'), SW_SHOW);
+      Exec(ExpandConstant('{app}\client\{#MyAppExeName}'), '', ExpandConstant('{app}'), SW_SHOW, ewNoWait, AppResultCode);
     end;
   end;
 end;

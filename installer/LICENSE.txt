@@ -1,0 +1,4 @@
+HOTIX Invoice Extractor
+Copyright (c) 2026 Hotix
+
+All rights reserved.

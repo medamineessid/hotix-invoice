@@ -1,0 +1,2 @@
+Hotix Invoice Extractor - Installation Notes
+See README.md for details.
