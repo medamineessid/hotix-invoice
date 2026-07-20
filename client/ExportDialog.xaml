@@ -8,7 +8,7 @@
         WindowStartupLocation="CenterOwner" ShowInTaskbar="False"
         Loaded="Window_Loaded"
         Opacity="0"
-        MinWidth="420">
+        MinWidth="460">
 
     <Window.Resources>
         <Storyboard x:Key="StoryboardWindowEnter">
@@ -27,7 +27,7 @@
 
     <Border Background="{StaticResource BrushOverlay}">
         <Border Style="{StaticResource DialogStyle}"
-                Width="460"
+                Width="480"
                 VerticalAlignment="Center"
                 HorizontalAlignment="Center"
                 Margin="32">
@@ -49,17 +49,23 @@
                                TextWrapping="Wrap" />
                 </StackPanel>
 
-                <!-- Body: Mode selection cards -->
+                <!-- Body: Filter options + Destination -->
                 <StackPanel Grid.Row="1">
-                    <!-- Create New card -->
-                    <Border x:Name="NewCard"
+
+                    <!-- Filter section -->
+                    <TextBlock Text="Filter:"
+                               Style="{StaticResource CardLabelStyle}"
+                               Margin="0,0,0,10" />
+
+                    <!-- Results Only card -->
+                    <Border x:Name="FilterResultsCard"
                             CornerRadius="{StaticResource RadiusMedium}"
                             BorderBrush="{StaticResource BrushBorder}"
                             BorderThickness="1"
                             Padding="16,14"
-                            Margin="0,0,0,12"
+                            Margin="0,0,0,10"
                             Cursor="Hand"
-                            MouseLeftButtonDown="NewCard_Click"
+                            MouseLeftButtonDown="FilterResultsOnly_Click"
                             Background="Transparent">
                         <Grid>
                             <Grid.ColumnDefinitions>
@@ -74,17 +80,17 @@
                                     Background="Transparent"
                                     VerticalAlignment="Top"
                                     Margin="0,2,14,0">
-                                <Border x:Name="NewRadioDot"
+                                <Border x:Name="FilterResultsDot"
                                         Width="10" Height="10"
                                         CornerRadius="5"
                                         Background="{StaticResource BrushAccent}"
                                         Visibility="Collapsed" />
                             </Border>
                             <StackPanel Grid.Column="1">
-                                <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ExportNewOption]}"
+                                <TextBlock Text="Results Only (complete invoices)"
                                            Style="{StaticResource TextBody}"
                                            FontWeight="{StaticResource FontWeightMedium}" />
-                                <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ExportNewDesc]}"
+                                <TextBlock Text="Export only invoices with all 8 fields filled"
                                            Style="{StaticResource TextCaption}"
                                            Foreground="{StaticResource BrushTextSecondary}"
                                            TextWrapping="Wrap"
@@ -93,14 +99,15 @@
                         </Grid>
                     </Border>
 
-                    <!-- Append to Existing card -->
-                    <Border x:Name="AppendCard"
+                    <!-- Missing Only card -->
+                    <Border x:Name="FilterMissingCard"
                             CornerRadius="{StaticResource RadiusMedium}"
                             BorderBrush="{StaticResource BrushBorder}"
                             BorderThickness="1"
                             Padding="16,14"
+                            Margin="0,0,0,10"
                             Cursor="Hand"
-                            MouseLeftButtonDown="AppendCard_Click"
+                            MouseLeftButtonDown="FilterMissingOnly_Click"
                             Background="Transparent">
                         <Grid>
                             <Grid.ColumnDefinitions>
@@ -115,17 +122,104 @@
                                     Background="Transparent"
                                     VerticalAlignment="Top"
                                     Margin="0,2,14,0">
-                                <Border x:Name="AppendRadioDot"
+                                <Border x:Name="FilterMissingDot"
                                         Width="10" Height="10"
                                         CornerRadius="5"
                                         Background="{StaticResource BrushAccent}"
                                         Visibility="Collapsed" />
                             </Border>
                             <StackPanel Grid.Column="1">
-                                <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ExportAppendOption]}"
+                                <TextBlock Text="Missing Only (incomplete invoices)"
                                            Style="{StaticResource TextBody}"
                                            FontWeight="{StaticResource FontWeightMedium}" />
-                                <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ExportAppendDesc]}"
+                                <TextBlock Text="Export only invoices with at least 1 empty field"
+                                           Style="{StaticResource TextCaption}"
+                                           Foreground="{StaticResource BrushTextSecondary}"
+                                           TextWrapping="Wrap"
+                                           Margin="0,4,0,0" />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+
+                    <!-- Both card -->
+                    <Border x:Name="FilterBothCard"
+                            CornerRadius="{StaticResource RadiusMedium}"
+                            BorderBrush="{StaticResource BrushAccent}"
+                            BorderThickness="2"
+                            Padding="16,14"
+                            Margin="0,0,0,20"
+                            Cursor="Hand"
+                            MouseLeftButtonDown="FilterBoth_Click"
+                            Background="{StaticResource BrushSelected}">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Border Grid.Column="0"
+                                    Width="20" Height="20"
+                                    CornerRadius="10"
+                                    BorderBrush="{StaticResource BrushAccent}"
+                                    BorderThickness="2"
+                                    Background="Transparent"
+                                    VerticalAlignment="Top"
+                                    Margin="0,2,14,0">
+                                <Border x:Name="FilterBothDot"
+                                        Width="10" Height="10"
+                                        CornerRadius="5"
+                                        Background="{StaticResource BrushAccent}"
+                                        Visibility="Visible" />
+                            </Border>
+                            <StackPanel Grid.Column="1">
+                                <TextBlock Text="Both (all data)"
+                                           Style="{StaticResource TextBody}"
+                                           FontWeight="{StaticResource FontWeightMedium}" />
+                                <TextBlock Text="Export all invoices, empty fields marked as [MISSING]"
+                                           Style="{StaticResource TextCaption}"
+                                           Foreground="{StaticResource BrushTextSecondary}"
+                                           TextWrapping="Wrap"
+                                           Margin="0,4,0,0" />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+
+                    <!-- Destination section -->
+                    <Border x:Name="DestinationSeparator"
+                            Height="1"
+                            Background="{StaticResource BrushBorder}"
+                            Margin="0,0,0,16" />
+
+                    <TextBlock Text="Destination:"
+                               Style="{StaticResource CardLabelStyle}"
+                               Margin="0,0,0,10" />
+
+                    <!-- Append checkbox card -->
+                    <Border x:Name="AppendCard"
+                            CornerRadius="{StaticResource RadiusMedium}"
+                            BorderBrush="{StaticResource BrushBorder}"
+                            BorderThickness="1"
+                            Padding="16,14"
+                            Margin="0,0,0,4"
+                            Cursor="Hand"
+                            MouseLeftButtonDown="AppendCard_Click"
+                            Background="Transparent">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <CheckBox Grid.Column="0"
+                                      x:Name="AppendCheckBox"
+                                      VerticalAlignment="Top"
+                                      Margin="0,2,14,0"
+                                      Style="{StaticResource CheckBoxStyle}"
+                                      Checked="AppendCheckBox_Changed"
+                                      Unchecked="AppendCheckBox_Changed" />
+                            <StackPanel Grid.Column="1">
+                                <TextBlock Text="Append to existing file"
+                                           Style="{StaticResource TextBody}"
+                                           FontWeight="{StaticResource FontWeightMedium}" />
+                                <TextBlock Text="Add data to an existing Excel workbook instead of creating a new one"
                                            Style="{StaticResource TextCaption}"
                                            Foreground="{StaticResource BrushTextSecondary}"
                                            TextWrapping="Wrap"

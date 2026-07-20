@@ -150,19 +150,55 @@
                             </Popup>
                         </Grid>
                     </StackPanel>
-                    <PasswordBox x:Name="GeminiKeyBox"
-                                 Style="{StaticResource PasswordBoxStyle}" />
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
 
-                    <!-- Model selector (shown after successful validation) -->
+                        <!-- Key input container with overlapping PasswordBox + TextBox -->
+                        <Grid Grid.Column="0">
+                            <PasswordBox x:Name="GeminiKeyBox"
+                                         Style="{StaticResource PasswordBoxStyle}"
+                                         PasswordChanged="GeminiKeyBox_PasswordChanged" />
+                            <TextBox x:Name="GeminiKeyTextBox"
+                                     Style="{StaticResource TextBoxStyle}"
+                                     Visibility="Collapsed"
+                                     TextChanged="GeminiKeyTextBox_TextChanged" />
+                        </Grid>
+
+                        <!-- Show/Hide toggle button (eye icon) -->
+                        <ToggleButton x:Name="KeyVisibilityToggle"
+                                      Grid.Column="1"
+                                      Style="{StaticResource ButtonIconStyle}"
+                                      Width="36" Height="36"
+                                      Margin="4,0,4,0"
+                                      VerticalAlignment="Center"
+                                      IsChecked="False"
+                                      Click="KeyVisibilityToggle_Click"
+                                      ToolTip="Show/hide key">
+                            <TextBlock x:Name="ToggleEyeIcon" Text="👁" FontSize="14" />
+                        </ToggleButton>
+
+                        <TextBlock x:Name="KeyStatusIcon"
+                                   Grid.Column="2"
+                                   VerticalAlignment="Center"
+                                   Margin="0,0,0,0"
+                                   FontSize="12"
+                                   FontWeight="{StaticResource FontWeightMedium}" />
+                    </Grid>
+
+                    <!-- Model selector (visible by default, populated with known models) -->
                     <StackPanel x:Name="ModelSelector"
                                 Margin="0,16,0,0"
-                                Visibility="Collapsed">
+                                Visibility="Visible">
                         <TextBlock x:Name="ModelLabel"
                                    Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[GeminiModelLabel]}"
                                    Style="{StaticResource CardLabelStyle}" />
                         <ComboBox x:Name="ModelCombo"
                                   Style="{StaticResource ComboBoxStyle}"
-                                  Width="320"
+                                  Width="360"
                                   HorizontalAlignment="Left"
                                   MinHeight="36" />
                     </StackPanel>

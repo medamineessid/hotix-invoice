@@ -47,8 +47,9 @@
                 </Trigger.ExitActions>
             </Trigger>
             <Trigger Property="IsEnabled" Value="False">
-                <Setter TargetName="Border" Property="Opacity" Value="0.4" />
-                <Setter Property="Cursor" Value="Arrow" />
+                <Setter TargetName="Border" Property="Opacity" Value="0.5" />
+                <Setter Property="Cursor" Value="NotAllowed" />
+                <Setter TargetName="Content" Property="Opacity" Value="0.5" />
             </Trigger>
         </ControlTemplate.Triggers>
     </ControlTemplate>

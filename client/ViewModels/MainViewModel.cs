@@ -2314,17 +2314,39 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         if (!CanExport()) return;
 
         bool anySelected = Results.Any(r => r.IsSelected);
-        var rowsToExport = anySelected ? Results.Where(r => r.IsSelected).ToList() : Results.ToList();
+        var baseRows = anySelected ? Results.Where(r => r.IsSelected).ToList() : Results.ToList();
         string defaultDir = Directory.Exists(SelectedFolder) ? SelectedFolder : Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
 
-        // ── Show export mode dialog ──
-        var modeDialog = new global::Hotix.InvoiceClient.ExportDialog();
-        modeDialog.Owner = Application.Current.MainWindow;
-        bool? modeResult = modeDialog.ShowDialog();
+        // ── Show export dialog with filter + destination options ──
+        var exportDialog = new global::Hotix.InvoiceClient.ExportDialog();
+        exportDialog.Owner = Application.Current.MainWindow;
+        bool? dialogResult = exportDialog.ShowDialog();
 
-        if (modeResult != true) return;
+        if (dialogResult != true) return;
 
-        if (modeDialog.SelectedMode == global::Hotix.InvoiceClient.ExportDialog.ExportMode.CreateNew)
+        // ── Apply filter ──
+        var rowsToExport = exportDialog.SelectedFilter switch
+        {
+            global::Hotix.InvoiceClient.ExportDialog.FilterMode.ResultsOnly =>
+                baseRows.Where(r => !r.IsIncomplete).ToList(),
+            global::Hotix.InvoiceClient.ExportDialog.FilterMode.MissingOnly =>
+                baseRows.Where(r => r.IsIncomplete).ToList(),
+            _ => baseRows.ToList(), // Both
+        };
+
+        bool markMissing = exportDialog.SelectedFilter == global::Hotix.InvoiceClient.ExportDialog.FilterMode.Both;
+
+        if (rowsToExport.Count == 0)
+        {
+            MessageBox.Show(
+                TranslationSource.Get("ExportNoRows"),
+                TranslationSource.Get("ExportTitle"),
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+            return;
+        }
+
+        if (exportDialog.SelectedDestination == global::Hotix.InvoiceClient.ExportDialog.DestinationMode.CreateNew)
         {
             // ── Option A: Create new workbook ──
             var saveDialog = new SaveFileDialog
@@ -2339,7 +2361,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
 
             try
             {
-                new ExcelWriter().Write(saveDialog.FileName, rowsToExport);
+                new ExcelWriter().Write(saveDialog.FileName, rowsToExport, markMissing);
                 SaveConfirmationPath = saveDialog.FileName;
             }
             catch (IOException ex)
@@ -2402,7 +2424,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
 
             try
             {
-                new ExcelWriter().AppendToExisting(existingPath, rowsToExport, targetSheet);
+                new ExcelWriter().AppendToExisting(existingPath, rowsToExport, targetSheet, markMissing);
                 SaveConfirmationPath = existingPath;
             }
             catch (IOException ex)
@@ -2547,6 +2569,16 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     private void ClearResults()
     {
         if (!CanClear()) return;
+
+        // Confirm before destructive action
+        var result = MessageBox.Show(
+            TranslationSource.Fmt("ClearConfirmMessage", $"{Results.Count} résultat(s)"),
+            TranslationSource.Get("ClearConfirmTitle") ?? "Effacer les résultats",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Warning);
+
+        if (result != MessageBoxResult.Yes) return;
+
         Results.Clear();
         IncompleteResults.Clear();
         SelectedRow          = null;

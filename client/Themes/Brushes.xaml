@@ -26,7 +26,7 @@
     <SolidColorBrush x:Key="BrushTextInverse"     Color="{StaticResource ColorTextInverse}" />
     <SolidColorBrush x:Key="BrushTextPlaceholder" Color="{StaticResource ColorTextPlaceholder}" />
 
-    <!-- Accent -->
+    <!-- Accent (brand red — used for danger/destructive actions) -->
     <SolidColorBrush x:Key="BrushAccent"          Color="{StaticResource ColorAccent}" />
     <SolidColorBrush x:Key="BrushAccentHover"     Color="{StaticResource ColorAccentHover}" />
     <SolidColorBrush x:Key="BrushAccentLight"     Color="{StaticResource ColorAccentLight}" />
@@ -34,9 +34,13 @@
 
     <!-- Functional -->
     <SolidColorBrush x:Key="BrushSuccess"         Color="{StaticResource ColorSuccess}" />
+    <SolidColorBrush x:Key="BrushSuccessLight"    Color="#E8F5E9" />
     <SolidColorBrush x:Key="BrushWarning"         Color="{StaticResource ColorWarning}" />
+    <SolidColorBrush x:Key="BrushWarningLight"    Color="#FFF3E0" />
     <SolidColorBrush x:Key="BrushError"           Color="{StaticResource ColorError}" />
+    <SolidColorBrush x:Key="BrushErrorLight"      Color="#FFEBEE" />
     <SolidColorBrush x:Key="BrushInfo"            Color="{StaticResource ColorInfo}" />
+    <SolidColorBrush x:Key="BrushInfoLight"       Color="#E3F2FD" />
 
     <!-- Pastel confidence badge backgrounds -->
     <SolidColorBrush x:Key="BrushConfidenceHighBg"   Color="{StaticResource ColorConfidenceHighBg}" />
@@ -95,7 +99,7 @@
     <SolidColorBrush x:Key="BrushGeometricFill"    Color="{StaticResource ColorGeometricFill}" />
     <SolidColorBrush x:Key="BrushGeometricStroke"  Color="{StaticResource ColorGeometricStroke}" />
 
-    <!-- Primary button — Red accent -->
+    <!-- Primary button — Red accent (Hotix brand identity) -->
     <SolidColorBrush x:Key="BrushButtonPrimary"         Color="{StaticResource ColorAccent}" />
     <SolidColorBrush x:Key="BrushButtonPrimaryHover"    Color="{StaticResource ColorAccentHover}" />
     <SolidColorBrush x:Key="BrushButtonPrimaryPressed"  Color="#A8321C" />
@@ -107,11 +111,11 @@
     <SolidColorBrush x:Key="BrushButtonSecondaryHover"    Color="{StaticResource ColorHover}" />
     <SolidColorBrush x:Key="BrushButtonSecondaryText"     Color="{StaticResource ColorTextPrimary}" />
 
-    <!-- Danger button — Outlined red -->
+    <!-- Danger button — Outlined red (destructive: Clear, Delete, Cancel extraction) -->
     <SolidColorBrush x:Key="BrushButtonDanger"         Color="Transparent" />
-    <SolidColorBrush x:Key="BrushButtonDangerStroke"   Color="{StaticResource ColorAccent}" />
+    <SolidColorBrush x:Key="BrushButtonDangerStroke"   Color="{StaticResource ColorError}" />
     <SolidColorBrush x:Key="BrushButtonDangerHover"    Color="{StaticResource ColorAccentBg}" />
-    <SolidColorBrush x:Key="BrushButtonDangerText"     Color="{StaticResource ColorAccent}" />
+    <SolidColorBrush x:Key="BrushButtonDangerText"     Color="{StaticResource ColorError}" />
 
     <!-- Input -->
     <SolidColorBrush x:Key="BrushInputBackground"     Color="{StaticResource ColorSurface}" />

@@ -16,6 +16,16 @@ public partial class GeminiSetupWindow : Window
 {
     private bool _isGeminiProvider = true;
 
+    /// <summary>Known default models shown even before API validation.</summary>
+    private static readonly Dictionary<string, (string label, string tooltip)> DefaultModels = new()
+    {
+        { "gemini-2.5-flash", ("Gemini 2.5 Flash (Recommended)", "Fastest model. Optimized for invoice extraction. Low cost.") },
+        { "gemini-2.0-flash", ("Gemini 2.0 Flash", "Previous generation. Still accurate. Slightly slower.") },
+        { "gemini-1.5-pro", ("Gemini 1.5 Pro", "Most capable. Highest cost. Best for complex documents.") },
+        { "grok-4.3", ("Grok 4.3 (Recommended)", "Alternative provider. Similar quality to Gemini. Good fallback.") },
+        { "grok-3.0", ("Grok 3.0", "Previous Grok version. Still works.") },
+    };
+
     public GeminiSetupWindow()
     {
         InitializeComponent();
@@ -39,16 +49,17 @@ public partial class GeminiSetupWindow : Window
             }
 
             // Pre-fill the key box with the selected provider's existing key
+            // (UpdateKeyBoxFromProvider handles showing masked dots + "✓ Saved" badge)
             UpdateKeyBoxFromProvider();
 
-            // If a key is already configured, populate the model dropdown
-            if (_isGeminiProvider && hasGemini)
+            // Pre-populate models immediately (not waiting for API validation)
+            PopulateDefaultModels();
+
+            // If a key is already configured, also try API-populated models (async)
+            string currentKey = _isGeminiProvider ? vm.GeminiKeyInput : vm.GrokKeyInput;
+            if (!string.IsNullOrEmpty(currentKey))
             {
-                _ = TryPopulateModelsAsync(vm, vm.GeminiKeyInput);
-            }
-            else if (!_isGeminiProvider && hasGrok)
-            {
-                _ = TryPopulateModelsAsync(vm, vm.GrokKeyInput);
+                _ = TryPopulateModelsAsync(vm, currentKey);
             }
         }
 
@@ -58,8 +69,12 @@ public partial class GeminiSetupWindow : Window
 
     private void Window_Closing(object sender, System.ComponentModel.CancelEventArgs e)
     {
-        // Save the current key box contents back to the correct provider field
-        if (DataContext is MainViewModel vm && !string.IsNullOrEmpty(GeminiKeyBox.Password))
+        // Don't save the masked placeholder ("••••••••") back to the ViewModel —
+        // the real key is already saved via Save_Click or was loaded from settings.
+        // Only save a real (non-placeholder) value if the user typed something.
+        if (DataContext is MainViewModel vm &&
+            !string.IsNullOrEmpty(GeminiKeyBox.Password) &&
+            GeminiKeyBox.Password != "••••••••")
         {
             if (_isGeminiProvider)
             {
@@ -90,15 +105,74 @@ public partial class GeminiSetupWindow : Window
         _isGeminiProvider = ProviderGeminiRadio.IsChecked == true;
         UpdateKeyBoxFromProvider();
         UpdateUIForProvider();
+
+        // Repopulate model list for the new provider
+        PopulateDefaultModels();
     }
 
     private void UpdateKeyBoxFromProvider()
     {
         if (DataContext is MainViewModel vm)
         {
-            GeminiKeyBox.Password = _isGeminiProvider ? vm.GeminiKeyInput : vm.GrokKeyInput;
+            string key = _isGeminiProvider ? vm.GeminiKeyInput : vm.GrokKeyInput;
+            if (!string.IsNullOrEmpty(key))
+            {
+                GeminiKeyBox.Password = "••••••••";
+                KeyStatusIcon.Text = "✓ Saved";
+                KeyStatusIcon.Foreground = (System.Windows.Media.Brush)FindResource("BrushSuccess");
+            }
+            else
+            {
+                GeminiKeyBox.Password = string.Empty;
+                KeyStatusIcon.Text = string.Empty;
+            }
         }
         MessageLabel.Text = string.Empty;
+    }
+
+    /// <summary>
+    /// Populates the model dropdown with known default models for the current provider.
+    /// Called on window load and when the provider switches.
+    /// </summary>
+    private void PopulateDefaultModels()
+    {
+        ModelCombo.Items.Clear();
+
+        foreach (var kvp in DefaultModels)
+        {
+            string modelId = kvp.Key;
+            var (label, tooltip) = kvp.Value;
+
+            // Only show models matching the current provider
+            if ((_isGeminiProvider && modelId.StartsWith("gemini")) ||
+                (!_isGeminiProvider && modelId.StartsWith("grok")))
+            {
+                string display = label;
+                string toolTipText = tooltip;
+
+                // Mark the default/recommended model
+                if (modelId == "gemini-2.5-flash" || modelId == "grok-4.3")
+                {
+                    display = "⭐ " + label;
+                }
+
+                var item = new System.Windows.Controls.ComboBoxItem
+                {
+                    Content = display,
+                    Tag = modelId,
+                    ToolTip = toolTipText,
+                };
+                ModelCombo.Items.Add(item);
+            }
+        }
+
+        // Select the first model (recommended)
+        if (ModelCombo.Items.Count > 0)
+        {
+            ModelCombo.SelectedIndex = 0;
+        }
+
+        ModelSelector.Visibility = System.Windows.Visibility.Visible;
     }
 
     private void UpdateUIForProvider()
@@ -126,7 +200,10 @@ public partial class GeminiSetupWindow : Window
             ModelLabel.Text = TranslationSource.Get("GrokModelLabel");
         }
 
-        // Repopulate model dropdown if key is present
+        // Repopulate model dropdown
+        PopulateDefaultModels();
+
+        // If key is present, also try API-populated models (async)
         if (DataContext is MainViewModel vm2)
         {
             string key = _isGeminiProvider ? vm2.GeminiKeyInput : vm2.GrokKeyInput;
@@ -134,17 +211,14 @@ public partial class GeminiSetupWindow : Window
             {
                 _ = TryPopulateModelsAsync(vm2, key);
             }
-            else
-            {
-                ModelSelector.Visibility = Visibility.Collapsed;
-            }
         }
     }
 
     /// <summary>
-    /// Fetches available models for the current provider and populates the dropdown.
-    /// Gemini: calls the Gemini models.list API. Grok: uses hardcoded known models.
-    /// If the API call fails, the dropdown is hidden and the default model is used silently.
+    /// Fetches available models for the current provider and merges them into the dropdown.
+    /// Default models are already populated by PopulateDefaultModels() — this method
+    /// supplements with API-returned models (Gemini) or hardcoded known models (Grok).
+    /// If the API call fails, the pre-populated defaults remain visible.
     /// </summary>
     private async Task TryPopulateModelsAsync(MainViewModel vm, string apiKey)
     {
@@ -191,21 +265,18 @@ public partial class GeminiSetupWindow : Window
 
             if (models.Count == 0)
             {
-                // No models found — hide the dropdown silently
-                ModelSelector.Visibility = Visibility.Collapsed;
+                // No models from API — keep the pre-populated defaults visible
                 return;
             }
 
-            // Populate the dropdown
-            ModelCombo.Items.Clear();
+            // Remember the currently selected model before clearing
+            string currentModel = _isGeminiProvider ? vm.GeminiModel : vm.GrokModel;
+            string? selectedTag = ModelCombo.SelectedItem is System.Windows.Controls.ComboBoxItem currentItem
+                ? currentItem.Tag as string
+                : null;
 
-            // Add "Default" option first (uses the current hardcoded default)
-            var defaultItem = new System.Windows.Controls.ComboBoxItem
-            {
-                Content = TranslationSource.Get("ModelDefault"),
-                Tag = "",
-            };
-            ModelCombo.Items.Add(defaultItem);
+            // Populate the dropdown with API models
+            ModelCombo.Items.Clear();
 
             foreach (var model in models.OrderBy(m => m))
             {
@@ -217,30 +288,32 @@ public partial class GeminiSetupWindow : Window
                 ModelCombo.Items.Add(item);
             }
 
-            // Select the current model if already configured
-            string currentModel = _isGeminiProvider ? vm.GeminiModel : vm.GrokModel;
+            // Select the current model if it's in the API list, otherwise pick first
             if (!string.IsNullOrEmpty(currentModel))
             {
+                bool found = false;
                 foreach (System.Windows.Controls.ComboBoxItem item in ModelCombo.Items)
                 {
                     if (item.Tag is string tag && tag == currentModel)
                     {
                         ModelCombo.SelectedItem = item;
+                        found = true;
                         break;
                     }
                 }
+                if (!found && ModelCombo.Items.Count > 0)
+                    ModelCombo.SelectedIndex = 0;
             }
-            else
+            else if (ModelCombo.Items.Count > 0)
             {
-                ModelCombo.SelectedIndex = 0; // Default
+                ModelCombo.SelectedIndex = 0;
             }
 
-            ModelSelector.Visibility = Visibility.Visible;
+            // Dropdown is already visible from PopulateDefaultModels, keep it visible
         }
         catch
         {
-            // Silently hide the dropdown on any error
-            ModelSelector.Visibility = Visibility.Collapsed;
+            // API call failed — keep the pre-populated defaults visible
         }
     }
 
@@ -291,8 +364,8 @@ public partial class GeminiSetupWindow : Window
                     MessageLabel.Text = TranslationSource.Get("GrokCleared");
                 }
                 GeminiKeyBox.Password = string.Empty;
+                KeyStatusIcon.Text = string.Empty;
                 MessageLabel.Foreground = System.Windows.Media.Brushes.Orange;
-                ModelSelector.Visibility = Visibility.Collapsed;
             }
         }
         catch (Exception ex)
@@ -306,6 +379,13 @@ public partial class GeminiSetupWindow : Window
     private async void Save_Click(object sender, RoutedEventArgs e)
     {
         string key = GeminiKeyBox.Password.Trim();
+
+        // If the masked placeholder is shown, use the already-saved real key
+        if (key == "••••••••" && DataContext is MainViewModel existingVm)
+        {
+            key = _isGeminiProvider ? existingVm.GeminiKeyInput : existingVm.GrokKeyInput;
+        }
+
         if (string.IsNullOrWhiteSpace(key))
         {
             string enterKey = _isGeminiProvider ? "GeminiEnterKey" : "GrokEnterKey";
@@ -387,12 +467,17 @@ public partial class GeminiSetupWindow : Window
             MessageLabel.Text = TranslationSource.Get(_isGeminiProvider ? "GeminiSaved" : "GrokSaved");
             MessageLabel.Foreground = System.Windows.Media.Brushes.LimeGreen;
 
+            // Show saved indicator
+            GeminiKeyBox.Password = "••••••••";
+            KeyStatusIcon.Text = "✓ Saved";
+            KeyStatusIcon.Foreground = (System.Windows.Media.Brush)Application.Current.FindResource("BrushSuccess");
+
             // ── Populate model dropdown now that key is saved ──
             _ = TryPopulateModelsAsync(vm, key);
 
             // ── Auto-close after successful save ──
-            // Allow a brief moment for the user to register the success, then close.
-            await Task.Delay(800);
+            // Show toast briefly, then close.
+            await Task.Delay(1000);
             Close();
         }
         catch (Exception ex)
@@ -407,6 +492,45 @@ public partial class GeminiSetupWindow : Window
             if (IsLoaded)
                 SetValidatingState(false);
         }
+    }
+
+    // ── PasswordBox show/hide toggle ──────────────────────────────────
+
+    private void KeyVisibilityToggle_Click(object sender, RoutedEventArgs e)
+    {
+        if (KeyVisibilityToggle.IsChecked == true)
+        {
+            // Show the key as plain text
+            GeminiKeyTextBox.Text = GeminiKeyBox.Password;
+            GeminiKeyBox.Visibility = Visibility.Collapsed;
+            GeminiKeyTextBox.Visibility = Visibility.Visible;
+            GeminiKeyTextBox.Focus();
+            GeminiKeyTextBox.SelectionStart = GeminiKeyTextBox.Text.Length;
+            ToggleEyeIcon.Text = "👁";
+        }
+        else
+        {
+            // Hide the key back to password mode
+            GeminiKeyBox.Password = GeminiKeyTextBox.Text;
+            GeminiKeyTextBox.Visibility = Visibility.Collapsed;
+            GeminiKeyBox.Visibility = Visibility.Visible;
+            GeminiKeyBox.Focus();
+            ToggleEyeIcon.Text = "👁";
+        }
+    }
+
+    private void GeminiKeyBox_PasswordChanged(object sender, RoutedEventArgs e)
+    {
+        // Clear status icon when key changes (unless showing masked placeholder)
+        if (GeminiKeyBox.Password != "••••••••")
+        {
+            KeyStatusIcon.Text = string.Empty;
+        }
+    }
+
+    private void GeminiKeyTextBox_TextChanged(object sender, System.Windows.Controls.TextChangedEventArgs e)
+    {
+        KeyStatusIcon.Text = string.Empty;
     }
 
     private void SetValidatingState(bool isValidating)

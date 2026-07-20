@@ -64,6 +64,10 @@ public partial class MainWindow : Window
         string currentLang = TranslationSource.Instance.CurrentCulture;
         LangFrenchRadio.IsChecked = currentLang == "fr";
         LangEnglishRadio.IsChecked = currentLang == "en";
+
+        // Subscribe to ViewModel property changes for animations
+        if (DataContext is INotifyPropertyChanged vm)
+            vm.PropertyChanged += OnViewModelPropertyChanged;
     }
 
     private async void OnContentRendered(object? sender, EventArgs e)
@@ -84,7 +88,35 @@ public partial class MainWindow : Window
         // Clean up event handlers
         SizeChanged -= Onboarding_SizeChanged;
         MainContentGrid.SizeChanged -= OnMainContentGrid_SizeChanged;
+        if (DataContext is INotifyPropertyChanged vm)
+            vm.PropertyChanged -= OnViewModelPropertyChanged;
         ViewModel.Dispose();
+    }
+
+    // ── ViewModel Property Change Handler (for animations) ──────────
+
+    private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        switch (e.PropertyName)
+        {
+            case nameof(MainViewModel.ShowSummaryBanner):
+                if (ViewModel.ShowSummaryBanner)
+                    AnimateFadeIn(SummaryBanner);
+                break;
+        }
+    }
+
+    private static void AnimateFadeIn(UIElement element)
+    {
+        // Only animate if not already fully visible to avoid flash/dip
+        if (element.Opacity >= 1) return;
+        var anim = new DoubleAnimation
+        {
+            To = 1,
+            Duration = TimeSpan.FromMilliseconds(220),
+            EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut },
+        };
+        element.BeginAnimation(UIElement.OpacityProperty, anim);
     }
 
     /// <summary>
@@ -168,12 +200,24 @@ public partial class MainWindow : Window
 
     private void Window_DragOver(object sender, DragEventArgs e)
     {
-        e.Effects = e.Data.GetDataPresent(DataFormats.FileDrop) ? DragDropEffects.Link : DragDropEffects.None;
+        bool hasFiles = e.Data.GetDataPresent(DataFormats.FileDrop);
+        e.Effects = hasFiles ? DragDropEffects.Link : DragDropEffects.None;
         e.Handled = true;
+
+        // Show drag-over visual feedback
+        if (hasFiles && DragOverlay.Visibility != Visibility.Visible)
+        {
+            DragOverlay.Visibility = Visibility.Visible;
+            DragOverlay.Opacity = 0;
+            AnimateFadeIn(DragOverlay);
+        }
     }
 
     private void Window_Drop(object sender, DragEventArgs e)
     {
+        // Hide drag-over overlay
+        DragOverlay.Visibility = Visibility.Collapsed;
+
         if (!e.Data.GetDataPresent(DataFormats.FileDrop)) return;
 
         var paths = (string[])e.Data.GetData(DataFormats.FileDrop);
@@ -208,12 +252,170 @@ public partial class MainWindow : Window
         SetActiveNav(NavExtraction, NavExtractionIcon, NavExtractionText, false);
         SetActiveNav(NavAbout, NavAboutIcon, NavAboutText, true);
 
-        MessageBox.Show(
-            TranslationSource.Fmt("AboutMessage", TranslationSource.Get("SidebarVersion")),
-            TranslationSource.Get("AboutTitle"),
-            MessageBoxButton.OK,
-            MessageBoxImage.Information);
+        ShowAboutDialog();
         NavExtraction_Click(sender, e);
+    }
+
+    /// <summary>
+    /// Shows a styled About dialog instead of plain MessageBox.
+    /// </summary>
+    private void ShowAboutDialog()
+    {
+        var dialog = new Window
+        {
+            Title = TranslationSource.Get("AboutTitle"),
+            SizeToContent = SizeToContent.WidthAndHeight,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            Owner = this,
+            WindowStyle = WindowStyle.None,
+            AllowsTransparency = true,
+            Background = Brushes.Transparent,
+            ShowInTaskbar = false,
+            ResizeMode = ResizeMode.NoResize,
+        };
+
+        var content = new Border
+        {
+            Style = (Style)FindResource("DialogStyle"),
+            MinWidth = 380,
+            MaxWidth = 480,
+            Margin = new Thickness(32),
+            Child = new StackPanel()
+        };
+
+        var stack = (StackPanel)content.Child;
+
+        // Logo / Brand
+        stack.Children.Add(new Border
+        {
+            Width = 48, Height = 48,
+            CornerRadius = new CornerRadius(14),
+            Background = (Brush)FindResource("BrushAccent"),
+            HorizontalAlignment = HorizontalAlignment.Center,
+            Margin = new Thickness(0, 0, 0, 16),
+            Child = new TextBlock
+            {
+                Text = "H",
+                FontSize = 22,
+                FontWeight = FontWeights.Bold,
+                Foreground = (Brush)FindResource("BrushTextInverse"),
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center,
+            }
+        });
+
+        // Title
+        stack.Children.Add(new TextBlock
+        {
+            Text = "HOTIX",
+            Style = (Style)FindResource("TextPageTitle"),
+            HorizontalAlignment = HorizontalAlignment.Center,
+            Margin = new Thickness(0, 0, 0, 4),
+        });
+
+        // Subtitle
+        stack.Children.Add(new TextBlock
+        {
+            Text = "Invoice Extraction",
+            Style = (Style)FindResource("TextCaption"),
+            HorizontalAlignment = HorizontalAlignment.Center,
+            Margin = new Thickness(0, 0, 0, 20),
+        });
+
+        // Divider
+        stack.Children.Add(new Border
+        {
+            Height = 1,
+            Background = (Brush)FindResource("BrushBorder"),
+            Margin = new Thickness(0, 0, 0, 16),
+        });
+
+        // Version
+        string version = TranslationSource.Get("SidebarVersion");
+        stack.Children.Add(new TextBlock
+        {
+            Text = $"Version {version.TrimStart('v')}",
+            Style = (Style)FindResource("TextBody"),
+            Foreground = (Brush)FindResource("BrushTextSecondary"),
+            HorizontalAlignment = HorizontalAlignment.Center,
+            Margin = new Thickness(0, 0, 0, 8),
+        });
+
+        // Description
+        stack.Children.Add(new TextBlock
+        {
+            Text = "A professional invoice extraction tool powered by AI.",
+            Style = (Style)FindResource("TextBody"),
+            Foreground = (Brush)FindResource("BrushTextSecondary"),
+            TextWrapping = TextWrapping.Wrap,
+            TextAlignment = TextAlignment.Center,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            Margin = new Thickness(0, 0, 0, 20),
+        });
+
+        // Engines
+        var engines = new WrapPanel
+        {
+            HorizontalAlignment = HorizontalAlignment.Center,
+            Margin = new Thickness(0, 0, 0, 20),
+        };
+        engines.Children.Add(CreateEngineBadge("PaddleOCR", (Brush)FindResource("BrushSuccessLight")));
+        engines.Children.Add(CreateEngineBadge("Gemini Vision", (Brush)FindResource("BrushInfoLight")));
+        engines.Children.Add(CreateEngineBadge("Grok (xAI)", (Brush)FindResource("BrushWarningLight")));
+        stack.Children.Add(engines);
+
+        // Close button
+        var closeBtn = new Button
+        {
+            Content = TranslationSource.Get("OnboardingNext"),
+            Style = (Style)FindResource("ButtonPrimaryStyle"),
+            MinWidth = 100,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            Margin = new Thickness(0, 0, 0, 0),
+        };
+        closeBtn.Click += (_, _) => dialog.Close();
+        stack.Children.Add(closeBtn);
+
+        // Add some bottom padding
+        stack.Margin = new Thickness(0, 0, 0, 0);
+
+        dialog.Content = new Grid
+        {
+            Children =
+            {
+                new Border
+                {
+                    Background = (Brush)FindResource("BrushOverlay"),
+                },
+                content,
+            }
+        };
+
+        dialog.KeyDown += (s, ke) =>
+        {
+            if (ke.Key == Key.Escape)
+                dialog.Close();
+        };
+
+        dialog.ShowDialog();
+    }
+
+    private static Border CreateEngineBadge(string name, Brush background)
+    {
+        return new Border
+        {
+            CornerRadius = new CornerRadius(9999),
+            Background = background,
+            Padding = new Thickness(10, 4, 10, 4),
+            Margin = new Thickness(0, 0, 6, 0),
+            Child = new TextBlock
+            {
+                Text = name,
+                FontSize = 12,
+                FontWeight = FontWeights.Medium,
+                Foreground = (Brush)Application.Current.FindResource("BrushTextPrimary"),
+            }
+        };
     }
 
     private static void SetActiveNav(Border navItem, TextBlock icon, TextBlock text, bool active)
@@ -268,8 +470,12 @@ public partial class MainWindow : Window
         int rowIndex = e.Row.GetIndex();
         double delayMs = rowIndex * 40.0;
 
+        // Skip animation if row was already animated (e.g. scrolled back into view)
+        if (e.Row.Opacity >= 1 && e.Row.RenderTransform is TranslateTransform { Y: 0 }) return;
+
         e.Row.Opacity = 0;
-        e.Row.RenderTransform = new TranslateTransform(0, 6);
+        if (e.Row.RenderTransform is not TranslateTransform)
+            e.Row.RenderTransform = new TranslateTransform(0, 6);
 
         var fadeIn = new DoubleAnimation
         {
@@ -325,10 +531,27 @@ public partial class MainWindow : Window
 
     private void SetActiveTab(bool showResults)
     {
+        // Guard: already showing this tab
+        if (showResults && PanelResults.Visibility == Visibility.Visible) return;
+        if (!showResults && PanelIncomplete.Visibility == Visibility.Visible) return;
+
         if (showResults)
         {
+            // Fade transition: old panel out, new panel in
+            PanelIncomplete.BeginAnimation(UIElement.OpacityProperty, null);
+
             PanelResults.Visibility = Visibility.Visible;
+            PanelResults.Opacity = 0;
+            var fadeInResults = new DoubleAnimation
+            {
+                To = 1,
+                Duration = TimeSpan.FromMilliseconds(150),
+                EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut },
+            };
+            PanelResults.BeginAnimation(UIElement.OpacityProperty, fadeInResults);
+
             PanelIncomplete.Visibility = Visibility.Collapsed;
+
             TabResultsText.FontWeight = FontWeights.Medium;
             TabResultsText.Foreground = (Brush)Application.Current.FindResource("BrushTextPrimary");
             TabResultsUnderline.Background = (Brush)Application.Current.FindResource("BrushAccent");
@@ -338,8 +561,21 @@ public partial class MainWindow : Window
         }
         else
         {
-            PanelResults.Visibility = Visibility.Collapsed;
+            // Fade transition: old panel out, new panel in
+            PanelResults.BeginAnimation(UIElement.OpacityProperty, null);
+
             PanelIncomplete.Visibility = Visibility.Visible;
+            PanelIncomplete.Opacity = 0;
+            var fadeInIncomplete = new DoubleAnimation
+            {
+                To = 1,
+                Duration = TimeSpan.FromMilliseconds(150),
+                EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut },
+            };
+            PanelIncomplete.BeginAnimation(UIElement.OpacityProperty, fadeInIncomplete);
+
+            PanelResults.Visibility = Visibility.Collapsed;
+
             TabIncompleteText.FontWeight = FontWeights.Medium;
             TabIncompleteText.Foreground = (Brush)Application.Current.FindResource("BrushTextPrimary");
             TabIncompleteUnderline.Background = (Brush)Application.Current.FindResource("BrushAccent");

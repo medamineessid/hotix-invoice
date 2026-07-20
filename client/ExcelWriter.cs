@@ -18,14 +18,14 @@ public sealed class ExcelWriter
     /// <summary>
     /// Creates a brand-new workbook with Results and Incomplete Results sheets.
     /// </summary>
-    public void Write(string outputPath, IReadOnlyList<InvoiceRowViewModel> rows)
+    public void Write(string outputPath, IReadOnlyList<InvoiceRowViewModel> rows, bool markMissing = false)
     {
         string directory = Path.GetDirectoryName(outputPath) ?? Directory.GetCurrentDirectory();
         Directory.CreateDirectory(directory);
 
         using var workbook = new XLWorkbook();
-        WriteSheet(workbook, "Résultats", rows, highlightMissing: false);
-        WriteSheet(workbook, "Extractions Incomplètes", rows.Where(r => r.IsIncomplete).ToList(), highlightMissing: true);
+        WriteSheet(workbook, "Résultats", rows, highlightMissing: markMissing, showMissingText: markMissing);
+        WriteSheet(workbook, "Extractions Incomplètes", rows.Where(r => r.IsIncomplete).ToList(), highlightMissing: true, showMissingText: false);
         workbook.SaveAs(outputPath);
     }
 
@@ -34,7 +34,7 @@ public sealed class ExcelWriter
     /// ("Résultats" or the specified sheetName) exists, data is appended below its
     /// last populated row. Otherwise, a new sheet is created.
     /// </summary>
-    public void AppendToExisting(string outputPath, IReadOnlyList<InvoiceRowViewModel> rows, string? targetSheetName = null)
+    public void AppendToExisting(string outputPath, IReadOnlyList<InvoiceRowViewModel> rows, string? targetSheetName = null, bool markMissing = false)
     {
         using var workbook = new XLWorkbook(outputPath);
 
@@ -45,13 +45,13 @@ public sealed class ExcelWriter
         if (resultsWs != null)
         {
             int lastRow = resultsWs.LastRowUsed()?.RowNumber() ?? 1;
-            AppendRows(resultsWs, rows, lastRow + 1, highlightMissing: false, includeHeaders: false);
+            AppendRows(resultsWs, rows, lastRow + 1, highlightMissing: markMissing, includeHeaders: false, showMissingText: markMissing);
         }
         else
         {
             resultsWs = workbook.Worksheets.Add(mainSheet);
             WriteHeaders(resultsWs);
-            AppendRows(resultsWs, rows, 2, highlightMissing: false, includeHeaders: false);
+            AppendRows(resultsWs, rows, 2, highlightMissing: markMissing, includeHeaders: false, showMissingText: markMissing);
         }
 
         // Incomplete extractions sheet
@@ -62,13 +62,13 @@ public sealed class ExcelWriter
         if (incWs != null)
         {
             int lastRow = incWs.LastRowUsed()?.RowNumber() ?? 1;
-            AppendRows(incWs, incompleteRows, lastRow + 1, highlightMissing: true, includeHeaders: false);
+            AppendRows(incWs, incompleteRows, lastRow + 1, highlightMissing: true, includeHeaders: false, showMissingText: false);
         }
         else
         {
             incWs = workbook.Worksheets.Add(incompleteSheetName);
             WriteHeaders(incWs);
-            AppendRows(incWs, incompleteRows, 2, highlightMissing: true, includeHeaders: false);
+            AppendRows(incWs, incompleteRows, 2, highlightMissing: true, includeHeaders: false, showMissingText: false);
         }
 
         workbook.Save();
@@ -86,11 +86,11 @@ public sealed class ExcelWriter
         return names;
     }
 
-    private static void WriteSheet(XLWorkbook workbook, string sheetName, IEnumerable<InvoiceRowViewModel> rows, bool highlightMissing)
+    private static void WriteSheet(XLWorkbook workbook, string sheetName, IEnumerable<InvoiceRowViewModel> rows, bool highlightMissing, bool showMissingText)
     {
         IXLWorksheet ws = workbook.Worksheets.Add(sheetName);
         WriteHeaders(ws);
-        AppendRows(ws, rows, 2, highlightMissing, includeHeaders: false);
+        AppendRows(ws, rows, 2, highlightMissing, includeHeaders: false, showMissingText: showMissingText);
         ws.Columns().AdjustToContents();
         ws.SheetView.FreezeRows(1);
     }
@@ -107,7 +107,7 @@ public sealed class ExcelWriter
         }
     }
 
-    private static void AppendRows(IXLWorksheet ws, IEnumerable<InvoiceRowViewModel> rows, int startRow, bool highlightMissing, bool includeHeaders)
+    private static void AppendRows(IXLWorksheet ws, IEnumerable<InvoiceRowViewModel> rows, int startRow, bool highlightMissing, bool includeHeaders, bool showMissingText = false)
     {
         int rowIndex = startRow;
 
@@ -121,14 +121,14 @@ public sealed class ExcelWriter
         {
             XLColor rowBg = rowIndex % 2 == 0 ? Row2Bg : Row1Bg;
 
-            SetCell(ws, rowIndex, 1,  row.NumeroFacture, rowBg, highlightMissing && row.NumeroFactureMissing);
-            SetCell(ws, rowIndex, 2,  row.Date,          rowBg, highlightMissing && row.DateMissing);
-            SetCell(ws, rowIndex, 3,  row.Fournisseur,   rowBg, highlightMissing && row.FournisseurMissing);
-            SetCell(ws, rowIndex, 4,  row.Client,        rowBg, highlightMissing && row.ClientMissing);
-            SetCell(ws, rowIndex, 5,  row.MontantHt,     rowBg, highlightMissing && row.MontantHtMissing);
-            SetCell(ws, rowIndex, 6,  row.MontantTva,    rowBg, highlightMissing && row.MontantTvaMissing);
-            SetCell(ws, rowIndex, 7,  row.MontantTaxe,   rowBg, highlightMissing && row.MontantTaxeMissing);
-            SetCell(ws, rowIndex, 8,  row.MontantTtc,    rowBg, highlightMissing && row.MontantTtcMissing);
+            SetCell(ws, rowIndex, 1,  row.NumeroFacture, rowBg, highlightMissing && row.NumeroFactureMissing, showMissingText && row.NumeroFactureMissing);
+            SetCell(ws, rowIndex, 2,  row.Date,          rowBg, highlightMissing && row.DateMissing, showMissingText && row.DateMissing);
+            SetCell(ws, rowIndex, 3,  row.Fournisseur,   rowBg, highlightMissing && row.FournisseurMissing, showMissingText && row.FournisseurMissing);
+            SetCell(ws, rowIndex, 4,  row.Client,        rowBg, highlightMissing && row.ClientMissing, showMissingText && row.ClientMissing);
+            SetCell(ws, rowIndex, 5,  row.MontantHt,     rowBg, highlightMissing && row.MontantHtMissing, showMissingText && row.MontantHtMissing);
+            SetCell(ws, rowIndex, 6,  row.MontantTva,    rowBg, highlightMissing && row.MontantTvaMissing, showMissingText && row.MontantTvaMissing);
+            SetCell(ws, rowIndex, 7,  row.MontantTaxe,   rowBg, highlightMissing && row.MontantTaxeMissing, showMissingText && row.MontantTaxeMissing);
+            SetCell(ws, rowIndex, 8,  row.MontantTtc,    rowBg, highlightMissing && row.MontantTtcMissing, showMissingText && row.MontantTtcMissing);
 
             // Confidence as integer %
             var confCell = ws.Cell(rowIndex, 9);
@@ -155,9 +155,16 @@ public sealed class ExcelWriter
 
     private static void SetCell(IXLWorksheet ws, int row, int col, string? value, XLColor rowBg, bool highlight)
     {
+        SetCell(ws, row, col, value, rowBg, highlight, false);
+    }
+
+    private static void SetCell(IXLWorksheet ws, int row, int col, string? value, XLColor rowBg, bool highlight, bool showMissingText)
+    {
         var cell = ws.Cell(row, col);
-        cell.Value = value ?? string.Empty;
+        cell.Value = showMissingText ? "[MISSING]" : (value ?? string.Empty);
         cell.Style.Fill.BackgroundColor = highlight ? MissingCellBg : rowBg;
         cell.Style.Font.FontColor = White;
     }
+
+
 }

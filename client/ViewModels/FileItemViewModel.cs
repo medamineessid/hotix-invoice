@@ -47,5 +47,25 @@ public sealed class FileItemViewModel : INotifyPropertyChanged
         }
     }
 
+    /// <summary>
+    /// Icon character differentiating PDF files from images.
+    /// </summary>
+    public string FileIcon
+    {
+        get
+        {
+            string ext = Path.GetExtension(FilePath).ToLowerInvariant();
+            return ext switch
+            {
+                ".pdf" => "📋",
+                ".jpg" or ".jpeg" => "🖼",
+                ".png" => "🖼",
+                ".bmp" => "🖼",
+                ".tif" or ".tiff" => "🖼",
+                _ => "📄",
+            };
+        }
+    }
+
     public FileItemViewModel(string filePath) => FilePath = filePath;
 }

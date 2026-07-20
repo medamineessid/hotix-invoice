@@ -44,19 +44,28 @@
         <EventTrigger RoutedEvent="Loaded">
             <BeginStoryboard Storyboard="{StaticResource StoryboardWindowFadeIn}" />
         </EventTrigger>
-    </Window.Triggers>
-
-    <!-- ══ ROOT GRID: Sidebar | Main ══ -->
+    </Window.Triggers>    <!-- ══ ROOT GRID: Sidebar | GridSplitter | Main ══ -->
     <Grid>
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="{StaticResource SidebarWidth}" />
+            <ColumnDefinition Width="{StaticResource SidebarWidth}" MinWidth="200" MaxWidth="380" />
+            <ColumnDefinition Width="Auto" />
             <ColumnDefinition Width="*" />
         </Grid.ColumnDefinitions>
+
+        <!-- ═══ Sidebar GridSplitter ═══ -->
+        <GridSplitter Grid.Column="1"
+                      Width="4"
+                      HorizontalAlignment="Center"
+                      VerticalAlignment="Stretch"
+                      Background="{StaticResource BrushBorderLight}"
+                      Cursor="SizeWE"
+                      AutomationProperties.Name="Resize sidebar" />
 
         <!-- ═══════════════════════════════════════════════
              SIDEBAR
              ═══════════════════════════════════════════════ -->
-        <Border Grid.Column="0" Style="{StaticResource SidebarStyle}">
+        <Border Grid.Column="0" Style="{StaticResource SidebarStyle}"
+                AutomationProperties.Name="Sidebar panel">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />   <!-- Logo -->
@@ -161,7 +170,7 @@
         <!-- ═══════════════════════════════════════════════
              MAIN WORKSPACE
              ═══════════════════════════════════════════════ -->
-        <Grid Grid.Column="1" Background="{StaticResource BrushAltBackground}">
+        <Grid Grid.Column="2" Background="{StaticResource BrushAltBackground}">
             <Grid.RowDefinitions>
                 <RowDefinition Height="48" />   <!-- Title Bar -->
                 <RowDefinition Height="*" />     <!-- Content -->
@@ -171,7 +180,8 @@
             <!-- ── Custom Title Bar ── -->
             <Border Grid.Row="0"
                     BorderThickness="0,0,0,0"
-                    Background="{StaticResource BrushBackground}">
+                    Background="{StaticResource BrushBackground}"
+                    Height="48">
                 <Grid MouseLeftButtonDown="TitleBar_MouseLeftButtonDown" Background="Transparent">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
@@ -182,12 +192,16 @@
                                Style="{StaticResource TextCaption}"
                                Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[MainWindowTitle]}"
                                VerticalAlignment="Center"
-                               Margin="32,0,0,0" />
+                               Margin="32,0,0,0"
+                               AutomationProperties.Name="Application title" />
 
                     <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,16,0">
-                        <Button Style="{StaticResource ButtonIconStyle}" Content="─" Click="MinimizeButton_Click" />
-                        <Button Style="{StaticResource ButtonIconStyle}" Content="□" Click="MaximizeButton_Click" />
-                        <Button Style="{StaticResource ButtonIconStyle}" Content="✕" Click="CloseButton_Click" />
+                        <Button Style="{StaticResource ButtonIconStyle}" Content="─" Click="MinimizeButton_Click"
+                                ToolTip="Minimize" AutomationProperties.Name="Minimize window" />
+                        <Button Style="{StaticResource ButtonIconStyle}" Content="□" Click="MaximizeButton_Click"
+                                ToolTip="Maximize" AutomationProperties.Name="Maximize window" />
+                        <Button Style="{StaticResource ButtonIconStyle}" Content="✕" Click="CloseButton_Click"
+                                ToolTip="Close" AutomationProperties.Name="Close window" />
                     </StackPanel>
                 </Grid>
             </Border>
@@ -211,9 +225,78 @@
 
                     <!-- ══ PAGE TITLE ══ -->
                     <StackPanel Grid.Row="0" Margin="0,0,0,32" MaxWidth="800">
-                        <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[EmptyResultsDesc]}"
-                                   Style="{StaticResource TextBody}"
-                                   Foreground="{StaticResource BrushTextSecondary}" />
+                        <!-- Guidance text shown when no folder is selected -->
+                        <Border x:Name="EmptyGuidance"
+                                CornerRadius="{StaticResource RadiusMedium}"
+                                BorderBrush="{StaticResource BrushAccentLight}"
+                                BorderThickness="1"
+                                Padding="24,20"
+                                Background="{StaticResource BrushSurface}">
+                            <Border.Style>
+                                <Style TargetType="Border">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <MultiDataTrigger>
+                                            <MultiDataTrigger.Conditions>
+                                                <Condition Binding="{Binding Results.Count}" Value="0" />
+                                                <Condition Binding="{Binding HasSelectedFolder}" Value="False" />
+                                            </MultiDataTrigger.Conditions>
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </MultiDataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Border.Style>
+                            <StackPanel HorizontalAlignment="Center">
+                                <!-- Folder icon -->
+                                <Border Width="48" Height="48"
+                                        CornerRadius="12"
+                                        Background="{StaticResource BrushAccentLight}"
+                                        HorizontalAlignment="Center"
+                                        Margin="0,0,0,16">
+                                    <TextBlock Text="📁"
+                                               FontSize="22"
+                                               HorizontalAlignment="Center"
+                                               VerticalAlignment="Center" />
+                                </Border>
+                                <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[EmptyResultsTitle]}"
+                                           Style="{StaticResource TextBody}"
+                                           FontSize="16"
+                                           FontWeight="{StaticResource FontWeightMedium}"
+                                           Foreground="{StaticResource BrushTextPrimary}"
+                                           HorizontalAlignment="Center"
+                                           Margin="0,0,0,8" />
+                                <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[EmptyResultsDesc]}"
+                                           Style="{StaticResource TextBody}"
+                                           Foreground="{StaticResource BrushTextSecondary}"
+                                           TextWrapping="Wrap"
+                                           HorizontalAlignment="Center" />
+                                <Button Content="Add Files +"
+                                        Style="{StaticResource ButtonPrimaryStyle}"
+                                        Margin="0,16,0,0"
+                                        MinWidth="140"
+                                        HorizontalAlignment="Center"
+                                        Click="AddButton_Click" />
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Results count shown when there are results -->
+                        <TextBlock x:Name="ResultsCountLabel"
+                                   Text="{Binding SummaryText, Mode=OneWay}"
+                                   Foreground="{StaticResource BrushTextSecondary}">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding Results.Count}" Value="0">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding Results.Count}" Value="1">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
                     </StackPanel>
 
                     <!-- ══ STEP 1: SOURCE FOLDER + ENGINE ══ -->
@@ -421,8 +504,9 @@
                             </StackPanel>
 
                             <!-- File cards -->
-                            <ItemsControl Grid.Row="1"                                                            ItemsSource="{Binding DetectedFiles}"
-                                          MaxHeight="240">
+                            <ItemsControl Grid.Row="1"
+                                          ItemsSource="{Binding DetectedFiles}"
+                                          MaxHeight="360">
                                 <ItemsControl.Template>
                                     <ControlTemplate TargetType="ItemsControl">
                                         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
@@ -451,9 +535,15 @@
                                                           Style="{StaticResource CheckBoxStyle}"
                                                           VerticalAlignment="Center" />
                                                 <StackPanel Grid.Column="1" Margin="10,0,0,0" VerticalAlignment="Center">
-                                                    <TextBlock Text="{Binding FileName}"
-                                                               Style="{StaticResource TextBody}"
-                                                               TextTrimming="CharacterEllipsis" />
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <TextBlock Text="{Binding FileIcon}"
+                                                                   FontSize="14"
+                                                                   Margin="0,0,6,0"
+                                                                   VerticalAlignment="Center" />
+                                                        <TextBlock Text="{Binding FileName}"
+                                                                   Style="{StaticResource TextBody}"
+                                                                   TextTrimming="CharacterEllipsis" />
+                                                    </StackPanel>
                                                     <TextBlock Text="{Binding FileSizeDisplay}"
                                                                Style="{StaticResource TextTiny}"
                                                                Foreground="{StaticResource BrushTextMuted}"
@@ -509,7 +599,8 @@
                     </Border>
 
                     <!-- ══ NOTIFICATION CARD ══ -->
-                    <Border Grid.Row="4"
+                    <Border x:Name="SummaryBanner"
+                            Grid.Row="4"
                             CornerRadius="{StaticResource RadiusLarge}"
                             Padding="16,14"
                             Margin="0,0,0,12"
@@ -553,10 +644,10 @@
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="300">
+                            <ColumnDefinition Width="380" MinWidth="280" MaxWidth="600">
                                 <ColumnDefinition.Style>
                                     <Style TargetType="ColumnDefinition">
-                                        <Setter Property="Width" Value="300" />
+                                        <Setter Property="Width" Value="380" />
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding HasSelectedRow}" Value="False">
                                                 <Setter Property="Width" Value="0" />
@@ -999,14 +1090,15 @@
                             </Grid>
                         </Border>
 
-                        <!-- Splitter -->
+                        <!-- Splitter for preview panel -->
                         <GridSplitter Grid.Column="1"
                                       Width="4"
                                       HorizontalAlignment="Center"
                                       VerticalAlignment="Stretch"
                                       Background="{StaticResource BrushBorderLight}"
                                       Cursor="SizeWE"
-                                      Visibility="{Binding HasSelectedRow, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                      Visibility="{Binding HasSelectedRow, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                      AutomationProperties.Name="Resize preview panel" />
 
                         <!-- Raw Text Preview Card -->
                         <Border Grid.Column="2" Style="{StaticResource CardStyle}"
@@ -1130,7 +1222,7 @@
              backdrop is provided by a Rectangle inside the Canvas that has
              IsHitTestVisible="False", allowing mouse events to pass through. -->
         <Border x:Name="OnboardingOverlay"
-                Grid.ColumnSpan="2"
+                Grid.ColumnSpan="3"
                 Panel.ZIndex="900"
                 Visibility="Collapsed"
                 IsHitTestVisible="True">
@@ -1192,7 +1284,7 @@
 
         <!-- ══ UPDATE CHECK NOTIFICATION ══ -->
         <Border x:Name="UpdateNotification"
-                Grid.Column="1"
+                Grid.Column="2"
                 Background="{StaticResource BrushSurface}"
                 BorderBrush="{StaticResource BrushAccent}"
                 BorderThickness="0,2,0,0"
@@ -1237,8 +1329,27 @@
             </Grid>
         </Border>
 
+        <!-- Drag-over visual feedback overlay -->
+        <Border x:Name="DragOverlay"
+                Grid.ColumnSpan="3"
+                Panel.ZIndex="950"
+                Visibility="Collapsed"
+                IsHitTestVisible="False"
+                BorderThickness="3"
+                BorderBrush="{StaticResource BrushAccent}"
+                CornerRadius="0"
+                Background="#20D9472B">
+            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                <TextBlock Text="📄" FontSize="48" HorizontalAlignment="Center" Margin="0,0,0,16" />
+                <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ControlDropTooltip]}"
+                           Style="{StaticResource TextSectionHeading}"
+                           Foreground="{StaticResource BrushAccent}"
+                           HorizontalAlignment="Center" />
+            </StackPanel>
+        </Border>
+
         <!-- ══ SERVER OVERLAY (crashed / starting) ══ -->
-        <Border Grid.ColumnSpan="2"
+        <Border Grid.ColumnSpan="3"
                 Background="{StaticResource BrushOverlay}"
                 Panel.ZIndex="1000"
                 Visibility="{Binding ShowServerDiedOverlay, Converter={StaticResource BooleanToVisibilityConverter}}">

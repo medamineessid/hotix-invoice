@@ -5,13 +5,23 @@ namespace Hotix.InvoiceClient;
 
 public partial class ExportDialog : Window
 {
-    public enum ExportMode
+    /// <summary>Which rows to include in the export.</summary>
+    public enum FilterMode
+    {
+        ResultsOnly,
+        MissingOnly,
+        Both
+    }
+
+    /// <summary>Whether to create a new file or append to an existing one.</summary>
+    public enum DestinationMode
     {
         CreateNew,
         AppendExisting
     }
 
-    public ExportMode SelectedMode { get; private set; } = ExportMode.CreateNew;
+    public FilterMode SelectedFilter { get; private set; } = FilterMode.Both;
+    public DestinationMode SelectedDestination { get; private set; } = DestinationMode.CreateNew;
 
     public ExportDialog()
     {
@@ -20,42 +30,85 @@ public partial class ExportDialog : Window
 
     private void Window_Loaded(object sender, RoutedEventArgs e)
     {
-        // Default: Create New selected
-        UpdateSelection(ExportMode.CreateNew);
+        // Default: Both selected, Create New
+        UpdateFilterSelection(FilterMode.Both);
+        AppendCheckBox.IsChecked = false;
     }
 
-    private void NewCard_Click(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    private void FilterResultsOnly_Click(object sender, System.Windows.Input.MouseButtonEventArgs e)
     {
-        UpdateSelection(ExportMode.CreateNew);
+        UpdateFilterSelection(FilterMode.ResultsOnly);
+    }
+
+    private void FilterMissingOnly_Click(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        UpdateFilterSelection(FilterMode.MissingOnly);
+    }
+
+    private void FilterBoth_Click(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        UpdateFilterSelection(FilterMode.Both);
     }
 
     private void AppendCard_Click(object sender, System.Windows.Input.MouseButtonEventArgs e)
     {
-        UpdateSelection(ExportMode.AppendExisting);
+        AppendCheckBox.IsChecked = !AppendCheckBox.IsChecked;
+        UpdateDestination();
     }
 
-    private void UpdateSelection(ExportMode mode)
+    private void AppendCheckBox_Changed(object sender, RoutedEventArgs e)
     {
-        SelectedMode = mode;
+        UpdateDestination();
+    }
 
-        bool isNew = mode == ExportMode.CreateNew;
+    private void UpdateFilterSelection(FilterMode mode)
+    {
+        SelectedFilter = mode;
 
-        NewRadioDot.Visibility = isNew ? Visibility.Visible : Visibility.Collapsed;
-        AppendRadioDot.Visibility = isNew ? Visibility.Collapsed : Visibility.Visible;
+        // Update visibility of radio dots
+        FilterResultsDot.Visibility = mode == FilterMode.ResultsOnly ? Visibility.Visible : Visibility.Collapsed;
+        FilterMissingDot.Visibility = mode == FilterMode.MissingOnly ? Visibility.Visible : Visibility.Collapsed;
+        FilterBothDot.Visibility = mode == FilterMode.Both ? Visibility.Visible : Visibility.Collapsed;
 
-        NewCard.BorderBrush = isNew
-            ? (Brush)Application.Current.FindResource("BrushAccent")
-            : (Brush)Application.Current.FindResource("BrushBorder");
-        AppendCard.BorderBrush = isNew
-            ? (Brush)Application.Current.FindResource("BrushBorder")
-            : (Brush)Application.Current.FindResource("BrushAccent");
-
-        NewCard.Background = isNew
-            ? (Brush)Application.Current.FindResource("BrushSelected")
+        // Update card borders and backgrounds
+        FilterResultsCard.BorderBrush = GetBrush(mode == FilterMode.ResultsOnly ? "BrushAccent" : "BrushBorder");
+        FilterResultsCard.BorderThickness = new Thickness(mode == FilterMode.ResultsOnly ? 2 : 1);
+        FilterResultsCard.Background = mode == FilterMode.ResultsOnly
+            ? GetBrush("BrushSelected")
             : Brushes.Transparent;
-        AppendCard.Background = isNew
-            ? Brushes.Transparent
-            : (Brush)Application.Current.FindResource("BrushSelected");
+
+        FilterMissingCard.BorderBrush = GetBrush(mode == FilterMode.MissingOnly ? "BrushAccent" : "BrushBorder");
+        FilterMissingCard.BorderThickness = new Thickness(mode == FilterMode.MissingOnly ? 2 : 1);
+        FilterMissingCard.Background = mode == FilterMode.MissingOnly
+            ? GetBrush("BrushSelected")
+            : Brushes.Transparent;
+
+        FilterBothCard.BorderBrush = GetBrush(mode == FilterMode.Both ? "BrushAccent" : "BrushBorder");
+        FilterBothCard.BorderThickness = new Thickness(mode == FilterMode.Both ? 2 : 1);
+        FilterBothCard.Background = mode == FilterMode.Both
+            ? GetBrush("BrushSelected")
+            : Brushes.Transparent;
+    }
+
+    private void UpdateDestination()
+    {
+        SelectedDestination = AppendCheckBox.IsChecked == true
+            ? DestinationMode.AppendExisting
+            : DestinationMode.CreateNew;
+
+        // Highlight append card when checked
+        AppendCard.BorderBrush = AppendCheckBox.IsChecked == true
+            ? GetBrush("BrushAccent")
+            : GetBrush("BrushBorder");
+        AppendCard.BorderThickness = new Thickness(AppendCheckBox.IsChecked == true ? 2 : 1);
+        AppendCard.Background = AppendCheckBox.IsChecked == true
+            ? GetBrush("BrushSelected")
+            : Brushes.Transparent;
+    }
+
+    private static Brush GetBrush(string resourceKey)
+    {
+        return (Brush)Application.Current.FindResource(resourceKey);
     }
 
     private void Cancel_Click(object sender, RoutedEventArgs e)
