@@ -840,29 +840,39 @@ def _selection_from_geometric_search(field: str, anchor: OCRLine, rows: list[lis
         return None
 
     candidates.sort(key=lambda c: c[1], reverse=True)
-    best_line, best_score = candidates[0]
 
-    # ── Minimum score floor ────────────────────────────────────────────────
-    # Reject candidates with absurdly low scores (deeply negative).
-    # An OCR-extracted value that scores below even the most generous
-    # threshold is almost certainly a wrong assignment (e.g., header label
-    # matched to footer content).  Returning None (blank) is better than
-    # showing garbage.
-    if best_score < MIN_ACCEPTABLE_SCORE:
-        _debug_log(
-            f"  {field}: best candidate score {best_score:.1f} < MIN_ACCEPTABLE_SCORE "
-            f"({MIN_ACCEPTABLE_SCORE}) — REJECTED"
-        )
-        return None
+    # Iterate through candidates in score order and accept the first one
+    # whose value cleans successfully.  This handles the case where the
+    # highest-scoring candidate happens to be a value that fails
+    # _clean_candidate_value (e.g., "20%" fails extract_amount because
+    # percentage striping leaves an empty string) while a slightly
+    # lower-scoring candidate produces a valid cleaned value.
+    for candidate_line, candidate_score in candidates:
+        # ── Minimum score floor ────────────────────────────────────────────
+        # Reject candidates with absurdly low scores (deeply negative).
+        if candidate_score < MIN_ACCEPTABLE_SCORE:
+            _debug_log(
+                f"  {field}: candidate {candidate_line.text!r} score {candidate_score:.1f}"
+                f" < MIN_ACCEPTABLE_SCORE ({MIN_ACCEPTABLE_SCORE}) — REJECTED"
+            )
+            continue
 
-    candidate_value = _clean_candidate_value(field, best_line.text)
-    if candidate_value is None:
-        return None
+        candidate_value = _clean_candidate_value(field, candidate_line.text)
+        if candidate_value is None:
+            _debug_log(
+                f"  {field}: candidate {candidate_line.text!r} score {candidate_score:.1f}"
+                f" — failed _clean_candidate_value, skipping"
+            )
+            continue
 
-    selection = FieldSelection(value=candidate_value, confidence=best_line.confidence, score=best_score, ocr_line=best_line)
-    if selection.score <= current_selection.score:
-        return None
-    return selection
+        selection = FieldSelection(value=candidate_value, confidence=candidate_line.confidence,
+                                    score=candidate_score, ocr_line=candidate_line)
+        if selection.score <= current_selection.score:
+            continue
+        return selection
+
+    _debug_log(f"  {field}: no candidate passed cleaning — returning None")
+    return None
 
 
 def _contains_any_alias(text: str, aliases: Sequence[str]) -> bool:
@@ -1037,12 +1047,14 @@ def _looks_like_label(text: str) -> bool:
         "reference", "numero",
         # Product/item descriptions
         "designation", "description", "produit", "article",
-        # Address fields
-        # NOTE: "ville" is intentionally excluded — city names like
-        # "Mairie de Villefranche" contain "ville" as a substring,
-        # causing false-positive label rejection for valid client names.
-        "adresse", "rue", "avenue", "boulevard", "place", "chemin",
-        "code postal", "codepostal", "pays",
+        # Address field labels (compound only — street-type words like "rue",
+        # "avenue", "boulevard" are NOT included because they appear inside
+        # legitimate address values like "70 avenue de Clichy".  Only full
+        # label phrases like "adresse", "code postal", and "pays" are kept.)
+        # NOTE: "ville" is also excluded — city names like "Mairie de
+        # Villefranche" contain "ville" as a substring, causing false-positive
+        # label rejection for valid client names.
+        "adresse", "code postal", "codepostal", "pays",
         # Additional common invoice labels
         "quantite", "quantité", "prix", "unite", "unité",
         "remise", "escompte", "livraison", "port",
