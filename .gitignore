@@ -18,6 +18,9 @@ build/
 # .NET / C#
 client/bin/
 client/obj/
+client/publish/
+client/HotixDiagnostics/bin/
+client/HotixDiagnostics/obj/
 
 # IDE
 .idea/
@@ -28,20 +31,12 @@ client/obj/
 Thumbs.db
 Desktop.ini
 
-client/publish/
-client/bin/
-client/obj/
-client/HotixDiagnostics/bin/
-client/HotixDiagnostics/obj/
-
 # Logs & debug artifacts
 crash.log
 server_stdout.log
 nul
 
-# Test files
+# Test & diagnostic files
 test_invoice.png
 test_venv312/
-
-# Diagnostic output
 diagnostic.json
