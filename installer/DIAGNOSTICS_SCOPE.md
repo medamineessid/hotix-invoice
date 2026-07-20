@@ -239,8 +239,14 @@ ARCHITECTURE
     - Scheduled health checks (background task)
     - Rollback failed repairs (undo venv recreation if it fails)
 
-IMPLEMENTATION PRIORITY
-=======================
+CURRENT STATUS
+==============
+A minimal v1 of HotixDiagnostics exists at client/HotixDiagnostics/ with
+3 basic checks (Poppler PATH, Python venv, OCR server health). See below
+for the full planned feature set that is deferred.
+
+IMPLEMENTATION PRIORITY — DEFERRED
+==================================
 1. Models (CheckResult, DiagnosticsReport)
 2. Services (PythonCheckService, VenvCheckService, etc.)
 3. Repairs (RecreateVenvRepair, etc.)
@@ -248,8 +254,8 @@ IMPLEMENTATION PRIORITY
 5. UI (MainWindow.xaml + code-behind)
 6. Integration (launch from installer, logging)
 
-ESTIMATED EFFORT
-================
+ESTIMATED EFFORT — DEFERRED
+===========================
 - Models: 1-2 hours
 - Services: 4-6 hours (most complex: FastAPI startup, PaddleOCR import)
 - Repairs: 2-3 hours

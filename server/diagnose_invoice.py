@@ -152,7 +152,7 @@ def diagnose(image_path: str) -> dict:
             print(f"     {field:20s} = {sel.value!r:30s}  "
                   f"conf={sel.confidence:.3f}  score={sel.score:.1f}")
             if sel.ocr_line:
-                print(f"     {'':20s}   from: {sel.oc_line.text[:80]!r}")
+                print(f"     {'':20s}   from: {sel.ocr_line.text[:80]!r}")
         else:
             print(f"     {field:20s} = None")
     result["extraction"]["selections"] = make_serializable(selections)

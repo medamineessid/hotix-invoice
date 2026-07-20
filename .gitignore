@@ -31,6 +31,8 @@ Desktop.ini
 client/publish/
 client/bin/
 client/obj/
+client/HotixDiagnostics/bin/
+client/HotixDiagnostics/obj/
 
 # Logs & debug artifacts
 crash.log
@@ -40,3 +42,6 @@ nul
 # Test files
 test_invoice.png
 test_venv312/
+
+# Diagnostic output
+diagnostic.json

@@ -412,6 +412,17 @@ MAX_CANDIDATE_VERTICAL_GAP = 250.0
 # in the same sub-row (though the 5x height split usually handles this).
 MAX_CANDIDATE_HORIZONTAL_GAP = 500.0
 
+# ── Score thresholds ────────────────────────────────────────────────────────
+
+# Minimum acceptable score for a candidate to be accepted.
+# Candidates with scores below this threshold are treated the same as having
+# no candidate at all (returned as None).  This follows the project's existing
+# "blank is better than wrong" principle already applied to OCR confidence.
+# Empirically: a reasonable anchor-value pair on the same page scores at
+# least ~400 even with moderate distance penalties, so -300 is a generous
+# floor that still catches obviously spurious assignments.
+MIN_ACCEPTABLE_SCORE = -300.0
+
 # Constants for same-row-right matching
 SAME_ROW_H_OVERLAP_THRESHOLD = 0.3  # min horizontal overlap ratio for "same row"
 
@@ -606,6 +617,24 @@ def _lines_below(anchor_row_idx: int, rows: list[list[OCRLine]]) -> list[OCRLine
     return all_below
 
 
+def _lines_above(anchor_row_idx: int, rows: list[list[OCRLine]]) -> list[OCRLine]:
+    """Return all OCR lines from rows above the anchor row (flattened), used as
+    a fallback when the primary below-row search finds nothing.
+
+    Only looks a limited distance above (MAX_LOOKAHEAD_ROWS rows) to avoid
+    grabbing content from a completely different section of the page.
+
+    NOTE: rows[i] is already sorted left-to-right (by x1) from cluster_rows.
+    We do NOT reverse the items because the nearby-above row should come first
+    in iteration order AND its items should be in left-to-right reading order.
+    """
+    all_above: list[OCRLine] = []
+    start = max(0, anchor_row_idx - MAX_LOOKAHEAD_ROWS)
+    for i in range(anchor_row_idx - 1, start - 1, -1):
+        all_above.extend(rows[i])  # already in left-to-right order
+    return all_above
+
+
 def _is_same_row(anchor: OCRLine, candidate: OCRLine) -> bool:
     """Return True if candidate is in the same visual row as anchor."""
     overlap = anchor.box.vertical_overlap(candidate.box)
@@ -787,11 +816,44 @@ def _selection_from_geometric_search(field: str, anchor: OCRLine, rows: list[lis
         score = _score_below_row(anchor, line)
         candidates.append((line, score))
 
+    # (c) If nothing found below, try ABOVE the anchor as a fallback.
+    # This can happen when cluster_rows sub-row ordering places a right-
+    # aligned value sub-row BEFORE its left-aligned label (though the
+    # parent-row-based sort should prevent this in most cases).
+    if not candidates:
+        for line in _lines_above(anchor_row_idx, rows):
+            if excluded_ids and id(line) in excluded_ids:
+                continue
+            v_gap = line.box.vertical_gap(anchor.box)
+            if v_gap > MAX_CANDIDATE_VERTICAL_GAP:
+                continue
+            if field == "numero_facture":
+                if not _candidate_is_plausible_numero_facture(line):
+                    continue
+            else:
+                if not _candidate_is_plausible(line):
+                    continue
+            score = _score_below_row(anchor, line)
+            candidates.append((line, score))
+
     if not candidates:
         return None
 
     candidates.sort(key=lambda c: c[1], reverse=True)
     best_line, best_score = candidates[0]
+
+    # ── Minimum score floor ────────────────────────────────────────────────
+    # Reject candidates with absurdly low scores (deeply negative).
+    # An OCR-extracted value that scores below even the most generous
+    # threshold is almost certainly a wrong assignment (e.g., header label
+    # matched to footer content).  Returning None (blank) is better than
+    # showing garbage.
+    if best_score < MIN_ACCEPTABLE_SCORE:
+        _debug_log(
+            f"  {field}: best candidate score {best_score:.1f} < MIN_ACCEPTABLE_SCORE "
+            f"({MIN_ACCEPTABLE_SCORE}) — REJECTED"
+        )
+        return None
 
     candidate_value = _clean_candidate_value(field, best_line.text)
     if candidate_value is None:
@@ -998,6 +1060,36 @@ def _looks_like_label(text: str) -> bool:
     return any(re.search(pattern, normalized) for pattern in label_patterns)
 
 
+def _looks_like_date(text: str) -> bool:
+    """Return True when the text looks like a date format (e.g. DD/MM/YYYY).
+
+    Checks for common date patterns:
+    - DD/MM/YYYY or DD-MM-YYYY
+    - YYYY/MM/DD
+    - DD Month YYYY
+
+    Strips trailing punctuation (. , ; :) before matching to handle real
+    OCR output that often appends stray dots or commas.
+
+    Used to heavily penalize date-shaped values for fields that should not
+    contain dates (e.g., numero_facture).
+    """
+    normalized = normalize_text(text)
+    # Strip trailing punctuation that OCR often appends
+    normalized = normalized.strip(".,;:")
+    # DD/MM/YYYY or DD-MM-YYYY
+    if re.match(r"^\d{1,2}[/-]\d{1,2}[/-]\d{2,4}$", normalized):
+        return True
+    # YYYY/MM/DD or YYYY-MM-DD
+    if re.match(r"^\d{4}[/-]\d{1,2}[/-]\d{1,2}$", normalized):
+        return True
+    # DD Month YYYY (French or English month names)
+    month_pattern = r"(janvier|février|fevrier|mars|avril|mai|juin|juillet|aout|août|septembre|octobre|novembre|decembre|décembre|january|february|march|april|june|july|august|september|october|november|december)"
+    if re.match(rf"^\d{{1,2}}\s+{month_pattern}\s+\d{{4}}$", normalized, re.IGNORECASE):
+        return True
+    return False
+
+
 # ── Specialized extraction: numero_facture ──────────────────────────────────
 
 # Strict anchor patterns that explicitly pair invoice-number identifiers
@@ -1073,6 +1165,19 @@ def _process_numero_anchor(anchor: OCRLine, rows: list[list[OCRLine]], current_s
     # Try same-line extraction first (e.g. "N° Facture: INV-2024-001")
     same_line = _selection_from_same_line("numero_facture", anchor, selection)
     if same_line is not None:
+        value = same_line.value or ""
+        # Apply heavy date penalty to same-line results too
+        if _looks_like_date(value):
+            _debug_log(
+                f"  numero_facture: same-line value {value!r} looks like a date — "
+                f"applying -500 penalty"
+            )
+            same_line = FieldSelection(
+                value=same_line.value,
+                confidence=same_line.confidence,
+                score=same_line.score - 500.0,
+                ocr_line=same_line.ocr_line,
+            )
         quality_boost = _invoice_number_quality_score(same_line.value or "")
         adjusted = FieldSelection(
             value=same_line.value,
@@ -1086,6 +1191,24 @@ def _process_numero_anchor(anchor: OCRLine, rows: list[list[OCRLine]], current_s
     # Try geometric search (value on same row to right, or row below)
     geometric = _selection_from_geometric_search("numero_facture", anchor, rows, selection)
     if geometric is not None:
+        # ── Date penalty for invoice numbers ────────────────────────────────
+        # A value that parses cleanly as a date (e.g. "24/11/2020") is very
+        # unlikely to also be a valid invoice number, even if it scores better
+        # geometrically because it happens to be closer to the anchor.  Apply
+        # a HEAVY penalty (500 points, not the small ±30 in quality_score) to
+        # make date-like values lose against any non-date candidate.
+        value = geometric.value or ""
+        if _looks_like_date(value):
+            _debug_log(
+                f"  numero_facture: value {value!r} looks like a date — "
+                f"applying -500 penalty"
+            )
+            geometric = FieldSelection(
+                value=geometric.value,
+                confidence=geometric.confidence,
+                score=geometric.score - 500.0,
+                ocr_line=geometric.ocr_line,
+            )
         quality_boost = _invoice_number_quality_score(geometric.value or "")
         adjusted = FieldSelection(
             value=geometric.value,

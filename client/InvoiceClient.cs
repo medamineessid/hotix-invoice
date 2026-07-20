@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.IO;
 using System.Net;
 using System.Net.Http;
@@ -35,9 +36,14 @@ public sealed class InvoiceClient
         if (!response.IsSuccessStatusCode)
             throw new InvoiceExtractionException(response.StatusCode, body);
 
+        // ⚠ DIAGNOSTIC: deserialized values
+        Debug.WriteLine("[Hotix] ExtractAsync: raw JSON body (truncated 2000): " + (body.Length > 2000 ? body[..2000] + "..." : body));
+
         InvoiceResult? result = JsonSerializer.Deserialize<InvoiceResult>(body, JsonOptions);
         if (result is null)
             throw new InvalidOperationException($"Réponse vide pour {filePath}.");
+
+        Debug.WriteLine("[Hotix] ExtractAsync: deserialized fournisseur=" + (result.Fournisseur ?? "null") + " client=" + (result.Client ?? "null") + " conf=" + result.Confidence);
 
         return result;
     }

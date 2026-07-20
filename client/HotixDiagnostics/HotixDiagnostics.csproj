@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>HotixDiagnostics</AssemblyName>
+    <RootNamespace>HotixDiagnostics</RootNamespace>
+    <ApplicationIcon>..\hotix_icon.ico</ApplicationIcon>
+  </PropertyGroup>
+
+</Project>

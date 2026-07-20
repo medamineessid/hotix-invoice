@@ -225,7 +225,10 @@ def cluster_rows(lines: Sequence[OCRLine]) -> list[list[OCRLine]]:
     200-500+ px; at ~20 px typical text height, 5x = 100 px cleanly
     separates the two distributions.
 
-    Rows are sorted top-to-bottom by their average y-center.
+    Sub-rows from the SAME parent row are sorted by x-center (left-to-right)
+    to ensure a left-aligned label always comes before its right-aligned
+    value, even when minor OCR centroid differences would otherwise put
+    the right column's centroid slightly higher.
     """
     if not lines:
         return []
@@ -233,7 +236,9 @@ def cluster_rows(lines: Sequence[OCRLine]) -> list[list[OCRLine]]:
     # Sort by y1 initially (top-to-bottom reading order)
     sorted_lines = sorted(lines, key=lambda l: (l.page_index, l.box.y1))
 
-    rows: list[list[OCRLine]] = []
+    # Build parent rows by vertical overlap.  Each parent row_idx gets a
+    # unique counter that serves as the group ID for its sub-rows.
+    parent_rows: list[list[OCRLine]] = []
     used = [False] * len(sorted_lines)
 
     for i, line in enumerate(sorted_lines):
@@ -259,16 +264,18 @@ def cluster_rows(lines: Sequence[OCRLine]) -> list[list[OCRLine]]:
 
         # Sort within row left-to-right
         current_row.sort(key=lambda l: l.box.x1)
+        parent_rows.append(current_row)
 
-        # ── Split into sub-rows when horizontal gap is too large ──────────
-        # On two-column invoices, text from different columns at the same
-        # vertical height gets merged by vertical overlap alone.  We split
-        # when the gap between consecutive items exceeds 5x the taller
-        # box's height.  Empirically label+value gaps are 10-80 px while
-        # column gaps are 200-500+ px; at 20 px typical height, 5x=100 px
-        # cleanly separates the two distributions.
-        sub_rows: list[list[OCRLine]] = [[current_row[0]]]
-        for item in current_row[1:]:
+    # Create sub-rows by splitting each parent row on large horizontal gaps.
+    # Each sub-row is tagged with its parent-row index so they can be sorted
+    # left-to-right within their visual line.
+    tagged_sub_rows: list[tuple[int, list[OCRLine]]] = []
+
+    for parent_idx, parent_row in enumerate(parent_rows):
+        if not parent_row:
+            continue
+        sub_rows: list[list[OCRLine]] = [[parent_row[0]]]
+        for item in parent_row[1:]:
             prev = sub_rows[-1][-1]
             gap = item.box.x1 - prev.box.x2
             taller = max(prev.box.height, item.box.height)
@@ -276,13 +283,24 @@ def cluster_rows(lines: Sequence[OCRLine]) -> list[list[OCRLine]]:
                 sub_rows.append([item])
             else:
                 sub_rows[-1].append(item)
+        for sub_row in sub_rows:
+            tagged_sub_rows.append((parent_idx, sub_row))
 
-        rows.extend(sub_rows)
+    # Sort: within the same parent group (same visual line), sort by
+    # x-center (left to right).  Across different groups, sort by
+    # average y-center first, then x-center as tiebreaker.
+    def _sort_key(item: tuple[int, list[OCRLine]]) -> tuple:
+        parent_idx, sub_row = item
+        avg_y = sum(l.box.center_y for l in sub_row) / len(sub_row)
+        avg_x = sum(l.box.center_x for l in sub_row) / len(sub_row)
+        # Sub-rows from the same parent: sort by x-center (left-to-right).
+        # Different parents: sort by avg_y, with avg_x as tiebreaker.
+        return (parent_idx, avg_y, avg_x)
 
-    # Sort rows top-to-bottom by average y-center
-    rows.sort(key=lambda r: sum(l.box.center_y for l in r) / len(r))
+    tagged_sub_rows.sort(key=_sort_key)
 
-    return rows
+    # Discard the parent_idx tag and return just the sub-rows
+    return [sub_row for _, sub_row in tagged_sub_rows]
 
 
 def _parse_decimal(value: Optional[str]) -> Optional[Decimal]:

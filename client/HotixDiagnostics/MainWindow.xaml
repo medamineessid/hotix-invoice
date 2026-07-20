@@ -1,0 +1,132 @@
+<Window x:Class="HotixDiagnostics.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Hotix Diagnostics"
+        Width="520"
+        Height="420"
+        WindowStartupLocation="CenterScreen"
+        ResizeMode="CanMinimize"
+        Icon="..\hotix_icon.ico">
+    <Window.Style>
+        <Style TargetType="Window">
+            <Setter Property="Background" Value="#F5F5F5" />
+        </Style>
+    </Window.Style>
+
+    <Grid Margin="24">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <StackPanel Grid.Row="0" Margin="0,0,0,24">
+            <TextBlock Text="Hotix Post-Install Diagnostics"
+                       FontSize="18"
+                       FontWeight="SemiBold"
+                       Margin="0,0,0,6" />
+            <TextBlock x:Name="StatusSummary"
+                       Text="Running checks..."
+                       FontSize="13"
+                       Foreground="#666666" />
+        </StackPanel>
+
+        <!-- Check Results -->
+        <ItemsControl Grid.Row="1"
+                      x:Name="CheckList"
+                      Focusable="False">
+            <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                    <Border BorderThickness="1"
+                            BorderBrush="#E0E0E0"
+                            CornerRadius="6"
+                            Padding="14,10"
+                            Margin="0,0,0,8"
+                            Background="White">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+
+                            <!-- Status icon -->
+                            <Border Grid.Column="0"
+                                    Width="20" Height="20"
+                                    CornerRadius="10"
+                                    Background="{Binding StatusColor}"
+                                    VerticalAlignment="Center"
+                                    Margin="0,0,12,0">
+                                <TextBlock Text="{Binding StatusIcon}"
+                                           FontSize="11"
+                                           Foreground="White"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center"
+                                           FontWeight="Bold" />
+                            </Border>
+
+                            <!-- Check name + message -->
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                <TextBlock Text="{Binding CheckName}"
+                                           FontSize="13"
+                                           FontWeight="Medium" />
+                                <TextBlock Text="{Binding Message}"
+                                           FontSize="11"
+                                           Foreground="#888888"
+                                           Margin="0,2,0,0"
+                                           TextWrapping="Wrap" />
+                            </StackPanel>
+
+                            <!-- Detailed output toggle -->
+                            <TextBlock Grid.Column="2"
+                                       Text="{Binding DetailIndicator}"
+                                       FontSize="10"
+                                       Foreground="#AAAAAA"
+                                       VerticalAlignment="Center"
+                                       Cursor="Hand"
+                                       ToolTip="{Binding Details}" />
+                        </Grid>
+                    </Border>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+
+        <!-- Bottom buttons -->
+        <StackPanel Grid.Row="2"
+                    Orientation="Horizontal"
+                    HorizontalAlignment="Right"
+                    Margin="0,16,0,0">
+            <Button x:Name="RefreshButton"
+                    Content="Ré-exécuter"
+                    Padding="16,8"
+                    Margin="0,0,8,0"
+                    Cursor="Hand"
+                    Click="RefreshButton_Click">
+                <Button.Style>
+                    <Style TargetType="Button">
+                        <Setter Property="Background" Value="#E0E0E0" />
+                        <Setter Property="BorderThickness" Value="0" />
+                        <Setter Property="Foreground" Value="#333333" />
+                        <Setter Property="FontSize" Value="12" />
+                    </Style>
+                </Button.Style>
+            </Button>
+            <Button x:Name="CloseButton"
+                    Content="Fermer"
+                    Padding="16,8"
+                    Cursor="Hand"
+                    IsDefault="True"
+                    Click="CloseButton_Click">
+                <Button.Style>
+                    <Style TargetType="Button">
+                        <Setter Property="Background" Value="#E0E0E0" />
+                        <Setter Property="BorderThickness" Value="0" />
+                        <Setter Property="Foreground" Value="#333333" />
+                        <Setter Property="FontSize" Value="12" />
+                    </Style>
+                </Button.Style>
+            </Button>
+        </StackPanel>
+    </Grid>
+</Window>

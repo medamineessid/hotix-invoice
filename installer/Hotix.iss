@@ -58,15 +58,18 @@ Source: "installer\vendor\poppler\**\*"; DestDir: "{app}\poppler"; Flags: recurs
 Source: "README.md"; DestDir: "{app}"; Flags: ignoreversion
 Source: "scripts\start.ps1"; DestDir: "{app}\scripts"; Flags: ignoreversion
 
+; Hotix Diagnostics (post-install verification tool)
+Source: "client\HotixDiagnostics\bin\Release\net8.0-windows\publish\*"; DestDir: "{app}\diagnostics"; Flags: recursesubdirs ignoreversion
+
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\client\{#MyAppExeName}"; WorkingDir: "{app}"
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\client\{#MyAppExeName}"; WorkingDir: "{app}"
-Name: "{group}\Hotix Diagnostics"; Filename: "{app}\HotixDiagnostics.exe"; WorkingDir: "{app}"
+Name: "{group}\Hotix Diagnostics"; Filename: "{app}\diagnostics\HotixDiagnostics.exe"; WorkingDir: "{app}"
 Name: "{group}\Uninstall {#MyAppName}"; Filename: "{uninstallexe}"
 
 [Run]
 ; Run diagnostics after install to verify everything works
-Filename: "{app}\HotixDiagnostics.exe"; Description: "Run Hotix Diagnostics"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\diagnostics\HotixDiagnostics.exe"; Description: "Run Hotix Diagnostics"; Flags: nowait postinstall skipifsilent
 
 [Registry]
 ; Add Poppler to system PATH for PDF support
