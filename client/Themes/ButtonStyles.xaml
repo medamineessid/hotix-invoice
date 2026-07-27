@@ -16,7 +16,7 @@
          ═══════════════════════════════════════════════ -->
 
     <!-- Base button template with animations -->
-    <ControlTemplate x:Key="TemplateButtonBase" TargetType="Button">
+    <ControlTemplate x:Key="TemplateButtonBase" TargetType="ButtonBase">
         <Border x:Name="Border"
                 Background="{TemplateBinding Background}"
                 BorderBrush="{TemplateBinding BorderBrush}"
@@ -55,7 +55,7 @@
     </ControlTemplate>
 
     <!-- ═══ Primary Button — Red Accent ═══ -->
-    <Style x:Key="ButtonPrimaryStyle" TargetType="Button">
+    <Style x:Key="ButtonPrimaryStyle" TargetType="ButtonBase">
         <Setter Property="Background"  Value="{StaticResource BrushButtonPrimary}" />
         <Setter Property="Foreground"  Value="{StaticResource BrushButtonPrimaryText}" />
         <Setter Property="BorderBrush" Value="{StaticResource BrushButtonPrimary}" />
@@ -86,7 +86,7 @@
     </Style>
 
     <!-- ═══ Secondary Button — White + Border ═══ -->
-    <Style x:Key="ButtonSecondaryStyle" TargetType="Button">
+    <Style x:Key="ButtonSecondaryStyle" TargetType="ButtonBase">
         <Setter Property="Background"  Value="{StaticResource BrushButtonSecondary}" />
         <Setter Property="Foreground"  Value="{StaticResource BrushButtonSecondaryText}" />
         <Setter Property="BorderBrush" Value="{StaticResource BrushButtonSecondaryStroke}" />
@@ -113,7 +113,7 @@
     </Style>
 
     <!-- ═══ Danger Button — Outlined Red ═══ -->
-    <Style x:Key="ButtonDangerStyle" TargetType="Button">
+    <Style x:Key="ButtonDangerStyle" TargetType="ButtonBase">
         <Setter Property="Background"  Value="{StaticResource BrushButtonDanger}" />
         <Setter Property="Foreground"  Value="{StaticResource BrushButtonDangerText}" />
         <Setter Property="BorderBrush" Value="{StaticResource BrushButtonDangerStroke}" />

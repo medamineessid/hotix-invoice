@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.IO;
 using System.Runtime.CompilerServices;
+using Hotix.InvoiceClient;
 
 namespace Hotix.InvoiceClient.ViewModels;
 
@@ -25,6 +26,9 @@ public sealed class InvoiceRowViewModel : INotifyPropertyChanged
     private string? _geminiFallbackReason;
     private HashSet<string> _computedFields = new();
     private bool _amountMismatch;
+    private string _invoiceDirection = string.Empty;
+    private int _itemsCount;
+    private bool _areItemsExpanded;
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -191,6 +195,115 @@ public sealed class InvoiceRowViewModel : INotifyPropertyChanged
     }
 
     public bool HasAmountMismatch => _amountMismatch;
+
+    /// <summary>
+    /// Invoice direction: "received" (Hotix received this from a supplier),
+    /// "issued" (Hotix issued this to its own client), or "" (unset).
+    /// User can cycle through values by clicking the badge in the list.
+    /// </summary>
+    public string InvoiceDirection
+    {
+        get => _invoiceDirection;
+        set
+        {
+            if (SetField(ref _invoiceDirection, value ?? string.Empty))
+            {
+                OnPropertyChanged(nameof(DirectionDisplay));
+                OnPropertyChanged(nameof(DirectionBadgeColor));
+                OnPropertyChanged(nameof(DirectionBadgeBg));
+                OnPropertyChanged(nameof(DirectionIcon));
+                OnPropertyChanged(nameof(DirectionTooltip));
+            }
+        }
+    }
+
+    /// <summary>Display text for the direction badge (from translations).</summary>
+    public string DirectionDisplay => _invoiceDirection switch
+    {
+        "received" => TranslationSource.Get("DirectionReceived"),
+        "issued"   => TranslationSource.Get("DirectionIssued"),
+        _          => "—",
+    };
+
+    /// <summary>Text color for the direction badge.</summary>
+    public string DirectionBadgeColor => _invoiceDirection switch
+    {
+        "received" => "#2E7D32",
+        "issued"   => "#1565C0",
+        _          => "#8A8A8A",
+    };
+
+    /// <summary>Background color for the direction badge.</summary>
+    public string DirectionBadgeBg => _invoiceDirection switch
+    {
+        "received" => "#E8F5E9",
+        "issued"   => "#E3F2FD",
+        _          => "#F0EFEA",
+    };
+
+    /// <summary>Icon for the direction badge.</summary>
+    public string DirectionIcon => _invoiceDirection switch
+    {
+        "received" => "↓",
+        "issued"   => "↑",
+        _          => "○",
+    };
+
+    /// <summary>Tooltip for the direction badge (from translations).</summary>
+    public string DirectionTooltip => _invoiceDirection switch
+    {
+        "received" => TranslationSource.Get("DirectionTooltipReceived"),
+        "issued"   => TranslationSource.Get("DirectionTooltipIssued"),
+        _          => TranslationSource.Get("DirectionTooltipUnset"),
+    };
+
+    /// <summary>Cycle direction: unset → received → issued → unset.</summary>
+    public void CycleDirection()
+    {
+        InvoiceDirection = _invoiceDirection switch
+        {
+            ""        => "received",
+            "received" => "issued",
+            "issued"   => "",
+            _         => "",
+        };
+    }
+
+    // ── Items / Line-Articles (UI placeholder for future item-level data) ──
+
+    /// <summary>Number of line items detected. 0 means no item data available yet.</summary>
+    public int ItemsCount
+    {
+        get => _itemsCount;
+        set
+        {
+            if (SetField(ref _itemsCount, Math.Max(0, value)))
+            {
+                OnPropertyChanged(nameof(HasItems));
+                OnPropertyChanged(nameof(ItemsCountDisplay));
+                OnPropertyChanged(nameof(ItemsHeaderText));
+            }
+        }
+    }
+
+    /// <summary>True when item-level data exists (itemsCount > 0).</summary>
+    public bool HasItems => _itemsCount > 0;
+
+    /// <summary>Display string for item count: number or "—" when no data.</summary>
+    public string ItemsCountDisplay => _itemsCount > 0 ? _itemsCount.ToString() : "—";
+
+    /// <summary>Header text for the collapsible articles section.</summary>
+    public string ItemsHeaderText => TranslationSource.Fmt("ArticlesHeader", ItemsCountDisplay);
+
+    /// <summary>Expand/collapse state for the articles sub-panel.</summary>
+    public bool AreItemsExpanded
+    {
+        get => _areItemsExpanded;
+        set => SetField(ref _areItemsExpanded, value);
+    }
+
+    /// <summary>Toggle the articles expand/collapse state.</summary>
+    public void ToggleItemsExpanded() => AreItemsExpanded = !AreItemsExpanded;
 
     /// <summary>True when any amount field was computed (not OCR-read).</summary>
     public bool IsComputed => _computedFields.Count > 0;

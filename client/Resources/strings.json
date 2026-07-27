@@ -58,6 +58,17 @@
 
   "TabResults": "Results",
   "TabIncomplete": "Incomplete Extractions",
+  "DirectionReceived": "Received",
+  "DirectionIssued": "Issued",
+  "DirectionUnset": "Set direction",
+  "DirectionTooltipReceived": "Invoice received from a supplier",
+  "DirectionTooltipIssued": "Invoice issued to a client",
+  "DirectionTooltipUnset": "Click to set Received or Issued",
+  "DirectionFilterAll": "All invoices",
+  "DirectionFilterReceived": "Received only",
+  "DirectionFilterIssued": "Issued only",
+  "DirectionColumn": "Dir.",
+
   "LegendConfidence": "Confidence",
   "LegendHigh": "High (≥75%)",
   "LegendMedium": "Medium (40-75%)",
@@ -85,8 +96,9 @@
   "StatusBarSummary": "{0} invoices processed — {1} incomplete",
   "ProgressText": "{0} / {1} files processed",
   "FileCountLabel": "{0} file(s) found, {1} selected",
-  "PreviewFileName": "OCR Raw Text — {0}",
-  "PreviewFileNameDefault": "OCR Raw Text",
+  "PreviewFileName": "{0}",
+  "PreviewFileNameDefault": "Preview",
+  "PreviewBtnRawText": "Raw Text",
   "SaveConfirmationText": "File saved: {0}",
   "OpenFolderLink": "Open folder",
 
@@ -255,5 +267,11 @@
 
   "FieldValueComputed": "Calculated",
 
-  "KeySecuredNotification": "Your API keys have been secured with encryption."
+  "KeySecuredNotification": "Your API keys have been secured with encryption.",
+
+  "ItemsLabel": "Items: ",
+  "ArticlesLabel": "Articles",
+  "ArticlesHeader": "Articles ({0})",
+  "ArticlesEmpty": "No item details available for this invoice.",
+  "ArticlesDetected": "Item-level data has been extracted. (Future: detail view)"
 }

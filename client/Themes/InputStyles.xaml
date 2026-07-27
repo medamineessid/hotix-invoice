@@ -179,6 +179,7 @@
         <Setter Property="FontFamily"        Value="{StaticResource FontPrimary}" />
         <Setter Property="FontSize"          Value="{StaticResource FontSizeBody}" />
         <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="Cursor" Value="Hand" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="CheckBox">
@@ -193,14 +194,19 @@
                                 BorderThickness="1.5"
                                 BorderBrush="{StaticResource BrushInputBorder}"
                                 Background="Transparent"
-                                VerticalAlignment="Center">
+                                VerticalAlignment="Center"
+                                HorizontalAlignment="Center">
                             <Path x:Name="CheckMark"
+                                  Stretch="None"
+                                  Width="18" Height="18"
                                   Data="M4,9 L7.5,12.5 L14,5"
                                   Stroke="{StaticResource BrushSurface}"
                                   StrokeThickness="2"
                                   StrokeEndLineCap="Round"
                                   StrokeStartLineCap="Round"
                                   StrokeLineJoin="Round"
+                                  HorizontalAlignment="Center"
+                                  VerticalAlignment="Center"
                                   Opacity="0" />
                         </Border>
                         <ContentPresenter Grid.Column="1"
@@ -244,11 +250,14 @@
                                 BorderThickness="1.5"
                                 BorderBrush="{StaticResource BrushInputBorder}"
                                 Background="Transparent"
-                                VerticalAlignment="Center">
+                                VerticalAlignment="Center"
+                                HorizontalAlignment="Center">
                             <Border x:Name="RadioDot"
                                     Width="8" Height="8"
                                     CornerRadius="4"
                                     Background="{StaticResource BrushAccent}"
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center"
                                     Opacity="0" />
                         </Border>
                         <ContentPresenter Grid.Column="1"

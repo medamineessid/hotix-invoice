@@ -10,7 +10,10 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Windows;
+using System.Windows.Data;
 using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using Microsoft.Win32;
 using Hotix.InvoiceClient;
@@ -52,6 +55,12 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     private bool _internetAvailable;
     private InvoiceRowViewModel? _selectedRow;
     private CancellationTokenSource? _extractionCts;
+    private ImageSource? _previewImageSource;
+    private double _previewZoomLevel = 1.0;
+    private bool _previewShowRawText;
+    private string _directionFilter = "all";
+    private ListCollectionView? _resultsView;
+    private ListCollectionView? _incompleteView;
 
     private string _selectedFolder = string.Empty;
     private bool _isExtracting;
@@ -99,6 +108,11 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         IncompleteResults = new ObservableCollection<InvoiceRowViewModel>();
 
         DetectedFiles.CollectionChanged += (_, _) => NotifyFileCountChanged();
+        Results.CollectionChanged += (_, _) => RefreshFilteredViews();
+        IncompleteResults.CollectionChanged += (_, _) => RefreshFilteredViews();
+        
+        _resultsView = new ListCollectionView(Results) { Filter = FilterByDirection };
+        _incompleteView = new ListCollectionView(IncompleteResults) { Filter = FilterByDirection };
 
         BrowseFolderCommand    = new RelayCommand(_ => BrowseFolder());
         BrowseFilesCommand     = new RelayCommand(_ => BrowseFiles());
@@ -111,6 +125,26 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         ToggleAllFilesCommand  = new RelayCommand(_ => ToggleAllFiles());
         ToggleAllRowsCommand   = new RelayCommand(_ => ToggleAllRows());
         ClearSelectedRowCommand = new RelayCommand(_ => SelectedRow = null);
+        CycleRowDirectionCommand = new RelayCommand(p =>
+        {
+            if (p is InvoiceRowViewModel row)
+            {
+                row.CycleDirection();
+                // Re-evaluate filter in case row no longer matches
+                _resultsView?.Refresh();
+                _incompleteView?.Refresh();
+            }
+        });
+        SetDirectionFilterCommand = new RelayCommand(p =>
+        {
+            if (p is string filter)
+                DirectionFilter = filter;
+        });
+        ToggleItemsExpandedCommand = new RelayCommand(p =>
+        {
+            if (p is InvoiceRowViewModel row)
+                row.ToggleItemsExpanded();
+        });
         OpenSavedFolderCommand = new RelayCommand(_ => OpenSavedFolder(), _ => _saveConfirmationPath != null);
         OpenSavedFileCommand = new RelayCommand(_ => OpenSavedFile(), _ => _saveConfirmationPath != null);
         RetryServerCommand    = new RelayCommand(async _ => await RetryServerAsync(), _ => !IsServerStarting && !IsExtracting);
@@ -165,6 +199,9 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     public ICommand ToggleAllFilesCommand   { get; }
     public ICommand ToggleAllRowsCommand    { get; }
     public ICommand ClearSelectedRowCommand { get; }
+    public ICommand CycleRowDirectionCommand { get; }
+    public ICommand SetDirectionFilterCommand { get; }
+    public ICommand ToggleItemsExpandedCommand { get; }
     public ICommand OpenSavedFolderCommand  { get; }
     public ICommand OpenSavedFileCommand    { get; }
     public ICommand RetryServerCommand     { get; }
@@ -498,7 +535,8 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         ? TranslationSource.Fmt("SaveConfirmationText", _saveConfirmationPath)
         : string.Empty;
 
-    // Selected row drives the raw text preview panel
+    // ── Preview Panel (image + fields + raw text) ────────────────────────
+
     public InvoiceRowViewModel? SelectedRow
     {
         get => _selectedRow;
@@ -509,6 +547,11 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                 OnPropertyChanged(nameof(HasSelectedRow));
                 OnPropertyChanged(nameof(PreviewRawText));
                 OnPropertyChanged(nameof(PreviewFileName));
+                // Reset view to image+fields when selection changes
+                PreviewShowRawText = false;
+                PreviewZoomLevel = 1.0;
+                // Load the source image asynchronously
+                _ = LoadPreviewImageAsync();
             }
         }
     }
@@ -518,6 +561,155 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     public string  PreviewFileName => _selectedRow != null
         ? TranslationSource.Fmt("PreviewFileName", _selectedRow.FileName)
         : TranslationSource.Get("PreviewFileNameDefault");
+
+    // ── Invoice Direction (Received / Issued) Filter ────────────────────
+
+    /// <summary>Filtered view of Results for direction-based filtering.</summary>
+    public ListCollectionView? ResultsView => _resultsView;
+
+    /// <summary>Filtered view of IncompleteResults for direction-based filtering.</summary>
+    public ListCollectionView? IncompleteView => _incompleteView;
+
+    /// <summary>
+    /// Current direction filter: "all", "received", or "issued".
+    /// Changing it refreshes both filtered views.
+    /// </summary>
+    public string DirectionFilter
+    {
+        get => _directionFilter;
+        set
+        {
+            if (SetField(ref _directionFilter, value))
+            {
+                OnPropertyChanged(nameof(DirectionFilter));
+                OnPropertyChanged(nameof(DirectionFilterDisplay));
+                _resultsView?.Refresh();
+                _incompleteView?.Refresh();
+            }
+        }
+    }
+
+    /// <summary>Human-readable label for the current filter.</summary>
+    public string DirectionFilterDisplay => _directionFilter switch
+    {
+        "all"      => TranslationSource.Get("DirectionFilterAll"),
+        "received" => TranslationSource.Get("DirectionFilterReceived"),
+        "issued"   => TranslationSource.Get("DirectionFilterIssued"),
+        _          => TranslationSource.Get("DirectionFilterAll"),
+    };
+
+    /// <summary>Filter predicate used by ResultsView and IncompleteView.</summary>
+    private bool FilterByDirection(object obj)
+    {
+        if (obj is not InvoiceRowViewModel row) return false;
+        if (_directionFilter == "all") return true;
+        return string.Equals(row.InvoiceDirection, _directionFilter, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>Refresh both filtered views when collections change.</summary>
+    private void RefreshFilteredViews()
+    {
+        _resultsView?.Refresh();
+        _incompleteView?.Refresh();
+    }
+
+    /// <summary>Image source for the preview panel (source doc page).</summary>
+    public ImageSource? PreviewImageSource
+    {
+        get => _previewImageSource;
+        private set => SetField(ref _previewImageSource, value);
+    }
+
+    /// <summary>Zoom level for the preview image (0.25x – 3.0x).</summary>
+    public double PreviewZoomLevel
+    {
+        get => _previewZoomLevel;
+        set
+        {
+            if (SetField(ref _previewZoomLevel, Math.Clamp(value, 0.25, 3.0)))
+                OnPropertyChanged(nameof(PreviewZoomPercent));
+        }
+    }
+
+    /// <summary>Formatted zoom percentage for display.</summary>
+    public string PreviewZoomPercent => $"{(int)(_previewZoomLevel * 100)}%";
+
+    /// <summary>When true, show raw OCR text instead of image+fields.</summary>
+    public bool PreviewShowRawText
+    {
+        get => _previewShowRawText;
+        set => SetField(ref _previewShowRawText, value);
+    }
+
+    /// <summary>
+    /// Loads the source document image for the preview panel.
+    /// For image files (PNG, JPG, BMP, TIFF): loads directly from disk.
+    /// For PDF files: calls the server /preview endpoint to render page 1.
+    /// </summary>
+    private async Task LoadPreviewImageAsync()
+    {
+        if (_selectedRow == null || string.IsNullOrEmpty(_selectedRow.FilePath))
+        {
+            PreviewImageSource = null;
+            return;
+        }
+
+        string filePath = _selectedRow.FilePath;
+        if (!File.Exists(filePath))
+        {
+            PreviewImageSource = null;
+            return;
+        }
+
+        try
+        {
+            string ext = Path.GetExtension(filePath).ToLowerInvariant();
+
+            if (ext == ".pdf")
+            {
+                // PDF — call server endpoint to render page 1
+                if (!_isServerStarted || !_isServerRunning)
+                {
+                    // Server not running; show null (no preview possible for PDF)
+                    PreviewImageSource = null;
+                    return;
+                }
+
+                using var response = await _apiHttpClient.GetAsync(
+                    $"/preview?path={Uri.EscapeDataString(filePath)}");
+                if (!response.IsSuccessStatusCode)
+                {
+                    PreviewImageSource = null;
+                    return;
+                }
+
+                byte[] imageBytes = await response.Content.ReadAsByteArrayAsync();
+                var bitmap = new BitmapImage();
+                bitmap.BeginInit();
+                bitmap.CacheOption = BitmapCacheOption.OnLoad;
+                bitmap.StreamSource = new MemoryStream(imageBytes);
+                bitmap.EndInit();
+                bitmap.Freeze(); // Make cross-thread safe
+                PreviewImageSource = bitmap;
+            }
+            else
+            {
+                // Image file — load directly from disk
+                var bitmap = new BitmapImage();
+                bitmap.BeginInit();
+                bitmap.CacheOption = BitmapCacheOption.OnLoad;
+                bitmap.UriSource = new Uri(filePath);
+                bitmap.EndInit();
+                bitmap.Freeze(); // Make cross-thread safe
+                PreviewImageSource = bitmap;
+            }
+        }
+        catch
+        {
+            // Silently fail — preview is best-effort
+            PreviewImageSource = null;
+        }
+    }
 
     public bool HasErrors => Results.Any(r => r.HasError);
 

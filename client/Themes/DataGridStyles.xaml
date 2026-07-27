@@ -51,6 +51,8 @@
                         <!-- Sort indicator arrow -->
                         <Path x:Name="SortArrow"
                               Grid.Column="1"
+                              Stretch="None"
+                              Width="10" Height="5"
                               Data="M0,0 L5,5 L10,0"
                               Stroke="{StaticResource BrushTextMuted}"
                               StrokeThickness="1.5"
@@ -58,7 +60,9 @@
                               StrokeStartLineCap="Round"
                               StrokeLineJoin="Round"
                               VerticalAlignment="Center"
+                              HorizontalAlignment="Center"
                               Margin="0,0,12,0"
+                              RenderTransformOrigin="0.5,0.5"
                               Opacity="0">
                             <Path.RenderTransform>
                                 <RotateTransform Angle="0" />

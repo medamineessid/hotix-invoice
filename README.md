@@ -1,225 +1,341 @@
-# HOTIX — Extraction de Factures
+# 🔥 HOTIX — Extraction de Factures
 
-Système local d'extraction automatique de champs de factures scannées (PDF et images) via OCR, avec interface graphique Windows.
+> Système local Windows d'extraction automatique des champs de factures scannées (PDF, images) via OCR + IA, avec interface graphique WPF premium.
+
+[![Build](https://github.com/medamineessid/hotix-invoice/actions/workflows/build-check.yml/badge.svg)](https://github.com/medamineessid/hotix-invoice/actions)
+[![Sentry](https://img.shields.io/badge/monitoring-Sentry-6B5B95)](https://must-ap.sentry.io)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE.txt)
 
 ---
 
-## Architecture
+## ✨ Fonctionnalités
+
+| Fonctionnalité | Détail |
+|---|---|
+| **OCR Local** | PaddleOCR (français) — hors ligne, aucune clé API requise |
+| **Gemini Vision** | Cloud Google Gemini — **haute précision** (clé API requise) |
+| **Grok Vision (xAI)** | Cloud alternative — **précision similaire** (clé API requise) |
+| **Sélection de modèle** | Choisissez le modèle AI (gemini-2.5-flash, gemini-1.5-pro, grok-4.3, etc.) |
+| **Moteur Automatique** | Gemini → Grok → OCR local (fallback automatique) |
+| **Export Excel** | Filtres: Résultats/Missing/Complets + Ajouter au fichier existant |
+| **Grille éditable** | Double-clic pour corriger les champs extraits avant export |
+| **Multi-langue** | Français / Anglais — bascule en un clic |
+| **Glisser-déposer** | Déposez un dossier de factures directement sur la fenêtre |
+| **Onboarding** | Visite guidée au premier lancement (spotlight + callout) |
+| **Vérification mises à jour** | Notification GitHub Releases (vérification quotidienne) |
+| **Thème Premium** | Design system complet — animations, ombres, badges de confiance |
+
+### Engines d'extraction
+
+```
+┌─────────────────────────────────────────────────────┐
+│   Automatique (recommandé)                          │
+│   ├── Gemini Vision  ──┐                            │
+│   ├── Grok Vision  ────┤── en cascade               │
+│   └── OCR Local  ──────┘ (fallback)                 │
+└─────────────────────────────────────────────────────┘
+```
+
+---
+
+## 🖼️ Aperçu
+
+| Élément | Description |
+|---|---|
+| **Barre latérale** | Navigation, version, statut du serveur (point vert) |
+| **Panneau de contrôle** | Sélection dossier/fichiers, moteur, bouton d'extraction |
+| **Résultats** | DataGrid avec tris, badges de confiance, badge "Local (hors ligne)" |
+| **Extractions Incomplètes** | Onglet dédié aux factures avec champs manquants |
+| **Aperçu brut** | Texte OCR brut de la ligne sélectionnée |
+| **Bannière de synthèse** | Résumé après extraction (succès/échecs) |
+| **Barre d'état** | Statut serveur, progression, actions rapides |
+
+---
+
+## 🏗️ Architecture
 
 ```
 hotix-invoice/
-├── server/        ← Python logic, extraction engines & appsettings.json
-├── client/        ← WPF C# application code
-├── venv/          ← Python 3.12 environment
-├── scripts/       ← setup.ps1 and start.bat
-├── requirements.txt
-└── README.md
+├── server/              ← Python FastAPI — extraction engines
+│   ├── main.py          ← Point d'entrée API (FastAPI)
+│   ├── models.py        ← Schémas Pydantic
+│   ├── ingestion.py     ← Conversion PDF/images → pages
+│   ├── ocr_engine.py    ← Wrapper PaddleOCR
+│   ├── field_extractor.py ← Extracteur heuristique de champs
+│   ├── gemini_extractor.py ← Client Gemini/Grok API
+│   ├── utils.py         ← Utilitaires géométrie/texte
+│   ├── verify_system.py ← Vérification pré-installation
+│   ├── score_accuracy.py ← Évaluation de précision
+│   ├── diagnose_invoice.py ← Diagnostic DEBUG
+│   ├── generate_test_invoices.py ← Génération factures test
+│   ├── appsettings.json ← Configuration (clés API, modèle)
+│   └── tests/           ← Tests unitaires pytest
+│
+├── client/              ← WPF C# — interface utilisateur
+│   ├── MainWindow.xaml  ← Fenêtre principale (2 600 lignes)
+│   ├── ViewModels/      ← MVVM (MainViewModel, InvoiceRowVM, FileItemVM)
+│   ├── Themes/          ← 11 dictionnaires de design system
+│   │   ├── Colors.xaml, Brushes.xaml, Spacing.xaml
+│   │   ├── Typography.xaml, Animations.xaml
+│   │   ├── ButtonStyles.xaml, InputStyles.xaml
+│   │   ├── CardStyles.xaml, DataGridStyles.xaml
+│   │   ├── DialogStyles.xaml, NavigationStyles.xaml
+│   ├── Converters/      ← Value converters (confidence, visibilité)
+│   ├── GeminiSetupWindow.xaml ← Configuration API + sélecteur modèle
+│   ├── ExportDialog.xaml ← Export Excel avec 3 filtres
+│   ├── SplashScreen.xaml ← Écran de démarrage
+│   ├── Controls/        ← Contrôles personnalisés (ProgressRing)
+│   ├── Resources/       ← Fichiers de traduction (EN/FR)
+│   └── HotixDiagnostics/ ← Outil de diagnostic post-installation
+│
+├── installer/           ← Inno Setup — installateur
+│   ├── Hotix.iss        ← Script 600+ lignes Pascal
+│   ├── vendor/          ← Python 3.12 + Poppler
+│   ├── CRITICAL_ITEMS_ANSWERS.md
+│   └── VERIFICATION_REPORT.md
+│
+├── scripts/             ← Automatisation
+│   ├── setup.ps1        ← Configuration machine unique
+│   ├── start.ps1        ← Lancement (PowerShell)
+│   └── start.bat        ← Lancement (batch)
+│
+├── requirements.txt     ← Dépendances Python
+└── README.md            ← Ce fichier
 ```
-
-- The **Python server** runs locally and exposes a `POST /extract` API.
-- The **C# WPF client** is the graphical interface the user interacts with.
-- The Python server is launched automatically by the application. No manual server management is required.
 
 ---
 
-## For IT — One-Time Machine Setup
+## 🚀 Pour les utilisateurs — Guide de démarrage rapide
 
-### Step 1 — Install Python 3.12
+### Prérequis
 
-Download and install from the official site:
-👉 https://www.python.org/downloads/release/python-3126/
+| Logiciel | Version | Lien |
+|---|---|---|
+| Python | 3.8+ (3.12 recommandé) | [python.org](https://www.python.org/downloads/) |
+| .NET Desktop Runtime | 8.0+ | [dotnet.microsoft.com](https://dotnet.microsoft.com/en-us/download/dotnet/8.0) |
+| Poppler | Dernière version | [poppler-windows](https://github.com/oschwartz10612/poppler-windows/releases/latest) |
 
-> **Important:** During installation, check **"Add Python to PATH"**.
+> ⚠️ **Important**: Lors de l'installation de Python, cochez **"Add Python to PATH"**.
 
-Verify it worked — open a terminal and run:
-```
-python --version
-```
-Expected output: `Python 3.12.x`
-
----
-
-### Step 2 — Install .NET 8 Runtime
-
-Download and install the **.NET 8 Desktop Runtime** (x64):
-👉 https://dotnet.microsoft.com/en-us/download/dotnet/8.0
-
-> Choose **".NET Desktop Runtime 8.x"** — not the SDK, not ASP.NET.
-
----
-
-### Step 3 — Install Poppler for Windows
-
-Poppler is required to process PDF files.
-
-1. Download the latest Poppler for Windows:
-   👉 https://github.com/oschwartz10612/poppler-windows/releases/latest
-
-2. Extract the zip to `C:\poppler`
-
-3. Add Poppler to the system PATH:
-   - Open **Start** → search **"Environment Variables"**
-   - Click **"Environment Variables..."**
-   - Under **System variables**, find **Path** → click **Edit**
-   - Click **New** → type `C:\poppler\Library\bin`
-   - Click **OK** on all dialogs
-
-4. Verify — open a **new** terminal and run:
-   ```
-   pdfinfo -v
-   ```
-   Expected output: `pdfinfo version x.xx`
-
----
-
-### Step 4 — Clone or Download the Project
-
-**Option A — Git:**
-```
-git clone https://github.com/medamineessid/hotix-invoice.git
-cd hotix-invoice
-```
-
-**Option B — Download ZIP:**
-1. Go to https://github.com/medamineessid/hotix-invoice
-2. Click **Code** → **Download ZIP**
-3. Extract to `C:\hotix-invoice`
-
----
-
-### Step 5 — Run the Setup Script
-
-Open **PowerShell** in the project folder and run:
+### Installation rapide
 
 ```powershell
+# 1. Cloner le dépôt
+git clone https://github.com/medamineessid/hotix-invoice.git
+cd hotix-invoice
+
+# 2. Lancer le script de configuration (une seule fois)
 .\scripts\setup.ps1
+
+# 3. Publier l'application
+cd client
+dotnet publish -c Release -o publish
 ```
 
-This will:
-- Create the Python virtual environment
-- Install all Python dependencies (~500 MB, internet required)
-- Download the PaddleOCR French language models
-- Verify the full environment
-- Build the C# client
+### Ou via l'installateur
 
-> This only needs to be done **once per machine**.
+Téléchargez `HotixSetup_1.0.0.exe` (~50 MB) depuis la page [Releases](https://github.com/medamineessid/hotix-invoice/releases/latest).
 
----
+L'installateur gère automatiquement :
+- ✅ Détection de Python (PATH → registre → installateur intégré)
+- ✅ Vérification de la version Python (3.8+)
+- ✅ Vérification de la connexion Internet
+- ✅ Vérification de l'espace disque (2 200 MB requis)
+- ✅ Création de l'environnement virtuel
+- ✅ Installation des dépendances Python (3 tentatives avec backoff)
+- ✅ Installation de Poppler et configuration PATH
+- ✅ Rollback automatique en cas d'échec
+- ✅ Journal d'installation détaillé (`{app}\install.log`)
+- ✅ Lancement de l'application après installation
 
-### Step 6 — Create a Desktop Shortcut (Optional)
+### Utilisation quotidienne
 
-Right-click `client\publish\Hotix.InvoiceClient.exe` → Send to → Desktop (create shortcut). Rename the shortcut to HOTIX.
+1. **Lancement** : Double-cliquez sur le raccourci **HOTIX** (ou `client/publish/Hotix.InvoiceClient.exe`)
+2. **Splash** : Écran de démarrage pendant l'initialisation du serveur OCR
+3. **Ajout fichiers** : Cliquez **Ajouter >** ou glissez-déposez un dossier
+4. **Sélection moteur** : Automatique (recommandé), Gemini, Grok, ou OCR local
+5. **Extraction** : Cliquez **Lancer l'extraction** (ou `F5`)
+6. **Correction** : Double-cliquez sur les cellules pour éditer
+7. **Export** : Cliquez **Exporter en Excel** (ou `Ctrl+E`)
 
----
+### Raccourcis clavier
 
-## For End Users — Daily Use
-
-### Starting the Application
-
-Double-click the **HOTIX** shortcut on the desktop.
-
-A **splash screen** will appear while the OCR server initializes. Once ready, the main application window will open automatically. The server runs silently in the background with no visible console window.
-
-> The status bar in the top-right corner indicates **"Serveur actif"** when the system is ready. If the server process stops unexpectedly, a red error screen will prompt you to restart.
-
----
-
-### Extracting Invoices
-
-1. Click **Ajouter...** and select your invoice files or a folder
-   - Or drag and drop a folder directly onto the window
-   - Supported formats: PDF, JPG, PNG, TIF, BMP
-
-2. **Select the Extraction Engine** in the control panel:
-   - **Automatique**: Tries Gemini Vision first, falls back to Grok, then to local OCR if needed.
-   - **Gemini Vision**: High-accuracy cloud extraction (requires an API key).
-   - **Grok Vision**: Alternative cloud extraction (requires an API key).
-   - **OCR local**: Fully offline extraction, no internet or API key required. Lower accuracy than the cloud engines — intended as the fallback, not the primary path.
-
-3. Click **Lancer l'extraction** (or press `F5`)
-
-4. Wait for the progress bar to complete
-
----
-
-### Reading the Results
-
-Results appear in the **Résultats** tab with the following columns:
-
-| Column | Description |
+| Touche | Action |
 |---|---|
-| N° Facture | Invoice number |
-| Date | Invoice date |
-| Fournisseur | Supplier name |
-| Client | Client name |
-| Montant HT | Amount before tax |
-| TVA | VAT amount |
-| Taxe | Stamp duty or other tax |
-| TTC | Total including tax |
-| Confiance | Extraction confidence: **Élevée** (≥75%), **Moyenne** (40–75%), **Basse** (<40%) |
-| Fichier | Source file name |
+| `F5` | Lancer l'extraction |
+| `Escape` | Annuler l'extraction |
+| `Ctrl+E` | Exporter en Excel |
 
-- Fields shown as **—** were not found in the invoice.
-- Invoices with missing fields appear in the **Extractions Incomplètes** tab.
-- A **"Local (hors ligne)"** badge on a row means that file was processed with the local OCR engine rather than a cloud engine.
-- If a row was extracted via OCR instead of your selected cloud engine, hover over the row to see a tooltip explaining why the cloud engine wasn't used for that file (e.g. quota exceeded, invalid key, timeout).
+### Configuration API Gemini / Grok
 
-### Editing Results Before Export
+Pour utiliser les moteurs cloud (précision supérieure) :
 
-You can edit any extracted field directly in the results grid — double-click a cell to correct a value before exporting. This is useful for low-confidence or partially-missing extractions.
+1. Cliquez sur l'icône **⚙** à côté du sélecteur de moteur
+2. Entrez votre **clé API Gemini** ([Google AI Studio](https://aistudio.google.com/app/apikey))
+3. Et/ou votre **clé API Grok** ([xAI](https://x.ai))
+4. Sélectionnez le modèle souhaité dans la liste déroulante
+5. Cliquez **Enregistrer**
 
-### Configuring API Keys and Models
-
-To use Gemini or Grok for higher-accuracy extraction:
-1. Click the gear icon **⚙** next to the engine selector.
-2. Enter your **Gemini API key** (get one at [Google AI Studio](https://aistudio.google.com/app/apikey)) and/or your **Grok API key**.
-3. Once a key is entered, a **model selection dropdown** appears — choose which specific model to use, or leave it on the default.
-4. Click **Enregistrer**.
+La clé est validée automatiquement avant d'être sauvegardée.
 
 ---
 
-### Exporting to Excel
+## 🔧 Pour les développeurs — Guide technique
 
-1. Select the rows you want to export (or leave all selected for everything)
-2. Click **Exporter en Excel** (or press `Ctrl+E`)
-3. Choose where to save the file
-4. Click the **"Ouvrir le dossier"** link in the status bar to open the saved location
+### Build du client
+
+```bash
+cd client
+dotnet restore
+dotnet build -c Debug
+dotnet publish -c Release -o publish
+```
+
+### Lancement du serveur seul
+
+```bash
+cd serveur de la racine du projet
+python -m uvicorn server.main:app --host 127.0.0.1 --port 8000 --reload
+```
+
+### Tests Python
+
+```bash
+cd server
+pytest tests/ -v
+```
+
+### Build de l'installateur
+
+```powershell
+# Prérequis : Inno Setup 6.3+
+# 1. Publier le client
+cd client
+dotnet publish -c Release -o publish
+
+# 2. Compiler l'installateur
+cd installer
+& "C:\Program Files (x86)\Inno Setup 6\iscc.exe" Hotix.iss
+```
 
 ---
 
-### Keyboard Shortcuts
+## 📊 Tableau de bord technique
 
-| Shortcut | Action |
+### Python Server
+
+| Endpoint | Méthode | Description |
+|---|---|---|
+| `/health` | GET | Santé du serveur |
+| `/engine-status` | GET | Disponibilité Gemini/OCR |
+| `/extract` | POST | Extraction d'une facture (multipart) |
+| `/validate-gemini-key` | POST | Validation clé API Gemini |
+| `/validate-grok-key` | POST | Validation clé API Grok |
+| `/admin/recycle-engine` | POST | Recyclage forcé du moteur OCR |
+
+### Modèle de réponse (`InvoiceExtractionResponse`)
+
+```json
+{
+  "numero_facture": "FAC-2024-001",
+  "date": "01/01/2024",
+  "fournisseur": "ABC SARL",
+  "client": "Client X",
+  "montant_ht": "1000.00",
+  "tva": "200.00",
+  "taxe": "10.00",
+  "ttc": "1210.00",
+  "confiance": 0.92,
+  "texte_brut": "...",
+  "engine_used": "gemini"
+}
+```
+
+### Design System
+
+Le design system HOTIX est composé de **11 dictionnaires de ressources XAML** :
+
+| Fichier | Contenu |
 |---|---|
-| `F5` | Start extraction |
-| `Escape` | Cancel extraction in progress |
-| `Ctrl+E` | Export to Excel |
+| `Colors.xaml` | Palette — 30 couleurs (fond, texte, accent, fonctionnel, badges) |
+| `Brushes.xaml` | Pinceaux + ombres portées Apple-style |
+| `Typography.xaml` | Échelle typographique (11px → 32px), 5 graisses |
+| `Spacing.xaml` | Grille 8px (4, 8, 12, 16, 24, 32, 40, 48) |
+| `Animations.xaml` | 14 storyboards (150-250ms, easing cubique) |
+| `ButtonStyles.xaml` | 4 styles + TemplateButtonBase avec hover lift + press scale |
+| `InputStyles.xaml` | TextBox, PasswordBox, ComboBox, CheckBox, RadioButton |
+| `CardStyles.xaml` | Cartes avec radius 16, hover lift 1px |
+| `DataGridStyles.xaml` | Grille premium — en-tête triable, badges pastel, lignes 48px |
+| `DialogStyles.xaml` | Modaux avec fade + scale (0.95→1.0, 250ms) |
+| `NavigationStyles.xaml` | Barre latérale 240px, nav active soft red |
+
+### Gestion d'erreurs (Sentry)
+
+Le projet utilise **Sentry** pour le monitoring des erreurs :
+
+- **DSN client** : Configuré dans `App.xaml.cs`
+- **DSN serveur** : Via `SENTRY_DSN` variable d'environnement
+- **Bugs résolus** : DOTNET-A (curseur), DOTNET-B (traduction), DOTNET-C (ToggleButton)
 
 ---
 
-## Troubleshooting
+## 🧪 Tests
 
-**"Le serveur OCR s'est arrêté de façon inattendue"**
-The background process failed. Close the app and relaunch via the HOTIX shortcut. This can happen if another application is using port 8000.
+### Tests Python (pytest)
 
-**A cloud engine (Gemini/Grok) row shows the "Local (hors ligne)" badge instead**
-Hover over the row for a tooltip explaining why — a saved key alone doesn't guarantee it's valid; the tooltip shows the actual reason (invalid key, quota exceeded, timeout, etc.).
+```bash
+# Tous les tests
+cd server && pytest tests/ -v
 
-**"Clé API Gemini non configurée"**
-You selected Gemini but haven't provided a key. Use the gear icon **⚙** to set it up or switch back to "OCR local".
+# Tests spécifiques
+pytest tests/test_field_extractor.py -v
+pytest tests/test_ingestion.py -v
+pytest tests/test_ocr_engine.py -v
+pytest tests/test_utils.py -v
+```
 
-**PDF files fail with "Poppler manquant"**
-Poppler is not installed or not on PATH. Redo Step 3 of the IT setup.
+### Build client
 
-**Extraction is slow on first run**
-PaddleOCR downloads its language models on first use. This is a one-time download requiring internet access.
-
-**Fields are missing or incorrect**
-Check the raw OCR text in the preview panel (click the row). If the text itself is garbled, the scan quality is too low — try rescanning at higher resolution (300 DPI minimum). You can correct individual fields directly in the results grid before exporting.
+```bash
+cd client
+dotnet build -c Debug
+# ✅ 0 erreurs, 0 warnings
+```
 
 ---
 
-## Re-running Failed Extractions
+## 📋 Scripts utiles
 
-- Right-click any row → **Relancer l'extraction**
-- Or click **Relancer les erreurs** in the summary banner to retry all failed files at once
+| Script | Usage |
+|---|---|
+| `scripts/setup.ps1` | Configuration machine unique (venv, dépendances) |
+| `scripts/start.ps1` | Lancement serveur + client (PowerShell) |
+| `scripts/start.bat` | Lancement rapide (double-clic) |
+| `client/rebuild-and-run.bat` | Nettoyage + build + lancement |
+
+---
+
+## 🔒 Sécurité
+
+- Les clés API sont stockées dans `server/appsettings.json` (hors git)
+- Le serveur écoute uniquement sur `127.0.0.1:8000` (localhost)
+- CORS restreint aux origines localhost, méthodes GET/POST
+- Aucune donnée n'est transmise à des serveurs tiers (sauf Gemini/Grok si configuré)
+- Journalisation des erreurs via Sentry (DSN configurable)
+
+---
+
+## 📄 License
+
+Ce projet est sous licence MIT. Voir le fichier [LICENSE.txt](LICENSE.txt) pour plus de détails.
+
+---
+
+## 🙏 Remerciements
+
+- [PaddleOCR](https://github.com/PaddlePaddle/PaddleOCR) — Moteur OCR local
+- [FastAPI](https://fastapi.tiangolo.com/) — Framework API Python
+- [ClosedXML](https://closedxml.github.io/ClosedXML/) — Export Excel .NET
+- [Inno Setup](https://jrsoftware.org/isinfo.php) — Installateur Windows
+- [Sentry](https://sentry.io/) — Monitoring d'erreurs
+- [Poppler](https://poppler.freedesktop.org/) — Traitement PDF

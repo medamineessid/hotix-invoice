@@ -704,8 +704,9 @@
                                         <RowDefinition Height="*" />
                                     </Grid.RowDefinitions>
 
-                                    <!-- Confidence Legend (pastel badges) -->
+                                    <!-- Confidence Legend + Direction Filter -->
                                     <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="24,8,24,12">
+                                        <!-- Confidence labels -->
                                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                             <TextBlock x:Name="InfoConfidenceIcon"
                                                        Text="ⓘ"
@@ -749,15 +750,84 @@
                                                        FontSize="{StaticResource FontSizeCaption}" FontWeight="{StaticResource FontWeightMedium}" />
                                         </Border>
                                         <Border Background="{StaticResource BrushConfidenceLowBg}"
-                                                CornerRadius="{StaticResource RadiusPill}" Padding="10,4">
+                                                CornerRadius="{StaticResource RadiusPill}" Padding="10,4" Margin="0,0,16,0">
                                             <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[LegendLow]}" Foreground="{StaticResource BrushConfidenceLowText}"
                                                        FontSize="{StaticResource FontSizeCaption}" FontWeight="{StaticResource FontWeightMedium}" />
+                                        </Border>
+
+                                        <!-- Direction filter pills -->
+                                        <Border CornerRadius="{StaticResource RadiusPill}" Padding="10,4" Margin="0,0,4,0" Cursor="Hand"
+                                                Background="{StaticResource BrushAccentLight}"
+                                                BorderBrush="{StaticResource BrushAccent}"
+                                                BorderThickness="1">
+                                            <Border.Style>
+                                                <Style TargetType="Border">
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding DirectionFilter}" Value="all">
+                                                            <Setter Property="Background" Value="{StaticResource BrushAccentLight}" />
+                                                            <Setter Property="BorderBrush" Value="{StaticResource BrushAccent}" />
+                                                            <Setter Property="Opacity" Value="1" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Border.Style>
+                                            <Border.InputBindings>
+                                                <MouseBinding MouseAction="LeftClick" Command="{Binding SetDirectionFilterCommand}" CommandParameter="all" />
+                                            </Border.InputBindings>
+                                            <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[DirectionFilterAll]}"
+                                                       FontSize="{StaticResource FontSizeCaption}"
+                                                       FontWeight="{StaticResource FontWeightMedium}"
+                                                       Foreground="{StaticResource BrushAccent}" />
+                                        </Border>
+
+                                        <Border CornerRadius="{StaticResource RadiusPill}" Padding="10,4" Margin="0,0,4,0" Cursor="Hand"
+                                                Background="{StaticResource BrushConfidenceHighBg}"
+                                                BorderThickness="1"
+                                                BorderBrush="Transparent">
+                                            <Border.Style>
+                                                <Style TargetType="Border">
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding DirectionFilter}" Value="received">
+                                                            <Setter Property="BorderBrush" Value="{StaticResource BrushSuccess}" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Border.Style>
+                                            <Border.InputBindings>
+                                                <MouseBinding MouseAction="LeftClick" Command="{Binding SetDirectionFilterCommand}" CommandParameter="received" />
+                                            </Border.InputBindings>
+                                            <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[DirectionFilterReceived]}"
+                                                       FontSize="{StaticResource FontSizeCaption}"
+                                                       FontWeight="{StaticResource FontWeightMedium}"
+                                                       Foreground="{StaticResource BrushConfidenceHighText}" />
+                                        </Border>
+
+                                        <Border CornerRadius="{StaticResource RadiusPill}" Padding="10,4" Cursor="Hand"
+                                                Background="{StaticResource BrushInfoLight}"
+                                                BorderThickness="1"
+                                                BorderBrush="Transparent">
+                                            <Border.Style>
+                                                <Style TargetType="Border">
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding DirectionFilter}" Value="issued">
+                                                            <Setter Property="BorderBrush" Value="{StaticResource BrushInfo}" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Border.Style>
+                                            <Border.InputBindings>
+                                                <MouseBinding MouseAction="LeftClick" Command="{Binding SetDirectionFilterCommand}" CommandParameter="issued" />
+                                            </Border.InputBindings>
+                                            <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[DirectionFilterIssued]}"
+                                                       FontSize="{StaticResource FontSizeCaption}"
+                                                       FontWeight="{StaticResource FontWeightMedium}"
+                                                       Foreground="{StaticResource BrushInfo}" />
                                         </Border>
                                     </StackPanel>
 
                                     <DataGrid Grid.Row="1"
                                               x:Name="ResultsGrid"
-                                              ItemsSource="{Binding Results}"
+                                              ItemsSource="{Binding ResultsView}"
                                               Style="{StaticResource ResultGridStyle}"
                                               SelectedItem="{Binding SelectedRow}"
                                               VirtualizingPanel.VirtualizationMode="Recycling"
@@ -787,6 +857,31 @@
                                                     <DataTemplate>
                                                         <CheckBox IsChecked="{Binding IsSelected, UpdateSourceTrigger=PropertyChanged}"
                                                                   Style="{StaticResource CheckBoxStyle}" HorizontalAlignment="Center" />
+                                                    </DataTemplate>
+                                                </DataGridTemplateColumn.CellTemplate>
+                                            </DataGridTemplateColumn>
+
+                                            <!-- Direction badge (Received / Issued) -->
+                                            <DataGridTemplateColumn Header="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[DirectionColumn]}" Width="72" CanUserSort="False">
+                                                <DataGridTemplateColumn.CellTemplate>
+                                                    <DataTemplate>
+                                                        <Border CornerRadius="{StaticResource RadiusPill}"
+                                                                Padding="8,3"
+                                                                Cursor="Hand"
+                                                                ToolTip="{Binding DirectionTooltip}"
+                                                                Background="{Binding DirectionBadgeBg, Converter={StaticResource StringToColorBrushConverter}}"
+                                                                HorizontalAlignment="Center">
+                                                            <Border.InputBindings>
+                                                                <MouseBinding MouseAction="LeftClick"
+                                                                              Command="{Binding DataContext.CycleRowDirectionCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                                              CommandParameter="{Binding}" />
+                                                            </Border.InputBindings>
+                                                            <TextBlock Style="{StaticResource TextMetadata}"
+                                                                       FontWeight="{StaticResource FontWeightMedium}">
+                                                                <Run Text="{Binding DirectionIcon}" />
+                                                                <Run Text="{Binding DirectionDisplay}" />
+                                                            </TextBlock>
+                                                        </Border>
                                                     </DataTemplate>
                                                 </DataGridTemplateColumn.CellTemplate>
                                             </DataGridTemplateColumn>
@@ -982,7 +1077,7 @@
                                     </StackPanel>
 
                                     <DataGrid Grid.Row="1"
-                                              ItemsSource="{Binding IncompleteResults}"
+                                              ItemsSource="{Binding IncompleteView}"
                                               Style="{StaticResource ResultGridStyle}"
                                               SelectedItem="{Binding SelectedRow}">
                                         <DataGrid.Resources>
@@ -996,6 +1091,31 @@
                                             </Style>
                                         </DataGrid.RowStyle>
                                         <DataGrid.Columns>
+                                            <!-- Direction badge (Received / Issued) -->
+                                            <DataGridTemplateColumn Header="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[DirectionColumn]}" Width="72" CanUserSort="False">
+                                                <DataGridTemplateColumn.CellTemplate>
+                                                    <DataTemplate>
+                                                        <Border CornerRadius="{StaticResource RadiusPill}"
+                                                                Padding="8,3"
+                                                                Cursor="Hand"
+                                                                ToolTip="{Binding DirectionTooltip}"
+                                                                Background="{Binding DirectionBadgeBg, Converter={StaticResource StringToColorBrushConverter}}"
+                                                                HorizontalAlignment="Center">
+                                                            <Border.InputBindings>
+                                                                <MouseBinding MouseAction="LeftClick"
+                                                                              Command="{Binding DataContext.CycleRowDirectionCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                                              CommandParameter="{Binding}" />
+                                                            </Border.InputBindings>
+                                                            <TextBlock Style="{StaticResource TextMetadata}"
+                                                                       FontWeight="{StaticResource FontWeightMedium}">
+                                                                <Run Text="{Binding DirectionIcon}" />
+                                                                <Run Text="{Binding DirectionDisplay}" />
+                                                            </TextBlock>
+                                                        </Border>
+                                                    </DataTemplate>
+                                                </DataGridTemplateColumn.CellTemplate>
+                                            </DataGridTemplateColumn>
+
                                             <DataGridTemplateColumn Width="44" CanUserSort="False">
                                                 <DataGridTemplateColumn.HeaderTemplate>
                                                     <DataTemplate>
@@ -1012,7 +1132,8 @@
                                                 </DataGridTemplateColumn.CellTemplate>
                                             </DataGridTemplateColumn>
 
-                                            <DataGridTextColumn Header="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ColumnInvoiceNo]}" Binding="{Binding NumeroFacture, Converter={StaticResource NullToPlaceholderConverter}}" MinWidth="100" MaxWidth="180" />                                            <DataGridTextColumn Header="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ColumnDate]}" Binding="{Binding Date, Converter={StaticResource NullToPlaceholderConverter}}" MinWidth="80"  MaxWidth="120" />
+                                            <DataGridTextColumn Header="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ColumnInvoiceNo]}" Binding="{Binding NumeroFacture, Converter={StaticResource NullToPlaceholderConverter}}" MinWidth="100" MaxWidth="180" />
+                                            <DataGridTextColumn Header="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ColumnDate]}" Binding="{Binding Date, Converter={StaticResource NullToPlaceholderConverter}}" MinWidth="80"  MaxWidth="120" />
                                             <DataGridTextColumn Header="Fournisseur" Binding="{Binding Fournisseur,   Converter={StaticResource NullToPlaceholderConverter}}" MinWidth="100" MaxWidth="200" />
                                             <DataGridTextColumn Header="Client"      Binding="{Binding Client,        Converter={StaticResource NullToPlaceholderConverter}}" MinWidth="80"  MaxWidth="160" />
                                             <DataGridTextColumn Header="Montant HT"  Binding="{Binding MontantHt,     Converter={StaticResource NullToPlaceholderConverter}}" MinWidth="80"  MaxWidth="120" />
@@ -1094,9 +1215,9 @@
                                       Visibility="{Binding HasSelectedRow, Converter={StaticResource BooleanToVisibilityConverter}}"
                                       AutomationProperties.Name="Resize preview panel" />
 
-                        <!-- Raw Text Preview Card -->
+                        <!-- Preview Panel: Image + Editable Fields + Raw Text toggle -->
                         <Border Grid.Column="2" Style="{StaticResource CardStyle}"
-                                Padding="16"
+                                Padding="0"
                                 Visibility="{Binding HasSelectedRow, Converter={StaticResource BooleanToVisibilityConverter}}">
                             <Grid>
                                 <Grid.RowDefinitions>
@@ -1104,30 +1225,305 @@
                                     <RowDefinition Height="*" />
                                 </Grid.RowDefinitions>
 
-                                <DockPanel Grid.Row="0" Margin="0,0,0,12">
-                                    <Button DockPanel.Dock="Right"
-                                            Style="{StaticResource ButtonIconStyle}"
-                                            Content="✕"
-                                            Width="24" Height="24"
-                                            Command="{Binding ClearSelectedRowCommand}" />
-                                    <TextBlock Text="{Binding PreviewFileName}"
-                                               Style="{StaticResource TextCaption}"
-                                               TextTrimming="CharacterEllipsis"
-                                               VerticalAlignment="Center" />
-                                </DockPanel>
+                                <!-- Header: file name + view toggle + close -->
+                                <Border Grid.Row="0"
+                                        BorderThickness="0,0,0,1"
+                                        BorderBrush="{StaticResource BrushBorder}"
+                                        Padding="16,12">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0"
+                                                   Text="{Binding PreviewFileName}"
+                                                   Style="{StaticResource TextCaption}"
+                                                   TextTrimming="CharacterEllipsis"
+                                                   VerticalAlignment="Center" />
 
-                                <ScrollViewer Grid.Row="1"
-                                              VerticalScrollBarVisibility="Auto"
-                                              HorizontalScrollBarVisibility="Auto">
-                                    <TextBox Text="{Binding PreviewRawText, Mode=OneWay}"
-                                             IsReadOnly="True"
-                                             TextWrapping="Wrap"
-                                             Style="{StaticResource TextBoxReadOnlyStyle}"
-                                             Background="{StaticResource BrushAltBackground}"
-                                             BorderThickness="0"
-                                             FontFamily="{StaticResource FontMono}"
-                                             FontSize="{StaticResource FontSizeCaption}" />
-                                </ScrollViewer>
+                                        <!-- Toggle between image+fields and raw text -->
+                                        <ToggleButton Grid.Column="1"
+                                                      x:Name="TogglePreviewMode"
+                                                      Style="{StaticResource ButtonSecondaryStyle}"
+                                                      Padding="8,4"
+                                                      MinHeight="28"
+                                                      Margin="0,0,8,0"
+                                                      FontSize="11"
+                                                      FontWeight="{StaticResource FontWeightMedium}"
+                                                      IsChecked="{Binding PreviewShowRawText}"
+                                                      ToolTip="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[PreviewBtnRawText]}">
+                                            <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[PreviewBtnRawText]}"
+                                                       VerticalAlignment="Center" />
+                                        </ToggleButton>
+
+                                        <Button Grid.Column="2"
+                                                Style="{StaticResource ButtonIconStyle}"
+                                                Content="✕"
+                                                Width="24" Height="24"
+                                                Command="{Binding ClearSelectedRowCommand}" />
+                                    </Grid>
+                                </Border>
+
+                                <!-- Content: Image + Fields (default view) -->
+                                <Grid Grid.Row="1" x:Name="PreviewImageFieldsPanel">
+                                    <Grid.Style>
+                                        <Style TargetType="Grid">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding PreviewShowRawText}" Value="True">
+                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Grid.Style>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" MinWidth="80" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="200" MinWidth="120" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <!-- Left: Scrollable image with zoom -->
+                                    <Grid Grid.Column="0">
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="*" />
+                                            <RowDefinition Height="Auto" />
+                                        </Grid.RowDefinitions>
+                                        <ScrollViewer Grid.Row="0"
+                                                      VerticalScrollBarVisibility="Auto"
+                                                      HorizontalScrollBarVisibility="Auto"
+                                                      Background="{StaticResource BrushAltBackground}">
+                                            <Image Source="{Binding PreviewImageSource}"
+                                                   Stretch="None"
+                                                   RenderTransformOrigin="0.5,0.5">
+                                                <Image.RenderTransform>
+                                                    <ScaleTransform ScaleX="{Binding PreviewZoomLevel}"
+                                                                    ScaleY="{Binding PreviewZoomLevel}" />
+                                                </Image.RenderTransform>
+                                            </Image>
+                                        </ScrollViewer>
+                                        <!-- Zoom controls -->
+                                        <StackPanel Grid.Row="1"
+                                                    Orientation="Horizontal"
+                                                    HorizontalAlignment="Center"
+                                                    Margin="0,8,0,8">
+                                            <TextBlock Text="🔍" FontSize="12"
+                                                       VerticalAlignment="Center"
+                                                       Margin="0,0,4,0" />
+                                            <Slider Minimum="0.25" Maximum="3.0"
+                                                    Value="{Binding PreviewZoomLevel}"
+                                                    Width="80"
+                                                    VerticalAlignment="Center" />
+                                            <TextBlock Text="{Binding PreviewZoomPercent}"
+                                                       FontSize="11"
+                                                       Foreground="{StaticResource BrushTextMuted}"
+                                                       VerticalAlignment="Center"
+                                                       Margin="8,0,0,0" />
+                                        </StackPanel>
+                                    </Grid>
+
+                                    <!-- Splitter between image and fields -->
+                                    <GridSplitter Grid.Column="1"
+                                                  Width="4"
+                                                  HorizontalAlignment="Center"
+                                                  VerticalAlignment="Stretch"
+                                                  Background="{StaticResource BrushBorderLight}"
+                                                  Cursor="SizeWE" />
+
+                                    <!-- Right: Editable fields -->
+                                    <ScrollViewer Grid.Column="2"
+                                                  VerticalScrollBarVisibility="Auto"
+                                                  BorderThickness="0"
+                                                  Padding="12,12,12,12">
+                                        <StackPanel>
+                                            <!-- Item count (persistent, always visible) -->
+                                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                                <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ItemsLabel]}"
+                                                           Style="{StaticResource TextTiny}"
+                                                           Foreground="{StaticResource BrushTextSecondary}" />
+                                                <TextBlock Text="{Binding SelectedRow.ItemsCountDisplay}"
+                                                           Style="{StaticResource TextTiny}"
+                                                           Foreground="{StaticResource BrushAccent}"
+                                                           FontWeight="{StaticResource FontWeightMedium}"
+                                                           Margin="4,0,0,0" />
+                                            </StackPanel>
+
+                                            <TextBlock Text="Numéro Facture"
+                                                       Style="{StaticResource TextTiny}"
+                                                       Foreground="{StaticResource BrushTextSecondary}"
+                                                       Margin="0,0,0,2" />
+                                            <TextBox Text="{Binding SelectedRow.NumeroFacture, UpdateSourceTrigger=PropertyChanged}"
+                                                     Style="{StaticResource TextBoxStyle}"
+                                                     Margin="0,0,0,10" />
+
+                                            <TextBlock Text="Date"
+                                                       Style="{StaticResource TextTiny}"
+                                                       Foreground="{StaticResource BrushTextSecondary}"
+                                                       Margin="0,0,0,2" />
+                                            <TextBox Text="{Binding SelectedRow.Date, UpdateSourceTrigger=PropertyChanged}"
+                                                     Style="{StaticResource TextBoxStyle}"
+                                                     Margin="0,0,0,10" />
+
+                                            <TextBlock Text="Fournisseur"
+                                                       Style="{StaticResource TextTiny}"
+                                                       Foreground="{StaticResource BrushTextSecondary}"
+                                                       Margin="0,0,0,2" />
+                                            <TextBox Text="{Binding SelectedRow.Fournisseur, UpdateSourceTrigger=PropertyChanged}"
+                                                     Style="{StaticResource TextBoxStyle}"
+                                                     Margin="0,0,0,10" />
+
+                                            <TextBlock Text="Client"
+                                                       Style="{StaticResource TextTiny}"
+                                                       Foreground="{StaticResource BrushTextSecondary}"
+                                                       Margin="0,0,0,2" />
+                                            <TextBox Text="{Binding SelectedRow.Client, UpdateSourceTrigger=PropertyChanged}"
+                                                     Style="{StaticResource TextBoxStyle}"
+                                                     Margin="0,0,0,10" />
+
+                                            <TextBlock Text="Montant HT"
+                                                       Style="{StaticResource TextTiny}"
+                                                       Foreground="{StaticResource BrushTextSecondary}"
+                                                       Margin="0,0,0,2" />
+                                            <TextBox Text="{Binding SelectedRow.MontantHt, UpdateSourceTrigger=PropertyChanged}"
+                                                     Style="{StaticResource TextBoxStyle}"
+                                                     Margin="0,0,0,10" />
+
+                                            <TextBlock Text="TVA"
+                                                       Style="{StaticResource TextTiny}"
+                                                       Foreground="{StaticResource BrushTextSecondary}"
+                                                       Margin="0,0,0,2" />
+                                            <TextBox Text="{Binding SelectedRow.MontantTva, UpdateSourceTrigger=PropertyChanged}"
+                                                     Style="{StaticResource TextBoxStyle}"
+                                                     Margin="0,0,0,10" />
+
+                                            <TextBlock Text="Taxe"
+                                                       Style="{StaticResource TextTiny}"
+                                                       Foreground="{StaticResource BrushTextSecondary}"
+                                                       Margin="0,0,0,2" />
+                                            <TextBox Text="{Binding SelectedRow.MontantTaxe, UpdateSourceTrigger=PropertyChanged}"
+                                                     Style="{StaticResource TextBoxStyle}"
+                                                     Margin="0,0,0,10" />
+
+                                            <TextBlock Text="TTC"
+                                                       Style="{StaticResource TextTiny}"
+                                                       Foreground="{StaticResource BrushTextSecondary}"
+                                                       Margin="0,0,0,2" />
+                                            <TextBox Text="{Binding SelectedRow.MontantTtc, UpdateSourceTrigger=PropertyChanged}"
+                                                     Style="{StaticResource TextBoxStyle}"
+                                                     Margin="0,0,0,10" />
+
+                                            <!-- ── Collapsible Articles Section ── -->
+                                            <Border CornerRadius="{StaticResource RadiusSmall}"
+                                                    BorderThickness="1"
+                                                    BorderBrush="{StaticResource BrushBorder}"
+                                                    Padding="10,10"
+                                                    Margin="0,4,0,0">
+                                                <Grid>
+                                                    <Grid.RowDefinitions>
+                                                        <RowDefinition Height="Auto" />
+                                                        <RowDefinition Height="Auto" />
+                                                    </Grid.RowDefinitions>
+
+                                                    <!-- Header: label + item count + expand/collapse toggle -->
+                                                    <Border Grid.Row="0"
+                                                            Cursor="Hand"
+                                                            Padding="0,4">
+                                                        <Border.InputBindings>
+                                                            <MouseBinding MouseAction="LeftClick"
+                                                                          Command="{Binding DataContext.ToggleItemsExpandedCommand, RelativeSource={RelativeSource AncestorType=ScrollViewer}}"
+                                                                          CommandParameter="{Binding}" />
+                                                        </Border.InputBindings>
+                                                        <Grid>
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="*" />
+                                                                <ColumnDefinition Width="Auto" />
+                                                            </Grid.ColumnDefinitions>
+                                                            <TextBlock Grid.Column="0"
+                                                                       Style="{StaticResource TextCaption}"
+                                                                       FontWeight="{StaticResource FontWeightMedium}">
+                                                                <Run Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ArticlesLabel]}" />
+                                                                <Run Text="(" /><Run Text="{Binding ItemsCountDisplay}" /><Run Text=")" />
+                                                            </TextBlock>
+                                                            <TextBlock Grid.Column="1"
+                                                                       FontSize="12"
+                                                                       Foreground="{StaticResource BrushTextMuted}">
+                                                                <TextBlock.Style>
+                                                                    <Style TargetType="TextBlock">
+                                                                        <Setter Property="Text" Value="▶" />
+                                                                        <Style.Triggers>
+                                                                            <DataTrigger Binding="{Binding AreItemsExpanded}" Value="True">
+                                                                                <Setter Property="Text" Value="▼" />
+                                                                            </DataTrigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </TextBlock.Style>
+                                                            </TextBlock>
+                                                        </Grid>
+                                                    </Border>
+
+                                                    <!-- Expandable content area -->
+                                                    <Grid Grid.Row="1"
+                                                          Visibility="{Binding AreItemsExpanded, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                        <ContentControl>
+                                                            <ContentControl.Style>
+                                                                <Style TargetType="ContentControl">
+                                                                    <Setter Property="Content">
+                                                                        <Setter.Value>
+                                                                            <!-- Empty state when no item data -->
+                                                                            <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ArticlesEmpty]}"
+                                                                                       Style="{StaticResource TextMetadata}"
+                                                                                       TextWrapping="Wrap"
+                                                                                       Margin="0,8,0,4" />
+                                                                        </Setter.Value>
+                                                                    </Setter>
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding HasItems}" Value="True">
+                                                                            <Setter Property="Content">
+                                                                                <Setter.Value>
+                                                                                    <!-- Future: ItemsControl/DataGrid for line items -->
+                                                                                    <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ArticlesDetected]}"
+                                                                                               Style="{StaticResource TextMetadata}"
+                                                                                               TextWrapping="Wrap"
+                                                                                               Margin="0,8,0,4" />
+                                                                                </Setter.Value>
+                                                                            </Setter>
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </ContentControl.Style>
+                                                        </ContentControl>
+                                                    </Grid>
+                                                </Grid>
+                                            </Border>
+                                        </StackPanel>
+                                    </ScrollViewer>
+                                </Grid>
+
+                                <!-- Content: Raw OCR text (shown when toggled) -->
+                                <Grid Grid.Row="1" x:Name="PreviewRawTextOnlyPanel">
+                                    <Grid.Style>
+                                        <Style TargetType="Grid">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding PreviewShowRawText}" Value="True">
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Grid.Style>
+                                    <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                                  HorizontalScrollBarVisibility="Auto"
+                                                  Padding="16,12">
+                                        <TextBox Text="{Binding PreviewRawText, Mode=OneWay}"
+                                                 IsReadOnly="True"
+                                                 TextWrapping="Wrap"
+                                                 Style="{StaticResource TextBoxReadOnlyStyle}"
+                                                 Background="{StaticResource BrushAltBackground}"
+                                                 BorderThickness="0"
+                                                 FontFamily="{StaticResource FontMono}"
+                                                 FontSize="{StaticResource FontSizeCaption}" />
+                                    </ScrollViewer>
+                                </Grid>
                             </Grid>
                         </Border>
                     </Grid>

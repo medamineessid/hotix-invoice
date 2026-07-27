@@ -21,6 +21,10 @@ client/obj/
 client/publish/
 client/HotixDiagnostics/bin/
 client/HotixDiagnostics/obj/
+*_wpftmp.csproj
+
+# Installer output
+installer/Output/
 
 # IDE
 .idea/

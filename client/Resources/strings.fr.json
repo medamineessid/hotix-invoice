@@ -58,6 +58,17 @@
 
   "TabResults": "Résultats",
   "TabIncomplete": "Extractions Incomplètes",
+  "DirectionReceived": "Reçue",
+  "DirectionIssued": "Émise",
+  "DirectionUnset": "Définir direction",
+  "DirectionTooltipReceived": "Facture reçue d'un fournisseur",
+  "DirectionTooltipIssued": "Facture émise à un client",
+  "DirectionTooltipUnset": "Cliquez pour définir Reçue ou Émise",
+  "DirectionFilterAll": "Toutes les factures",
+  "DirectionFilterReceived": "Reçues uniquement",
+  "DirectionFilterIssued": "Émises uniquement",
+  "DirectionColumn": "Dir.",
+
   "LegendConfidence": "Confiance",
   "LegendHigh": "Élevée (≥75%)",
   "LegendMedium": "Moyenne (40-75%)",
@@ -85,8 +96,9 @@
   "StatusBarSummary": "{0} factures traitées — {1} incomplètes",
   "ProgressText": "{0} / {1} fichiers traités",
   "FileCountLabel": "{0} fichier(s) détecté(s), {1} sélectionné(s)",
-  "PreviewFileName": "Texte brut OCR — {0}",
-  "PreviewFileNameDefault": "Texte brut OCR",
+  "PreviewFileName": "{0}",
+  "PreviewFileNameDefault": "Aperçu",
+  "PreviewBtnRawText": "Texte brut",
   "SaveConfirmationText": "Fichier enregistré : {0}",
   "OpenFolderLink": "Ouvrir le dossier",
 
@@ -255,5 +267,11 @@
 
   "FieldValueComputed": "Calculé",
 
-  "KeySecuredNotification": "Vos clés API ont été sécurisées par chiffrement."
+  "KeySecuredNotification": "Vos clés API ont été sécurisées par chiffrement.",
+
+  "ItemsLabel": "Articles : ",
+  "ArticlesLabel": "Articles",
+  "ArticlesHeader": "Articles ({0})",
+  "ArticlesEmpty": "Aucun détail d'articles disponible pour cette facture.",
+  "ArticlesDetected": "Des données article ont été extraites. (Futur : vue détaillée)"
 }

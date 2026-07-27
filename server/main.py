@@ -3,15 +3,16 @@
 from __future__ import annotations
 
 import asyncio
+import io
 import logging
 import os
 import tempfile
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI, File, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 
 import sentry_sdk
 from sentry_sdk.integrations.fastapi import FastApiIntegration
@@ -156,6 +157,56 @@ app.add_middleware(
 @app.get("/health")
 async def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@app.get("/preview")
+async def preview(path: str = Query(...)) -> Response:
+    """Return the first page of a document as a PNG image for preview.
+
+    For PDFs, renders page 1 via pdf2image. For image files (PNG, JPG, BMP,
+    TIFF), returns the raw file bytes with the correct MIME type.
+
+    This endpoint is separate from the extraction pipeline — it is a
+    UI-only utility for the preview panel.
+    """
+    # Resolve to prevent path-traversal attacks (e.g. /../../../etc/passwd)
+    raw = Path(path)
+    if ".." in path or not raw.exists():
+        raise HTTPException(status_code=404, detail="File not found")
+    filepath = raw.resolve()
+
+    suffix = filepath.suffix.lower()
+    if suffix not in SUPPORTED_SUFFIXES:
+        raise HTTPException(status_code=400, detail=f"Unsupported file type: {suffix}")
+
+    if suffix == ".pdf":
+        # Render PDF page 1 to PNG using the same pipeline as extraction
+        try:
+            file_bytes = filepath.read_bytes()
+            poppler_path = os.getenv("POPPLER_PATH")
+            pages = load_invoice_images(file_bytes, filepath.name, poppler_path=poppler_path)
+            if not pages:
+                raise HTTPException(status_code=422, detail="PDF has no pages")
+            buf = io.BytesIO()
+            pages[0].save(buf, format="PNG")
+            return Response(content=buf.getvalue(), media_type="image/png")
+        except Exception as exc:
+            logger.exception("Preview render failed for %s", filepath)
+            raise HTTPException(status_code=500, detail=f"Failed to render preview: {exc}")
+
+    # Image file — return raw bytes with matching MIME type
+    mime_map = {
+        ".png": "image/png",
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".bmp": "image/bmp",
+        ".tif": "image/tiff",
+        ".tiff": "image/tiff",
+    }
+    try:
+        return Response(content=filepath.read_bytes(), media_type=mime_map.get(suffix, "application/octet-stream"))
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Failed to read file: {exc}")
 
 
 @app.post("/validate-grok-key")
