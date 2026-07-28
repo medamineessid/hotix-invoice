@@ -273,5 +273,6 @@
   "ArticlesLabel": "Articles",
   "ArticlesHeader": "Articles ({0})",
   "ArticlesEmpty": "Aucun détail d'articles disponible pour cette facture.",
-  "ArticlesDetected": "Des données article ont été extraites. (Futur : vue détaillée)"
+  "ArticlesDetected": "Des données article ont été extraites. (Futur : vue détaillée)",
+  "VatMismatchTooltip": "Le montant de TVA ne correspond pas aux lignes d'articles"
 }

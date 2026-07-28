@@ -2,6 +2,33 @@ using System.Text.Json.Serialization;
 
 namespace Hotix.InvoiceClient;
 
+public sealed class InvoiceItem
+{
+    [JsonPropertyName("designation")]
+    public string? Designation { get; set; }
+
+    [JsonPropertyName("quantite")]
+    public double? Quantite { get; set; }
+
+    [JsonPropertyName("prix_unitaire")]
+    public double? PrixUnitaire { get; set; }
+
+    [JsonPropertyName("tva_rate")]
+    public double? TvaRate { get; set; }
+
+    [JsonPropertyName("montant")]
+    public double? Montant { get; set; }
+
+    [JsonIgnore]
+    public string DisplayLine => Designation ?? "—";
+
+    [JsonIgnore]
+    public string PriceDisplay => PrixUnitaire.HasValue ? $"{PrixUnitaire.Value:F2}" : "—";
+
+    [JsonIgnore]
+    public string TvaDisplay => TvaRate.HasValue ? $"{(TvaRate.Value * 100):F1}%" : "—";
+}
+
 public sealed class InvoiceResult
 {
     [JsonPropertyName("numero_facture")]
@@ -45,6 +72,9 @@ public sealed class InvoiceResult
 
     [JsonPropertyName("amount_mismatch")]
     public bool AmountMismatch { get; set; }
+
+    [JsonPropertyName("items")]
+    public List<InvoiceItem>? Items { get; set; }
 
     [JsonIgnore]
     public bool HasMissingFields =>

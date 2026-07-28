@@ -2,7 +2,7 @@ import os
 import json
 import logging
 from pathlib import Path
-from typing import Optional, Dict, Any
+from typing import Any, Optional, Dict, List
 from google import genai
 from google.genai import errors as genai_errors
 from google.genai import types
@@ -12,6 +12,16 @@ logger = logging.getLogger(__name__)
 class GeminiExtractionError(Exception):
     """Raised when Gemini extraction fails."""
     pass
+
+
+def _safe_float(value: Any) -> Optional[float]:
+    """Safely convert a value to float, returning None on failure."""
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except (ValueError, TypeError):
+        return None
 
 
 def _get_settings_path() -> Path:
@@ -74,8 +84,13 @@ def load_gemini_model() -> str:
             logger.warning(f"Failed to read gemini_model from {settings_path}: {e}")
     return "gemini-2.5-flash"  # default
 
-def extract_with_gemini(image_data: bytes, mime_type: str) -> Dict[str, Optional[str]]:
-    """Extract invoice fields using Gemini Vision."""
+def extract_with_gemini(image_data: bytes, mime_type: str) -> Dict[str, Any]:
+    """Extract invoice fields (and optionally line items) using Gemini Vision.
+
+    Returns a dict with the 8 standard fields plus an optional "items" key
+    containing a list of item dicts: {designation, quantite, prix_unitaire,
+    tva_rate, montant}. Items may be an empty list if none found.
+    """
     api_key = load_gemini_api_key()
     if not api_key:
         raise GeminiExtractionError("Clé API Gemini non configurée")
@@ -83,10 +98,12 @@ def extract_with_gemini(image_data: bytes, mime_type: str) -> Dict[str, Optional
     model_name = load_gemini_model()
     client = genai.Client(api_key=api_key)
 
-    # Only 8 fields requested: numero_facture, date, fournisseur, client, montant_ht, montant_tva, montant_taxe, montant_ttc
     prompt = """Extrais les informations de cette facture sous forme de JSON uniquement.
 Les clés doivent être exactement : numero_facture, date, fournisseur, client, montant_ht, montant_tva, montant_taxe, montant_ttc.
+Extrais également les lignes d'articles si présentes dans un tableau nommé "items".
+Chaque article a les clés : designation, quantite, prix_unitaire, tva_rate, montant.
 Utilise null si une information est absente. Ne devine jamais.
+Si la facture n'a pas de tableau d'articles, mets items à [].
 Réponds uniquement avec le JSON."""
 
     try:
@@ -114,14 +131,37 @@ Réponds uniquement avec le JSON."""
 
         data = json.loads(content)
         
-        # Verify required keys
+        # Verify required keys (items is optional)
         required_keys = ["numero_facture", "date", "fournisseur", "client", "montant_ht", "montant_tva", "montant_taxe", "montant_ttc"]
         for key in required_keys:
             if key not in data:
                  raise GeminiExtractionError(f"Clé manquante dans la réponse JSON: {key}")
 
-        # Return the fields, non-string values to None
-        return {k: (str(v) if v is not None else None) for k, v in data.items() if k in required_keys}
+        # Build result dict: stringify the 8 flat fields
+        result: Dict[str, Any] = {
+            k: (str(v) if v is not None else None)
+            for k, v in data.items() if k in required_keys
+        }
+
+        # Parse items array (optional — may be missing or empty)
+        raw_items = data.get("items", [])
+        if isinstance(raw_items, list):
+            parsed_items: list[dict[str, Any]] = []
+            for raw_item in raw_items:
+                if not isinstance(raw_item, dict):
+                    continue
+                parsed_items.append({
+                    "designation": str(raw_item.get("designation") or "") if raw_item.get("designation") else None,
+                    "quantite": _safe_float(raw_item.get("quantite")),
+                    "prix_unitaire": _safe_float(raw_item.get("prix_unitaire")),
+                    "tva_rate": _safe_float(raw_item.get("tva_rate")),
+                    "montant": _safe_float(raw_item.get("montant")),
+                })
+            result["items"] = parsed_items
+        else:
+            result["items"] = []
+
+        return result
 
     except genai_errors.APIError as exc:
         if getattr(exc, "code", None) == 429:

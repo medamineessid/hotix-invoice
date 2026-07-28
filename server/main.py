@@ -18,13 +18,14 @@ import sentry_sdk
 from sentry_sdk.integrations.fastapi import FastApiIntegration
 from sentry_sdk.integrations.logging import LoggingIntegration
 
-from .models import InvoiceExtractionResponse
+from .models import InvoiceExtractionResponse, InvoiceItem
 from .ingestion import IngestionError, load_invoice_images
 from .ocr_engine import PaddleOcrEngine, OcrEngineError
 from .field_extractor import (
     extract_invoice_fields,
     extract_field_confidences,
     extract_raw_text,
+    extract_item_table,
     cross_validate_fields,
     compute_confidence,
 )
@@ -347,7 +348,10 @@ async def _run_gemini_extraction(
     """
     try:
         image_data = await _extract_first_page_bytes(pages[0])
-        fields = extract_with_gemini(image_data, "image/png")
+        result = extract_with_gemini(image_data, "image/png")
+        # Separate items from the flat fields
+        gemini_items = result.pop("items", [])
+        fields = result  # remaining keys are the 8 flat fields
         # Cross-field validation before reconciliation
         gemini_issues = cross_validate_fields(fields)
         # Reconcile monetary amounts (compute missing, flag mismatches)
@@ -361,9 +365,19 @@ async def _run_gemini_extraction(
             gemini_confidence = min(base_confidence, 0.5)
         else:
             gemini_confidence = base_confidence
+        parsed_gemini_items = [
+            InvoiceItem(
+                designation=it.get("designation"),
+                quantite=it.get("quantite"),
+                prix_unitaire=it.get("prix_unitaire"),
+                tva_rate=it.get("tva_rate"),
+                montant=it.get("montant"),
+            )
+            for it in gemini_items if isinstance(it, dict)
+        ]
         logger.info(
-            "Extraction via Gemini Vision successful for %s. Issues: %s",
-            Path(filename).name, gemini_issues,
+            "Extraction via Gemini Vision successful for %s. Issues: %s. Items: %d",
+            Path(filename).name, gemini_issues, len(parsed_gemini_items),
         )
         return (
             InvoiceExtractionResponse(
@@ -373,6 +387,7 @@ async def _run_gemini_extraction(
                 engine_used="gemini",
                 computed_fields=list(computed_fields),
                 amount_mismatch=has_mismatch,
+                items=parsed_gemini_items,
             ),
             None,
         )
@@ -412,20 +427,33 @@ def _run_ocr_extraction(
     if has_mismatch or collision:
         confidence = min(confidence, 0.5)
 
-    field_names = [k for k, v in fields.items() if v is not None]
-    logger.info(
-        "Extraction via OCR successful for %s. Fields: %s. Issues: %s",
-        Path(filename).name, field_names, issues,
-    )
+    field_names = [k for k, v in fields.items() if v is not None]        # Item-table extraction (Prompt 7)
+        items = extract_item_table(all_lines)
+        parsed_items = [
+            InvoiceItem(
+                designation=it.get("designation"),
+                quantite=it.get("quantite"),
+                prix_unitaire=it.get("prix_unitaire"),
+                tva_rate=it.get("tva_rate"),
+                montant=it.get("montant"),
+            )
+            for it in items if isinstance(it, dict)
+        ]
 
-    return InvoiceExtractionResponse(
-        **fields,
-        confidence=confidence,
-        raw_text=raw_text,
-        engine_used="ocr",
-        computed_fields=list(computed_fields),
-        amount_mismatch=has_mismatch,
-    )
+        logger.info(
+            "Extraction via OCR successful for %s. Fields: %s. Issues: %s. Items: %d",
+            Path(filename).name, field_names, issues, len(parsed_items),
+        )
+
+        return InvoiceExtractionResponse(
+            **fields,
+            confidence=confidence,
+            raw_text=raw_text,
+            engine_used="ocr",
+            computed_fields=list(computed_fields),
+            amount_mismatch=has_mismatch,
+            items=parsed_items,
+        )
 
 
 @app.post("/extract", response_model=InvoiceExtractionResponse)

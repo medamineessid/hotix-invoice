@@ -272,6 +272,6 @@
   "ItemsLabel": "Items: ",
   "ArticlesLabel": "Articles",
   "ArticlesHeader": "Articles ({0})",
-  "ArticlesEmpty": "No item details available for this invoice.",
-  "ArticlesDetected": "Item-level data has been extracted. (Future: detail view)"
+  "ArticlesEmpty": "No item details available for this invoice.",    "ArticlesDetected": "Item-level data has been extracted. (Future: detail view)",
+    "VatMismatchTooltip": "VAT amount does not match item lines"
 }

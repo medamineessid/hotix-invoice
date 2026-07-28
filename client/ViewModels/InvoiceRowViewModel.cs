@@ -29,6 +29,7 @@ public sealed class InvoiceRowViewModel : INotifyPropertyChanged
     private string _invoiceDirection = string.Empty;
     private int _itemsCount;
     private bool _areItemsExpanded;
+    private List<InvoiceItem> _items = new();
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -60,13 +61,21 @@ public sealed class InvoiceRowViewModel : INotifyPropertyChanged
     public string? Fournisseur
     {
         get => _fournisseur;
-        set => SetField(ref _fournisseur, value);
+        set
+        {
+            if (SetField(ref _fournisseur, value))
+                AutoDetectDirection();
+        }
     }
 
     public string? Client
     {
         get => _client;
-        set => SetField(ref _client, value);
+        set
+        {
+            if (SetField(ref _client, value))
+                AutoDetectDirection();
+        }
     }
 
     public string? MontantHt
@@ -78,7 +87,11 @@ public sealed class InvoiceRowViewModel : INotifyPropertyChanged
     public string? MontantTva
     {
         get => _montantTva;
-        set => SetField(ref _montantTva, value);
+        set
+        {
+            if (SetField(ref _montantTva, value))
+                CheckVatCrossCheck();
+        }
     }
 
     public string? MontantTaxe
@@ -269,6 +282,29 @@ public sealed class InvoiceRowViewModel : INotifyPropertyChanged
         };
     }
 
+    /// <summary>
+    /// Auto-detect invoice direction from Fournisseur/Client fields.
+    /// Only applies when direction is currently unset (user hasn't manually set it).
+    /// If "Hotix" (case-insensitive) appears in Fournisseur → "issued"
+    /// If "Hotix" appears in Client → "received"
+    /// If in neither or both (ambiguous) → leave unset.
+    /// </summary>
+    public void AutoDetectDirection()
+    {
+        // Never override a manually-set direction
+        if (!string.IsNullOrEmpty(_invoiceDirection))
+            return;
+
+        bool hotixInFournisseur = _fournisseur?.Contains("Hotix", StringComparison.OrdinalIgnoreCase) == true;
+        bool hotixInClient = _client?.Contains("Hotix", StringComparison.OrdinalIgnoreCase) == true;
+
+        if (hotixInFournisseur && !hotixInClient)
+            InvoiceDirection = "issued";
+        else if (hotixInClient && !hotixInFournisseur)
+            InvoiceDirection = "received";
+        // else: ambiguous or no match — leave as unset
+    }
+
     // ── Items / Line-Articles (UI placeholder for future item-level data) ──
 
     /// <summary>Number of line items detected. 0 means no item data available yet.</summary>
@@ -295,6 +331,23 @@ public sealed class InvoiceRowViewModel : INotifyPropertyChanged
     /// <summary>Header text for the collapsible articles section.</summary>
     public string ItemsHeaderText => TranslationSource.Fmt("ArticlesHeader", ItemsCountDisplay);
 
+    /// <summary>The actual item list from extraction.</summary>
+    public List<InvoiceItem> Items
+    {
+        get => _items;
+        set
+        {
+            if (SetField(ref _items, value ?? new List<InvoiceItem>()))
+            {
+                OnPropertyChanged(nameof(HasItems));
+                OnPropertyChanged(nameof(ItemsCount));
+                OnPropertyChanged(nameof(ItemsCountDisplay));
+                OnPropertyChanged(nameof(ItemsHeaderText));
+                CheckVatCrossCheck();
+            }
+        }
+    }
+
     /// <summary>Expand/collapse state for the articles sub-panel.</summary>
     public bool AreItemsExpanded
     {
@@ -304,6 +357,44 @@ public sealed class InvoiceRowViewModel : INotifyPropertyChanged
 
     /// <summary>Toggle the articles expand/collapse state.</summary>
     public void ToggleItemsExpanded() => AreItemsExpanded = !AreItemsExpanded;
+
+    /// <summary>
+    /// Cross-check item-level VAT against the invoice-level MontantTva field.
+    /// Sets VatMismatch flag if they disagree beyond tolerance (~1% or 0.50).
+    /// </summary>
+    public bool VatMismatch { get; private set; }
+
+    private void CheckVatCrossCheck()
+    {
+        VatMismatch = false;
+        if (_items.Count == 0 || string.IsNullOrWhiteSpace(_montantTva))
+            return;
+
+        // Sum item-level VAT where both tva_rate and montant are present
+        double sumItemVat = 0.0;
+        bool hasItemVat = false;
+        foreach (var item in _items)
+        {
+            if (item.TvaRate.HasValue && item.Montant.HasValue)
+            {
+                sumItemVat += item.Montant.Value * item.TvaRate.Value;
+                hasItemVat = true;
+            }
+        }
+
+        if (!hasItemVat)
+            return;
+
+        double invoiceVat;
+        if (!double.TryParse(_montantTva.Replace(",", "."), System.Globalization.NumberStyles.Any,
+                System.Globalization.CultureInfo.InvariantCulture, out invoiceVat))
+            return;
+
+        double diff = Math.Abs(sumItemVat - invoiceVat);
+        double tolerance = Math.Max(0.50, invoiceVat * 0.01); // 1% or 0.50, whichever is larger
+        VatMismatch = diff > tolerance;
+        OnPropertyChanged(nameof(VatMismatch));
+    }
 
     /// <summary>True when any amount field was computed (not OCR-read).</summary>
     public bool IsComputed => _computedFields.Count > 0;
@@ -370,6 +461,8 @@ public sealed class InvoiceRowViewModel : INotifyPropertyChanged
             ? new HashSet<string>(result.ComputedFields)
             : new HashSet<string>(),
         AmountMismatch = result.AmountMismatch,
+        ItemsCount = result.Items?.Count ?? 0,
+        Items = result.Items ?? new List<InvoiceItem>(),
     };
 
     public static InvoiceRowViewModel FromError(string filePath, string message) => new()

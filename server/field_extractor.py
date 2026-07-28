@@ -1305,3 +1305,218 @@ def _score_below_row(anchor: OCRLine, candidate: OCRLine) -> float:
     v_gap = anchor.box.vertical_gap(candidate.box)
     # Penalize large horizontal gaps, but less severely than vertical gaps
     return 800.0 - v_gap * 8.0 - h_gap * 3.0 + candidate.confidence * 100.0
+
+
+# ── Item-table extraction ────────────────────────────────────────────────────
+
+# Minimum number of header words that must match on one row to treat as a table header.
+TABLE_HEADER_MIN_MATCHES = 2
+
+# Bounded directional search radius (pixels) for repair fallback
+_TABLE_REPAIR_RADIUS = 30.0
+
+TABLE_COLUMN_HEADERS: dict[str, tuple[str, ...]] = {
+    "designation": (
+        "désignation", "designation", "description", "libellé", "libelle",
+        "article", "produit",
+    ),
+    "quantite": (
+        "quantité", "quantite", "qté", "qte", "qty", "quant",
+    ),
+    "prix_unitaire": (
+        "prix unitaire", "prixunitaire", "p.u.", "pu", "prix ht", "prix",
+    ),
+    "tva_rate": (
+        "tva", "taux tva", "taux", "tva %", "taux de tva", "tva%",
+    ),
+    "montant": (
+        "montant", "total ht", "total", "montant ht", "montant h.t.",
+        "montant ttc",
+    ),
+}
+
+
+_FOOTER_ALIASES: set[str] = set()
+for _f in ("montant_ht", "montant_tva", "montant_taxe", "montant_ttc"):
+    _FOOTER_ALIASES.update(FIELD_ALIASES[_f])
+_FOOTER_ALIASES.add("sous-total")
+_FOOTER_ALIASES.add("sous total")
+_FOOTER_ALIASES.add("net à payer")
+_FOOTER_ALIASES.add("net a payer")
+_FOOTER_ALIASES.add("total général")
+_FOOTER_ALIASES.add("total general")
+_FOOTER_ALIASES.add("total ttc")
+_FOOTER_ALIASES.add("reste à payer")
+_FOOTER_ALIASES.add("reste a payer")
+_FOOTER_ALIASES.add("arrêté")
+_FOOTER_ALIASES.add("arrete")
+_FOOTER_ALIASES.add("total due")
+_FOOTER_ALIASES.add("grand total")
+
+
+def extract_item_table(ocr_lines: Sequence[OCRLine]) -> list[dict[str, object]]:
+    """Extract line items from an invoice table using header-row anchoring.
+
+    Steps:
+    1. Cluster OCR lines into visual rows.
+    2. Search for a row where 2+ column-header words co-occur (header row).
+    3. Record the x-boundary of each found header column.
+    4. Read items from subsequent rows until a footer anchor is hit.
+    5. Apply bounded directional repair for cells missed by strict x-range.
+    6. If no header is confidently found, return empty list.
+
+    Each returned item contains whichever of {designation, quantite,
+    prix_unitaire, tva_rate, montant} were actually found.
+    """
+    rows = cluster_rows(ocr_lines)
+    if not rows:
+        return []
+
+    # Step 1: find the header row
+    header_row_idx, column_bounds = _find_table_header(rows)
+    if header_row_idx is None or not column_bounds:
+        _debug_log("extract_item_table: no table header found — returning empty")
+        return []
+
+    _debug_log(f"extract_item_table: header at row {header_row_idx}, columns: {list(column_bounds.keys())}")
+
+    # Step 2: extract items from rows below the header, stopping at footer rows
+    items: list[dict[str, object]] = []
+    for i in range(header_row_idx + 1, len(rows)):
+        row = rows[i]
+        row_text = " ".join(line.text.strip() for line in row if line.text.strip()).lower()
+
+        # Check for footer anchor: if any footer alias matches, stop
+        if _contains_any_alias(row_text, list(_FOOTER_ALIASES)):
+            _debug_log(f"extract_item_table: footer hit at row {i} — stopping")
+            break
+
+        item = _extract_row_as_item(row, column_bounds, rows, i)
+        if item is not None:
+            items.append(item)
+
+    _debug_log(f"extract_item_table: extracted {len(items)} items")
+    return items
+
+
+def _find_table_header(rows: list[list[OCRLine]]) -> tuple[int | None, dict[str, tuple[float, float]]]:
+    """Find the table header row and return its index and column boundaries.
+
+    A row is considered a table header when at least TABLE_HEADER_MIN_MATCHES
+    (2) column-header aliases from TABLE_COLUMN_HEADERS match on the same row.
+
+    Returns (row_index, {column_name: (x_min, x_max)}).
+    If no header found, returns (None, {}).
+    """
+    for row_idx, row in enumerate(rows):
+        row_text = " ".join(line.text.strip() for line in row)
+        matched_columns: dict[str, tuple[float, float]] = {}
+
+        for col_name, col_aliases in TABLE_COLUMN_HEADERS.items():
+            if _contains_any_alias(row_text, col_aliases):
+                # Find which OCR line(s) matched and record their x-range
+                x_positions: list[float] = []
+                for line in row:
+                    if _contains_any_alias(line.text, col_aliases):
+                        x_positions.extend([line.box.x1, line.box.x2])
+                if x_positions:
+                    matched_columns[col_name] = (min(x_positions), max(x_positions))
+
+        if len(matched_columns) >= TABLE_HEADER_MIN_MATCHES:
+            return row_idx, matched_columns
+
+    return None, {}
+
+
+def _extract_row_as_item(row: list[OCRLine], column_bounds: dict[str, tuple[float, float]], all_rows: list[list[OCRLine]], row_idx: int) -> dict[str, object] | None:
+    """Extract an item from a single row using pre-determined column boundaries.
+
+    For each known column, finds the OCR line whose center_x falls within that
+    column's x-range. Applies bounded directional search as repair fallback.
+    """
+    item: dict[str, object] = {}
+    found_any = False
+
+    for col_name, (x_min, x_max) in column_bounds.items():
+        value = _find_cell_value(row, col_name, x_min, x_max)
+
+        # Repair fallback: bounded directional search
+        if value is None:
+            value = _bounded_directional_search(row, all_rows, row_idx, col_name, x_min, x_max)
+
+        if value is not None:
+            item[col_name] = value
+            found_any = True
+        else:
+            item[col_name] = None
+
+    return item if found_any else None
+
+
+def _find_cell_value(row: list[OCRLine], col_name: str, x_min: float, x_max: float) -> object | None:
+    """Find the value for a column in a single row using x-range."""
+    for line in row:
+        cx = line.box.center_x
+        if x_min <= cx <= x_max:
+            text = line.text.strip()
+            if not text:
+                continue
+            return _parse_cell_value(col_name, text)
+    return None
+
+
+def _bounded_directional_search(row: list[OCRLine], all_rows: list[list[OCRLine]], row_idx: int, col_name: str, x_min: float, x_max: float) -> object | None:
+    """Search a small distance from the expected column region for a value.
+
+    Looks right and left within the same row, then up and down one adjacent
+    row within _TABLE_REPAIR_RADIUS pixels. Returns None if nothing found.
+    """
+    expanded_min = x_min - _TABLE_REPAIR_RADIUS
+    expanded_max = x_max + _TABLE_REPAIR_RADIUS
+
+    for line in row:
+        cx = line.box.center_x
+        if expanded_min <= cx <= expanded_max:
+            text = line.text.strip()
+            if text:
+                val = _parse_cell_value(col_name, text)
+                if val is not None:
+                    return val
+
+    # Check adjacent rows (up/down one) within radius
+    for adj_idx in [row_idx - 1, row_idx + 1]:
+        if adj_idx < 0 or adj_idx >= len(all_rows):
+            continue
+        for line in all_rows[adj_idx]:
+            cx = line.box.center_x
+            if expanded_min <= cx <= expanded_max:
+                text = line.text.strip()
+                if text:
+                    val = _parse_cell_value(col_name, text)
+                    if val is not None:
+                        return val
+
+    return None
+
+
+def _parse_cell_value(col_name: str, text: str) -> object:
+    """Parse a cell text value into the appropriate type for the column."""
+    if col_name == "designation":
+        return text
+
+    # Numeric columns
+    cleaned = clean_amount(text)
+    if cleaned:
+        try:
+            return float(cleaned)
+        except (ValueError, TypeError):
+            pass
+
+    # If cleaning failed but col expects a number, try direct parse
+    if col_name in ("quantite", "prix_unitaire", "tva_rate", "montant"):
+        try:
+            return float(text.replace(",", ".").replace(" ", ""))
+        except (ValueError, TypeError):
+            return None
+
+    return text

@@ -2,9 +2,19 @@
 
 from __future__ import annotations
 
-from typing import Literal, Optional
+from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
+
+
+class InvoiceItem(BaseModel):
+    """A single line item from an invoice."""
+    model_config = ConfigDict(extra="forbid")
+    designation: Optional[str] = Field(default=None, description="Item description / product name")
+    quantite: Optional[float] = Field(default=None, description="Quantity")
+    prix_unitaire: Optional[float] = Field(default=None, description="Unit price")
+    tva_rate: Optional[float] = Field(default=None, description="VAT rate (e.g. 0.20 for 20%)")
+    montant: Optional[float] = Field(default=None, description="Line total (usually qty × unit price)")
 
 
 class InvoiceExtractionResponse(BaseModel):
@@ -34,6 +44,10 @@ class InvoiceExtractionResponse(BaseModel):
     amount_mismatch: bool = Field(
         default=False,
         description="True when all 3 amounts (HT, TVA, TTC) are present but arithmetic is inconsistent.",
+    )
+    items: list[InvoiceItem] = Field(
+        default_factory=list,
+        description="Line items extracted from the invoice table (may be empty if no table found).",
     )
 
 

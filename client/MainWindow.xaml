@@ -1386,15 +1386,33 @@
                                                        Margin="0,0,0,2" />
                                             <TextBox Text="{Binding SelectedRow.MontantHt, UpdateSourceTrigger=PropertyChanged}"
                                                      Style="{StaticResource TextBoxStyle}"
-                                                     Margin="0,0,0,10" />
-
-                                            <TextBlock Text="TVA"
-                                                       Style="{StaticResource TextTiny}"
-                                                       Foreground="{StaticResource BrushTextSecondary}"
-                                                       Margin="0,0,0,2" />
-                                            <TextBox Text="{Binding SelectedRow.MontantTva, UpdateSourceTrigger=PropertyChanged}"
-                                                     Style="{StaticResource TextBoxStyle}"
-                                                     Margin="0,0,0,10" />
+                                                     Margin="0,0,0,10" /><TextBlock Text="TVA"
+           Style="{StaticResource TextTiny}"
+           Foreground="{StaticResource BrushTextSecondary}"
+           Margin="0,0,0,2" />
+<StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+    <TextBox Text="{Binding SelectedRow.MontantTva, UpdateSourceTrigger=PropertyChanged}"
+             Style="{StaticResource TextBoxStyle}"
+             VerticalAlignment="Center" />
+    <Border CornerRadius="{StaticResource RadiusPill}"
+            Padding="4,2"
+            Margin="6,0,0,0"
+            Background="{StaticResource BrushWarning}"
+            VerticalAlignment="Center"
+            ToolTip="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[VatMismatchTooltip]}">
+        <Border.Style>
+            <Style TargetType="Border">
+                <Setter Property="Visibility" Value="Collapsed" />
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding SelectedRow.VatMismatch}" Value="True">
+                        <Setter Property="Visibility" Value="Visible" />
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+        </Border.Style>
+        <TextBlock Text="⚠" FontSize="10" Foreground="{StaticResource BrushTextInverse}" />
+    </Border>
+</StackPanel>
 
                                             <TextBlock Text="Taxe"
                                                        Style="{StaticResource TextTiny}"
@@ -1431,19 +1449,24 @@
                                                         <Border.InputBindings>
                                                             <MouseBinding MouseAction="LeftClick"
                                                                           Command="{Binding DataContext.ToggleItemsExpandedCommand, RelativeSource={RelativeSource AncestorType=ScrollViewer}}"
-                                                                          CommandParameter="{Binding}" />
+                                                                          CommandParameter="{Binding SelectedRow}" />
                                                         </Border.InputBindings>
                                                         <Grid>
                                                             <Grid.ColumnDefinitions>
                                                                 <ColumnDefinition Width="*" />
                                                                 <ColumnDefinition Width="Auto" />
                                                             </Grid.ColumnDefinitions>
-                                                            <TextBlock Grid.Column="0"
+                                                            <StackPanel Orientation="Horizontal" Grid.Column="0">
+                                                            <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ArticlesLabel]}"
                                                                        Style="{StaticResource TextCaption}"
-                                                                       FontWeight="{StaticResource FontWeightMedium}">
-                                                                <Run Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ArticlesLabel]}" />
-                                                                <Run Text="(" /><Run Text="{Binding ItemsCountDisplay}" /><Run Text=")" />
+                                                                       FontWeight="{StaticResource FontWeightMedium}"
+                                                                       VerticalAlignment="Center" />
+                                                            <TextBlock Style="{StaticResource TextCaption}"
+                                                                       FontWeight="{StaticResource FontWeightMedium}"
+                                                                       VerticalAlignment="Center">
+                                                                <Run Text=" (" /><Run Text="{Binding SelectedRow.ItemsCountDisplay}" /><Run Text=")" />
                                                             </TextBlock>
+                                                        </StackPanel>
                                                             <TextBlock Grid.Column="1"
                                                                        FontSize="12"
                                                                        Foreground="{StaticResource BrushTextMuted}">
@@ -1451,7 +1474,7 @@
                                                                     <Style TargetType="TextBlock">
                                                                         <Setter Property="Text" Value="▶" />
                                                                         <Style.Triggers>
-                                                                            <DataTrigger Binding="{Binding AreItemsExpanded}" Value="True">
+                                                                            <DataTrigger Binding="{Binding SelectedRow.AreItemsExpanded}" Value="True">
                                                                                 <Setter Property="Text" Value="▼" />
                                                                             </DataTrigger>
                                                                         </Style.Triggers>
@@ -1463,35 +1486,72 @@
 
                                                     <!-- Expandable content area -->
                                                     <Grid Grid.Row="1"
-                                                          Visibility="{Binding AreItemsExpanded, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                                        <ContentControl>
-                                                            <ContentControl.Style>
-                                                                <Style TargetType="ContentControl">
-                                                                    <Setter Property="Content">
-                                                                        <Setter.Value>
-                                                                            <!-- Empty state when no item data -->
-                                                                            <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ArticlesEmpty]}"
-                                                                                       Style="{StaticResource TextMetadata}"
-                                                                                       TextWrapping="Wrap"
-                                                                                       Margin="0,8,0,4" />
-                                                                        </Setter.Value>
-                                                                    </Setter>
+                                                          Visibility="{Binding SelectedRow.AreItemsExpanded, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                        <!-- When HasItems is False, show empty placeholder -->
+                                                        <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ArticlesEmpty]}"
+                                                                   TextWrapping="Wrap"
+                                                                   Margin="0,8,0,4">
+                                                            <TextBlock.Style>
+                                                                <Style TargetType="TextBlock" BasedOn="{StaticResource TextMetadata}">
+                                                                    <Setter Property="Visibility" Value="Visible" />
                                                                     <Style.Triggers>
-                                                                        <DataTrigger Binding="{Binding HasItems}" Value="True">
-                                                                            <Setter Property="Content">
-                                                                                <Setter.Value>
-                                                                                    <!-- Future: ItemsControl/DataGrid for line items -->
-                                                                                    <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ArticlesDetected]}"
-                                                                                               Style="{StaticResource TextMetadata}"
-                                                                                               TextWrapping="Wrap"
-                                                                                               Margin="0,8,0,4" />
-                                                                                </Setter.Value>
-                                                                            </Setter>
+                                                                        <DataTrigger Binding="{Binding SelectedRow.HasItems}" Value="True">
+                                                                            <Setter Property="Visibility" Value="Collapsed" />
                                                                         </DataTrigger>
                                                                     </Style.Triggers>
                                                                 </Style>
-                                                            </ContentControl.Style>
-                                                        </ContentControl>
+                                                            </TextBlock.Style>
+                                                        </TextBlock>
+
+                                                        <!-- When HasItems is True, show item list -->
+                                                        <ItemsControl ItemsSource="{Binding SelectedRow.Items}">
+                                                            <ItemsControl.Style>
+                                                                <Style TargetType="ItemsControl">
+                                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding SelectedRow.HasItems}" Value="True">
+                                                                            <Setter Property="Visibility" Value="Visible" />
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </ItemsControl.Style>
+                                                            <ItemsControl.ItemTemplate>
+                                                                <DataTemplate>
+                                                                    <Border CornerRadius="{StaticResource RadiusSmall}"
+                                                                            BorderThickness="0,0,0,1"
+                                                                            BorderBrush="{StaticResource BrushBorderLight}"
+                                                                            Padding="8,6"
+                                                                            Margin="0,2,0,0">
+                                                                        <Grid>
+                                                                            <Grid.ColumnDefinitions>
+                                                                                <ColumnDefinition Width="*" />
+                                                                                <ColumnDefinition Width="Auto" />
+                                                                                <ColumnDefinition Width="Auto" />
+                                                                            </Grid.ColumnDefinitions>
+                                                                            <TextBlock Grid.Column="0"
+                                                                                       Text="{Binding DisplayLine}"
+                                                                                       Style="{StaticResource TextTiny}"
+                                                                                       TextTrimming="CharacterEllipsis"
+                                                                                       VerticalAlignment="Center" />
+                                                                            <TextBlock Grid.Column="1"
+                                                                                       Text="{Binding PriceDisplay}"
+                                                                                       Style="{StaticResource TextTiny}"
+                                                                                       Foreground="{StaticResource BrushTextMuted}"
+                                                                                       Margin="0,0,12,0"
+                                                                                       VerticalAlignment="Center" />
+                                                                            <Border Grid.Column="2"
+                                                                                    CornerRadius="{StaticResource RadiusPill}"
+                                                                                    Padding="6,2"
+                                                                                    Background="{StaticResource BrushInfoLight}">
+                                                                                <TextBlock Text="{Binding TvaDisplay}"
+                                                                                           Style="{StaticResource TextTiny}"
+                                                                                           Foreground="{StaticResource BrushInfo}" />
+                                                                            </Border>
+                                                                        </Grid>
+                                                                    </Border>
+                                                                </DataTemplate>
+                                                            </ItemsControl.ItemTemplate>
+                                                        </ItemsControl>
                                                     </Grid>
                                                 </Grid>
                                             </Border>
