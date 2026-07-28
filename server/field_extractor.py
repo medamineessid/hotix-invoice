@@ -1252,10 +1252,6 @@ def _invoice_number_quality_score(value: str) -> float:
         score += 0.25
 
     # Boost if it contains a recent year (common in invoice IDs)
-    if any(year in value for year in ["2026", "2025", "2024", "2023"]):
-        score += 0.2
-
-    # Boost if it contains a recent year (common in invoice IDs)
     _current_year = datetime.now().year
     _recent_years = [str(y) for y in range(_current_year - 3, _current_year + 1)]
     if any(year in value for year in _recent_years):

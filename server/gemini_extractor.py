@@ -1,8 +1,8 @@
-import os
+import asyncio
 import json
 import logging
+import os
 import random
-import time
 from pathlib import Path
 from typing import Any, Optional, Dict, List
 from google import genai
@@ -17,7 +17,7 @@ _GEMINI_PROMPT_FR = """Extrais les informations de cette facture sous forme de J
 Les clés doivent être exactement : numero_facture, date, fournisseur, client, montant_ht, montant_tva, montant_taxe, montant_ttc.
 Extrais également les lignes d'articles si présentes dans un tableau nommé "items".
 Chaque article a les clés : designation, quantite, prix_unitaire, tva_rate, montant.
-Pour tva_rate, utilise le format pourcentage (ex: 20 pour 20%, 10 pour 10%).
+Pour tva_rate, utilise le format décimal (ex: 0.20 pour 20%, 0.10 pour 10%, 0.055 pour 5.5%).
 Utilise null si une information est absente. Ne devine jamais.
 Si la facture n'a pas de tableau d'articles, mets items à [].
 Réponds uniquement avec le JSON."""
@@ -26,7 +26,7 @@ _GEMINI_PROMPT_EN = """Extract the information from this invoice as JSON only.
 The keys must be exactly: numero_facture, date, fournisseur, client, montant_ht, montant_tva, montant_taxe, montant_ttc.
 Also extract line items if present in an array named "items".
 Each item has keys: designation, quantite, prix_unitaire, tva_rate, montant.
-For tva_rate use the percentage format (e.g. 20 for 20%, 10 for 10%).
+For tva_rate use decimal format (e.g. 0.20 for 20%, 0.10 for 10%, 0.055 for 5.5%).
 Use null if information is missing. Never guess.
 If the invoice has no item table, set items to [].
 Reply with JSON only."""
@@ -120,7 +120,7 @@ def load_gemini_model() -> str:
     return "gemini-2.5-flash"  # default
 
 
-def _call_gemini_with_retry(client, model_name: str, prompt: str, image_data: bytes, mime_type: str, attempt: int = 1, max_attempts: int = 3) -> str:
+async def _call_gemini_with_retry(client, model_name: str, prompt: str, image_data: bytes, mime_type: str, attempt: int = 1, max_attempts: int = 3) -> str:
     """Call Gemini with exponential backoff retry for transient errors (429, 503, timeout).
 
     Last resort: raises GeminiExtractionError after max_attempts failures.
@@ -149,8 +149,8 @@ def _call_gemini_with_retry(client, model_name: str, prompt: str, image_data: by
                 "Gemini API error %s (attempt %d/%d), retrying in %.1fs...",
                 code, attempt, max_attempts, delay,
             )
-            time.sleep(delay)
-            return _call_gemini_with_retry(client, model_name, prompt, image_data, mime_type, attempt + 1, max_attempts)
+            await asyncio.sleep(delay)
+            return await _call_gemini_with_retry(client, model_name, prompt, image_data, mime_type, attempt + 1, max_attempts)
         if code == 429:
             raise GeminiExtractionError("Quota d'API Gemini dépassé (429)")
         raise GeminiExtractionError(f"Erreur API Gemini: {exc}")
@@ -161,12 +161,12 @@ def _call_gemini_with_retry(client, model_name: str, prompt: str, image_data: by
                 "Gemini timeout (attempt %d/%d), retrying in %.1fs...",
                 attempt, max_attempts, delay,
             )
-            time.sleep(delay)
-            return _call_gemini_with_retry(client, model_name, prompt, image_data, mime_type, attempt + 1, max_attempts)
+            await asyncio.sleep(delay)
+            return await _call_gemini_with_retry(client, model_name, prompt, image_data, mime_type, attempt + 1, max_attempts)
         raise GeminiExtractionError(f"Erreur inattendue lors de l'extraction Gemini: {e}")
 
 
-def extract_with_gemini(image_data: bytes, mime_type: str) -> Dict[str, Any]:
+async def extract_with_gemini(image_data: bytes, mime_type: str) -> Dict[str, Any]:
     """Extract invoice fields (and optionally line items) using Gemini Vision.
 
     Returns a dict with the 8 standard fields plus an optional "items" key
@@ -182,7 +182,7 @@ def extract_with_gemini(image_data: bytes, mime_type: str) -> Dict[str, Any]:
     prompt = _get_gemini_prompt()
 
     try:
-        response_text = _call_gemini_with_retry(client, model_name, prompt, image_data, mime_type)
+        response_text = await _call_gemini_with_retry(client, model_name, prompt, image_data, mime_type)
 
         # Strip markdown fences if present
         content = response_text.strip()

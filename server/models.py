@@ -58,11 +58,18 @@ class InvoiceExtractionResponse(BaseModel):
 
 
 class HealthResponse(BaseModel):
-    """Response payload returned by GET /health."""
+    """Detailed health check response returned by GET /health."""
 
     model_config = ConfigDict(extra="forbid")
 
-    status: str = Field(default="ok")
+    status: str = Field(default="ok", description="Overall status: ok or degraded")
+    ocr_ready: bool = Field(default=False, description="OCR engine is instantiated")
+    ocr_model_loaded: bool = Field(default=False, description="OCR model weights are in memory")
+    poppler_available: bool = Field(default=False, description="Poppler (pdftoppm/pdfinfo) is accessible")
+    gemini_configured: bool = Field(default=False, description="Gemini API key is configured")
+    grok_configured: bool = Field(default=False, description="Grok/xAI API key is configured")
+    version: str = Field(default="1.0.0", description="API version")
+
 
 
 class ErrorResponse(BaseModel):

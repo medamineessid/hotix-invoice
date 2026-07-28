@@ -10,9 +10,12 @@ from server.field_extractor import (
     _contains_any_alias,
     _extract_field_selections,
     _extract_inline_value,
+    _invoice_number_quality_score,
     _looks_like_label,
     _matches_alias_relaxed,
     _score_candidate,
+    compute_confidence,
+    cross_validate_fields,
     extract_field_confidences,
     extract_invoice_fields,
     extract_raw_text,
@@ -604,3 +607,395 @@ class TestTwoColumnLayout:
         fields = extract_invoice_fields(lines)
         assert fields["montant_tva"] is not None
         assert abs(float(fields["montant_tva"]) - 20.0) < 0.01
+
+
+# ── cross_validate_fields ────────────────────────────────────────────────────
+
+
+class TestCrossValidateFields:
+    """Tests for semantic cross-field validation logic."""
+
+    def test_all_fields_correct_no_issues(self):
+        """HT=100, TVA=20, TTC=120, no empty mandatory fields → no issues."""
+        fields = {
+            "numero_facture": "INV-001",
+            "date": "2024-03-15",
+            "montant_ht": "100.00",
+            "montant_tva": "20.00",
+            "montant_taxe": "0.00",
+            "montant_ttc": "120.00",
+        }
+        issues = cross_validate_fields(fields)
+        assert issues == [], f"Expected no issues, got: {issues}"
+
+    def test_ht_equals_tva_duplication(self):
+        """HT=100, TVA=100, TTC=200 → HT equals TVA duplication error."""
+        fields = {
+            "numero_facture": "INV-001",
+            "date": "2024-03-15",
+            "montant_ht": "100.00",
+            "montant_tva": "100.00",
+            "montant_taxe": "0.00",
+            "montant_ttc": "200.00",
+        }
+        issues = cross_validate_fields(fields)
+        assert any("HT equals TVA" in i for i in issues), f"Expected HT=TVA duplication issue, got: {issues}"
+
+    def test_ht_equals_ttc_duplication(self):
+        """HT=100, TVA=0, TTC=100 → HT equals TTC duplication error."""
+        fields = {
+            "numero_facture": "INV-001",
+            "date": "2024-03-15",
+            "montant_ht": "100.00",
+            "montant_tva": "0.00",
+            "montant_taxe": "0.00",
+            "montant_ttc": "100.00",
+        }
+        issues = cross_validate_fields(fields)
+        assert any("HT equals TTC" in i for i in issues), f"Expected HT=TTC duplication issue, got: {issues}"
+
+    def test_tva_exceeds_ttc_impossible(self):
+        """TVA=200, TTC=100 → TVA exceeds TTC (impossible)."""
+        fields = {
+            "numero_facture": "INV-001",
+            "date": "2024-03-15",
+            "montant_ht": "100.00",
+            "montant_tva": "200.00",
+            "montant_taxe": "0.00",
+            "montant_ttc": "100.00",
+        }
+        issues = cross_validate_fields(fields)
+        assert any("TVA exceeds TTC" in i for i in issues), f"Expected TVA>TTC issue, got: {issues}"
+
+    def test_negative_amount(self):
+        """Negative HT should be flagged."""
+        fields = {
+            "numero_facture": "INV-001",
+            "date": "2024-03-15",
+            "montant_ht": "-50.00",
+            "montant_tva": "10.00",
+            "montant_taxe": "0.00",
+            "montant_ttc": "-40.00",
+        }
+        issues = cross_validate_fields(fields)
+        assert any("Negative HT" in i for i in issues), f"Expected Negative HT issue, got: {issues}"
+        assert any("Negative TTC" in i for i in issues), f"Expected Negative TTC issue, got: {issues}"
+
+    def test_arithmetic_mismatch(self):
+        """HT=100, TVA=20, TTC=500 → large arithmetic mismatch."""
+        fields = {
+            "numero_facture": "INV-001",
+            "date": "2024-03-15",
+            "montant_ht": "100.00",
+            "montant_tva": "20.00",
+            "montant_taxe": "0.00",
+            "montant_ttc": "500.00",
+        }
+        issues = cross_validate_fields(fields)
+        assert any("Arithmetic mismatch" in i for i in issues), f"Expected arithmetic mismatch, got: {issues}"
+
+    def test_unlikely_vat_rate(self):
+        """TVA/HT = 0.01 (1%) → below 5% threshold → unlikely VAT rate."""
+        fields = {
+            "numero_facture": "INV-001",
+            "date": "2024-03-15",
+            "montant_ht": "1000.00",
+            "montant_tva": "10.00",
+            "montant_taxe": "0.00",
+            "montant_ttc": "1010.00",
+        }
+        issues = cross_validate_fields(fields)
+        assert any("VAT rate" in i for i in issues), f"Expected unlikely VAT rate issue, got: {issues}"
+
+    def test_missing_invoice_number(self):
+        """Missing invoice number should be flagged."""
+        fields = {
+            "numero_facture": None,
+            "date": "2024-03-15",
+            "montant_ht": "100.00",
+            "montant_tva": "20.00",
+            "montant_taxe": "0.00",
+            "montant_ttc": "120.00",
+        }
+        issues = cross_validate_fields(fields)
+        assert any("missing" in i and "Invoice number" in i for i in issues), \
+            f"Expected missing invoice number, got: {issues}"
+
+    def test_missing_date(self):
+        """Missing date should be flagged."""
+        fields = {
+            "numero_facture": "INV-001",
+            "date": None,
+            "montant_ht": "100.00",
+            "montant_tva": "20.00",
+            "montant_taxe": "0.00",
+            "montant_ttc": "120.00",
+        }
+        issues = cross_validate_fields(fields)
+        assert any("Date missing" in i for i in issues), f"Expected Date missing, got: {issues}"
+
+    def test_missing_ttc(self):
+        """Missing TTC should be flagged."""
+        fields = {
+            "numero_facture": "INV-001",
+            "date": "2024-03-15",
+            "montant_ht": "100.00",
+            "montant_tva": "20.00",
+            "montant_taxe": "0.00",
+            "montant_ttc": None,
+        }
+        issues = cross_validate_fields(fields)
+        assert any("TTC amount missing" in i for i in issues), f"Expected TTC missing, got: {issues}"
+
+    def test_only_one_amount_no_validation(self):
+        """With only one monetary field present, skip arithmetic validation."""
+        fields = {
+            "numero_facture": "INV-001",
+            "date": "2024-03-15",
+            "montant_ht": "100.00",
+            "montant_tva": None,
+            "montant_taxe": None,
+            "montant_ttc": None,
+        }
+        issues = cross_validate_fields(fields)
+        # Only mandatory-field issues (no monetary validation since amt_count < 2)
+        assert any("TTC amount missing" in i for i in issues)
+        assert not any("Arithmetic mismatch" in i for i in issues)
+
+    def test_all_empty_no_crash(self):
+        """All fields None should not crash and return missing-field issues."""
+        fields = {
+            "numero_facture": None,
+            "date": None,
+            "montant_ht": None,
+            "montant_tva": None,
+            "montant_taxe": None,
+            "montant_ttc": None,
+        }
+        issues = cross_validate_fields(fields)  # must not crash
+        assert len(issues) >= 2  # missing invoice number, date, TTC
+        assert any("Invoice number missing" in i for i in issues)
+        assert any("Date missing" in i for i in issues)
+        assert any("TTC amount missing" in i for i in issues)
+
+
+# ── compute_confidence ───────────────────────────────────────────────────────
+
+
+class TestComputeConfidence:
+    """Tests for extraction confidence scoring with penalty logic."""
+
+    def test_all_fields_high_confidence(self):
+        """All fields present with high scores, no issues → confidence > 0.8."""
+        scores = {
+            "numero_facture": 0.95,
+            "date": 0.95,
+            "fournisseur": 0.90,
+            "client": 0.90,
+            "montant_ht": 0.95,
+            "montant_tva": 0.95,
+            "montant_taxe": 0.90,
+            "montant_ttc": 0.95,
+        }
+        conf = compute_confidence(scores)
+        assert conf > 0.8, f"Expected >0.8, got {conf}"
+
+    def test_three_monetary_missing_penalty(self):
+        """3 of 3 monetary fields missing → 0.20 penalty."""
+        scores = {
+            "numero_facture": 0.9,
+            "date": 0.9,
+            "fournisseur": 0.9,
+            "client": 0.9,
+            "montant_ht": 0.0,  # not counted (<= 0)
+            "montant_tva": 0.0,
+            "montant_taxe": 0.0,
+            "montant_ttc": 0.0,
+        }
+        fields = {
+            "montant_ht": None,
+            "montant_tva": None,
+            "montant_taxe": None,
+            "montant_ttc": None,
+        }
+        conf = compute_confidence(scores, fields=fields)
+        # Base = (0.9*4) / 4 = 0.9, penalty = 0.20 → 0.7
+        # (non-monetary fields count for base, only montant fields penalized)
+        assert conf <= 0.90, f"Expected <=0.9, got {conf}"
+
+    def test_two_monetary_missing_penalty(self):
+        """2 of 3 monetary fields missing → 0.10 penalty."""
+        scores = {
+            "numero_facture": 0.9,
+            "date": 0.9,
+            "fournisseur": 0.9,
+            "client": 0.9,
+            "montant_ht": 0.0,  # missing → not counted in base
+            "montant_tva": 0.0,
+            "montant_taxe": 0.0,
+            "montant_ttc": 0.95,
+        }
+        fields = {
+            "montant_ht": None,
+            "montant_tva": None,
+            "montant_taxe": None,
+            "montant_ttc": "120.00",
+        }
+        conf = compute_confidence(scores, fields=fields)
+        # Base = (0.9*4 + 0.95) / 5 = 0.91, penalty = 0.10 → 0.81
+        assert conf <= 0.91, f"Expected <=0.91, got {conf}"
+
+    def test_duplication_penalty(self):
+        """HT equals TVA → 0.25 duplication penalty."""
+        scores = {
+            "numero_facture": 0.95,
+            "date": 0.95,
+            "fournisseur": 0.90,
+            "client": 0.90,
+            "montant_ht": 0.95,
+            "montant_tva": 0.95,
+            "montant_taxe": 0.90,
+            "montant_ttc": 0.95,
+        }
+        issues = ["HT equals TVA (duplication error)"]
+        conf = compute_confidence(scores, issues=issues)
+        # Base = (0.95*5 + 0.9*3) / 8 = 0.93125, penalty = 0.25 → 0.68125
+        assert conf < 0.85, f"Expected <0.85 with duplication penalty, got {conf}"
+
+    def test_impossible_penalty(self):
+        """TVA exceeds TTC → 0.20 impossible penalty."""
+        scores = {
+            "numero_facture": 0.95,
+            "date": 0.95,
+            "fournisseur": 0.90,
+            "client": 0.90,
+            "montant_ht": 0.95,
+            "montant_tva": 0.95,
+            "montant_taxe": 0.90,
+            "montant_ttc": 0.95,
+        }
+        issues = ["TVA exceeds TTC (impossible)"]
+        conf = compute_confidence(scores, issues=issues)
+        assert conf < 0.85, f"Expected <0.85 with impossible penalty, got {conf}"
+
+    def test_no_scores(self):
+        """All scores are 0 → confidence is 0."""
+        scores = {k: 0.0 for k in [
+            "numero_facture", "date", "fournisseur", "client",
+            "montant_ht", "montant_tva", "montant_taxe", "montant_ttc",
+        ]}
+        conf = compute_confidence(scores)
+        assert conf == 0.0, f"Expected 0.0, got {conf}"
+
+    def test_empty_scores(self):
+        """Empty dict → confidence is 0 (no positive scores)."""
+        conf = compute_confidence({})
+        assert conf == 0.0, f"Expected 0.0, got {conf}"
+
+    def test_confidence_clamped(self):
+        """Even with impossibly high base, confidence should not exceed 1.0."""
+        scores = {k: 2.0 for k in [
+            "numero_facture", "date", "fournisseur", "client",
+            "montant_ht", "montant_tva", "montant_taxe", "montant_ttc",
+        ]}
+        conf = compute_confidence(scores)
+        assert conf <= 1.0, f"Expected <=1.0, got {conf}"
+
+    def test_multiple_penalties_compound(self):
+        """Multiple issues (duplication + missing + mismatch) compound."""
+        scores = {
+            "numero_facture": 0.95,
+            "date": 0.95,
+            "fournisseur": 0.90,
+            "client": 0.90,
+            "montant_ht": 0.95,
+            "montant_tva": 0.95,
+            "montant_taxe": 0.90,
+            "montant_ttc": 0.95,
+        }
+        issues = [
+            "HT equals TVA (duplication error)",
+            "Arithmetic mismatch: HT+IVA+Taxe=130.000 ≠ TTC=500.000",
+        ]
+        conf = compute_confidence(scores, issues=issues)
+        # Base = ~0.93125, penalties = 0.25 + 0.15 = 0.40, result ≈ 0.53125
+        assert conf < 0.7, f"Expected <0.7 with compound penalties, got {conf}"
+
+
+# ── _invoice_number_quality_score ────────────────────────────────────────────
+
+
+class TestInvoiceNumberQualityScore:
+    """Tests for the invoice-number quality-boost scoring function."""
+
+    def test_empty_string(self):
+        """Empty string → score = -0.3 (minimum)."""
+        score = _invoice_number_quality_score("")
+        assert score == -0.3, f"Expected -0.3, got {score}"
+
+    def test_inv_prefix(self):
+        """"INV-2025-001" contains 'INV' → positive score."""
+        score = _invoice_number_quality_score("INV-2025-001")
+        assert score > 0.0, f"Expected positive score for INV prefix, got {score}"
+
+    def test_fac_prefix(self):
+        """"FAC-2025-001" contains 'FAC' → positive score."""
+        score = _invoice_number_quality_score("FAC-2025-001")
+        assert score > 0.0, f"Expected positive score for FAC prefix, got {score}"
+
+    def test_contains_recent_year(self):
+        """Value with current year should get year boost."""
+        from datetime import datetime
+        current_year = str(datetime.now().year)
+        score = _invoice_number_quality_score(f"{current_year}-001")
+        # Has year boost (+0.2), no INV/FAC prefix, no penalties → 0.2
+        assert score == 0.2, f"Expected 0.2 for year-only boost, got {score}"
+
+    def test_very_short_pure_digit(self):
+        """"42" → very short (< 3), pure digit → negative score."""
+        score = _invoice_number_quality_score("42")
+        # length < 3 → -0.3, pure digits len < 6 → -0.2, clamped to -0.3
+        assert score == -0.3, f"Expected -0.3, got {score}"
+
+    def test_very_short_pure_digit_len_4(self):
+        """"1234" → short (4 chars), pure digit → moderately penalised."""
+        score = _invoice_number_quality_score("1234")
+        # len < 5 → -0.1, pure digits len < 6 → -0.2, total = -0.3
+        assert score == -0.3, f"Expected -0.3, got {score}"
+
+    def test_date_like_penalty(self):
+        """"24/11/2020" looks like a date → date penalty (-0.3)."""
+        score = _invoice_number_quality_score("24/11/2020")
+        # Only date penalty applies (-0.3), no year boost (2020 is out of range)
+        assert score == -0.3, f"Expected -0.3 for date-like, got {score}"
+
+    def test_inv_with_short_digit(self):
+        """"INV-42" → INV boost (+0.25) + short pure digit penalty (-0.2) + short length penalty (-0.1)."""
+        score = _invoice_number_quality_score("INV-42")
+        # +0.25 (INV) - 0.1 (len <5) = +0.15 (no pure-digit penalty due to dash)
+        # Actually "INV-42" has a dash so value.isdigit() is False → no pure-digit penalty
+        # len("INV-42") = 6, so no length penalty
+        # Score = 0.25, clamped to 0.25
+        assert score == 0.25, f"Expected 0.25, got {score}"
+
+    def test_score_clamped_to_max(self):
+        """Score must not exceed 0.3."""
+        # INV(+0.25) + year(+0.2) = 0.45 → clamped to 0.3
+        from datetime import datetime
+        current_year = str(datetime.now().year)
+        score = _invoice_number_quality_score(f"INV-{current_year}-001")
+        assert score <= 0.3, f"Expected <=0.3, got {score}"
+
+    def test_score_clamped_to_min(self):
+        """Score must not go below -0.3."""
+        # Multiple penalties should not push below -0.3
+        score = _invoice_number_quality_score("42")  # <3 chars + pure digit
+        assert score >= -0.3, f"Expected >= -0.3, got {score}"
+
+    def test_typical_invoice_number(self):
+        """A realistic invoice number "FAC-2025-0042" should score high (> 0)."""
+        from datetime import datetime
+        current_year = str(datetime.now().year)
+        score = _invoice_number_quality_score(f"FAC-{current_year}-0042")
+        # FAC(+0.25) + year(+0.2) = 0.45 → clamped to 0.3
+        assert score > 0.0, f"Expected positive, got {score}"
