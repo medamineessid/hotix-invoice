@@ -17,6 +17,12 @@ class InvoiceItem(BaseModel):
     montant: Optional[float] = Field(default=None, description="Line total (usually qty × unit price)")
 
 
+class ApiKeyValidationRequest(BaseModel):
+    """Request payload for API key validation endpoints."""
+    model_config = ConfigDict(extra="forbid")
+    api_key: str = Field(..., min_length=10, max_length=512, description="API key to validate")
+
+
 class InvoiceExtractionResponse(BaseModel):
     """Response payload returned by POST /extract."""
 
@@ -26,10 +32,10 @@ class InvoiceExtractionResponse(BaseModel):
     date: Optional[str] = Field(default=None)
     fournisseur: Optional[str] = Field(default=None)
     client: Optional[str] = Field(default=None)
-    montant_ht: Optional[str] = Field(default=None)
-    montant_tva: Optional[str] = Field(default=None)
-    montant_taxe: Optional[str] = Field(default=None)
-    montant_ttc: Optional[str] = Field(default=None)
+    montant_ht: Optional[float] = Field(default=None)
+    montant_tva: Optional[float] = Field(default=None)
+    montant_taxe: Optional[float] = Field(default=None)
+    montant_ttc: Optional[float] = Field(default=None)
     confidence: float = Field(default=0.0, ge=0.0, le=1.0)
     raw_text: str = Field(default="")
     engine_used: Literal["gemini", "ocr"] = Field(default="ocr")

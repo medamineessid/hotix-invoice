@@ -1,6 +1,8 @@
 import os
 import json
 import logging
+import random
+import time
 from pathlib import Path
 from typing import Any, Optional, Dict, List
 from google import genai
@@ -8,6 +10,39 @@ from google.genai import errors as genai_errors
 from google.genai import types
 
 logger = logging.getLogger(__name__)
+
+# ── Prompt constants ──────────────────────────────────────────────────────────
+
+_GEMINI_PROMPT_FR = """Extrais les informations de cette facture sous forme de JSON uniquement.
+Les clés doivent être exactement : numero_facture, date, fournisseur, client, montant_ht, montant_tva, montant_taxe, montant_ttc.
+Extrais également les lignes d'articles si présentes dans un tableau nommé "items".
+Chaque article a les clés : designation, quantite, prix_unitaire, tva_rate, montant.
+Pour tva_rate, utilise le format pourcentage (ex: 20 pour 20%, 10 pour 10%).
+Utilise null si une information est absente. Ne devine jamais.
+Si la facture n'a pas de tableau d'articles, mets items à [].
+Réponds uniquement avec le JSON."""
+
+_GEMINI_PROMPT_EN = """Extract the information from this invoice as JSON only.
+The keys must be exactly: numero_facture, date, fournisseur, client, montant_ht, montant_tva, montant_taxe, montant_ttc.
+Also extract line items if present in an array named "items".
+Each item has keys: designation, quantite, prix_unitaire, tva_rate, montant.
+For tva_rate use the percentage format (e.g. 20 for 20%, 10 for 10%).
+Use null if information is missing. Never guess.
+If the invoice has no item table, set items to [].
+Reply with JSON only."""
+
+
+def _get_gemini_prompt() -> str:
+    """Return the extraction prompt in the configured language.
+
+    Language is determined by the HOTIX_LANG environment variable.
+    Fallback is French (fr).
+    """
+    lang = os.getenv("HOTIX_LANG", "fr").lower().strip()
+    if lang == "en":
+        return _GEMINI_PROMPT_EN
+    return _GEMINI_PROMPT_FR
+
 
 class GeminiExtractionError(Exception):
     """Raised when Gemini extraction fails."""
@@ -84,6 +119,53 @@ def load_gemini_model() -> str:
             logger.warning(f"Failed to read gemini_model from {settings_path}: {e}")
     return "gemini-2.5-flash"  # default
 
+
+def _call_gemini_with_retry(client, model_name: str, prompt: str, image_data: bytes, mime_type: str, attempt: int = 1, max_attempts: int = 3) -> str:
+    """Call Gemini with exponential backoff retry for transient errors (429, 503, timeout).
+
+    Last resort: raises GeminiExtractionError after max_attempts failures.
+    """
+    try:
+        response = client.models.generate_content(
+            model=model_name,
+            contents=[
+                prompt,
+                types.Part.from_bytes(data=image_data, mime_type=mime_type),
+            ],
+            config=types.GenerateContentConfig(
+                response_mime_type="application/json",
+            ),
+        )
+        if not response.text:
+            raise GeminiExtractionError("Réponse vide de Gemini")
+        return response.text
+    except GeminiExtractionError:
+        raise  # Non-retryable
+    except genai_errors.APIError as exc:
+        code = getattr(exc, "code", None)
+        if code in (429, 503) and attempt < max_attempts:
+            delay = min(2 ** attempt, 10) + random.uniform(0, 1)
+            logger.warning(
+                "Gemini API error %s (attempt %d/%d), retrying in %.1fs...",
+                code, attempt, max_attempts, delay,
+            )
+            time.sleep(delay)
+            return _call_gemini_with_retry(client, model_name, prompt, image_data, mime_type, attempt + 1, max_attempts)
+        if code == 429:
+            raise GeminiExtractionError("Quota d'API Gemini dépassé (429)")
+        raise GeminiExtractionError(f"Erreur API Gemini: {exc}")
+    except Exception as e:
+        if "timeout" in str(e).lower() and attempt < max_attempts:
+            delay = min(2 ** attempt, 10) + random.uniform(0, 1)
+            logger.warning(
+                "Gemini timeout (attempt %d/%d), retrying in %.1fs...",
+                attempt, max_attempts, delay,
+            )
+            time.sleep(delay)
+            return _call_gemini_with_retry(client, model_name, prompt, image_data, mime_type, attempt + 1, max_attempts)
+        raise GeminiExtractionError(f"Erreur inattendue lors de l'extraction Gemini: {e}")
+
+
 def extract_with_gemini(image_data: bytes, mime_type: str) -> Dict[str, Any]:
     """Extract invoice fields (and optionally line items) using Gemini Vision.
 
@@ -97,32 +179,13 @@ def extract_with_gemini(image_data: bytes, mime_type: str) -> Dict[str, Any]:
 
     model_name = load_gemini_model()
     client = genai.Client(api_key=api_key)
-
-    prompt = """Extrais les informations de cette facture sous forme de JSON uniquement.
-Les clés doivent être exactement : numero_facture, date, fournisseur, client, montant_ht, montant_tva, montant_taxe, montant_ttc.
-Extrais également les lignes d'articles si présentes dans un tableau nommé "items".
-Chaque article a les clés : designation, quantite, prix_unitaire, tva_rate, montant.
-Utilise null si une information est absente. Ne devine jamais.
-Si la facture n'a pas de tableau d'articles, mets items à [].
-Réponds uniquement avec le JSON."""
+    prompt = _get_gemini_prompt()
 
     try:
-        response = client.models.generate_content(
-        model=model_name,
-        contents=[
-            prompt,
-            types.Part.from_bytes(data=image_data, mime_type=mime_type),
-        ],
-            config=types.GenerateContentConfig(
-                response_mime_type="application/json",
-            ),
-        )
-
-        if not response.text:
-            raise GeminiExtractionError("Réponse vide de Gemini")
+        response_text = _call_gemini_with_retry(client, model_name, prompt, image_data, mime_type)
 
         # Strip markdown fences if present
-        content = response.text.strip()
+        content = response_text.strip()
         if content.startswith("```json"):
             content = content[7:]
         if content.endswith("```"):
@@ -137,7 +200,7 @@ Réponds uniquement avec le JSON."""
             if key not in data:
                  raise GeminiExtractionError(f"Clé manquante dans la réponse JSON: {key}")
 
-        # Build result dict: stringify the 8 flat fields
+        # Build result dict: keep original types (str for text, number for amounts)
         result: Dict[str, Any] = {
             k: (str(v) if v is not None else None)
             for k, v in data.items() if k in required_keys
@@ -163,13 +226,9 @@ Réponds uniquement avec le JSON."""
 
         return result
 
-    except genai_errors.APIError as exc:
-        if getattr(exc, "code", None) == 429:
-            raise GeminiExtractionError("Quota d'API Gemini dépassé (429)")
-        raise GeminiExtractionError(f"Erreur API Gemini: {exc}")
     except json.JSONDecodeError:
         raise GeminiExtractionError("Échec de l'analyse du JSON renvoyé par Gemini")
+    except GeminiExtractionError:
+        raise
     except Exception as e:
-        if "timeout" in str(e).lower():
-            raise GeminiExtractionError("Délai d'attente dépassé pour Gemini")
         raise GeminiExtractionError(f"Erreur inattendue lors de l'extraction Gemini: {e}")

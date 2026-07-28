@@ -523,6 +523,7 @@
                                                     <ColumnDefinition Width="Auto" />
                                                     <ColumnDefinition Width="*" />
                                                     <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="Auto" />
                                                 </Grid.ColumnDefinitions>
                                                 <CheckBox Grid.Column="0"
                                                           IsChecked="{Binding IsSelected}"
@@ -553,6 +554,16 @@
                                                         <Run Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[FileReady], Mode=OneWay}" />
                                                     </TextBlock>
                                                 </Border>
+                                                <Button Grid.Column="3"
+                                                        Content="✕"
+                                                        Style="{StaticResource ButtonIconStyle}"
+                                                        Width="20" Height="20"
+                                                        FontSize="10"
+                                                        Margin="8,0,0,0"
+                                                        VerticalAlignment="Center"
+                                                        Command="{Binding DataContext.RemoveFileCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                        CommandParameter="{Binding}"
+                                                        ToolTip="Remove" />
                                             </Grid>
                                         </Border>
                                     </DataTemplate>
@@ -877,9 +888,8 @@
                                                                               CommandParameter="{Binding}" />
                                                             </Border.InputBindings>
                                                             <TextBlock Style="{StaticResource TextMetadata}"
-                                                                       FontWeight="{StaticResource FontWeightMedium}">
-                                                                <Run Text="{Binding DirectionIcon}" />
-                                                                <Run Text="{Binding DirectionDisplay}" />
+                                                                       FontWeight="{StaticResource FontWeightMedium}"><Run Text="{Binding DirectionIcon, Mode=OneWay}" />
+                                                                <Run Text="{Binding DirectionDisplay, Mode=OneWay}" />
                                                             </TextBlock>
                                                         </Border>
                                                     </DataTemplate>
@@ -1107,9 +1117,8 @@
                                                                               CommandParameter="{Binding}" />
                                                             </Border.InputBindings>
                                                             <TextBlock Style="{StaticResource TextMetadata}"
-                                                                       FontWeight="{StaticResource FontWeightMedium}">
-                                                                <Run Text="{Binding DirectionIcon}" />
-                                                                <Run Text="{Binding DirectionDisplay}" />
+                                                                       FontWeight="{StaticResource FontWeightMedium}"><Run Text="{Binding DirectionIcon, Mode=OneWay}" />
+                                                                <Run Text="{Binding DirectionDisplay, Mode=OneWay}" />
                                                             </TextBlock>
                                                         </Border>
                                                     </DataTemplate>

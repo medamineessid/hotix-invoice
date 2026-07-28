@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import asyncio
 import io
+import json
 import logging
 import os
-import tempfile
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -18,7 +18,7 @@ import sentry_sdk
 from sentry_sdk.integrations.fastapi import FastApiIntegration
 from sentry_sdk.integrations.logging import LoggingIntegration
 
-from .models import InvoiceExtractionResponse, InvoiceItem
+from .models import InvoiceExtractionResponse, InvoiceItem, ApiKeyValidationRequest
 from .ingestion import IngestionError, load_invoice_images
 from .ocr_engine import PaddleOcrEngine, OcrEngineError
 from .field_extractor import (
@@ -32,7 +32,6 @@ from .field_extractor import (
 from .utils import reconcile_amounts, detect_amount_collision
 
 from typing import Literal
-from fastapi import Query
 from .gemini_extractor import extract_with_gemini, GeminiExtractionError, load_gemini_api_key, load_gemini_model, _get_settings_path
 
 # Server-wide semaphore that serialises OCR operations.  PaddleOCR is not
@@ -160,6 +159,9 @@ async def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
+PREVIEW_ROOT = Path(os.getenv("HOTIX_PREVIEW_ROOT", "./previews")).resolve()
+
+
 @app.get("/preview")
 async def preview(path: str = Query(...)) -> Response:
     """Return the first page of a document as a PNG image for preview.
@@ -169,12 +171,24 @@ async def preview(path: str = Query(...)) -> Response:
 
     This endpoint is separate from the extraction pipeline — it is a
     UI-only utility for the preview panel.
+
+    Security: the requested path is resolved against PREVIEW_ROOT and rejected
+    if it escapes the sandbox (path traversal protection).
     """
-    # Resolve to prevent path-traversal attacks (e.g. /../../../etc/passwd)
-    raw = Path(path)
-    if ".." in path or not raw.exists():
+    # Reject absolute paths and obvious traversal
+    if path.startswith(("/", "\\")) or ".." in path:
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    raw = PREVIEW_ROOT / path
+    try:
+        filepath = raw.resolve()
+        if not filepath.is_relative_to(PREVIEW_ROOT):
+            raise HTTPException(status_code=403, detail="Access denied")
+    except (ValueError, RuntimeError):
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    if not filepath.exists():
         raise HTTPException(status_code=404, detail="File not found")
-    filepath = raw.resolve()
 
     suffix = filepath.suffix.lower()
     if suffix not in SUPPORTED_SUFFIXES:
@@ -211,11 +225,9 @@ async def preview(path: str = Query(...)) -> Response:
 
 
 @app.post("/validate-grok-key")
-async def validate_grok_key(request: dict) -> dict:
+async def validate_grok_key(request: ApiKeyValidationRequest) -> dict:
     """Validate a Grok API key by making one lightweight chat completion call."""
-    api_key = request.get("api_key", "")
-    if not api_key:
-        return {"valid": False, "error": "No API key provided"}
+    api_key = request.api_key
 
     try:
         import httpx
@@ -258,11 +270,9 @@ async def validate_grok_key(request: dict) -> dict:
 
 
 @app.post("/validate-gemini-key")
-async def validate_gemini_key(request: dict) -> dict:
+async def validate_gemini_key(request: ApiKeyValidationRequest) -> dict:
     """Validate a Gemini API key by making one lightweight generateContent call."""
-    api_key = request.get("api_key", "")
-    if not api_key:
-        return {"valid": False, "error": "No API key provided"}
+    api_key = request.api_key
 
     try:
         import google.genai as genai
@@ -319,23 +329,37 @@ async def engine_status() -> dict[str, bool]:
     }
 
 
+MONETARY_FIELDS = {"montant_ht", "montant_tva", "montant_taxe", "montant_ttc"}
+
+
+def _convert_amounts_to_float(fields: dict[str, object]) -> dict[str, object]:
+    """Convert monetary string values to float for the response model.
+
+    The internal extraction pipeline keeps monetary fields as strings
+    (for compat with cross_validate_fields / reconcile_amounts which
+    parse from strings).  This helper converts them at the boundary
+    where InvoiceExtractionResponse is constructed, satisfying the
+    API contract (montant fields are Optional[float]).
+    """
+    result = dict(fields)
+    for key in MONETARY_FIELDS:
+        val = result.get(key)
+        if val is not None:
+            try:
+                result[key] = float(val)
+            except (ValueError, TypeError):
+                result[key] = None
+        else:
+            result[key] = None
+    return result
+
+
 async def _extract_first_page_bytes(page) -> bytes:
     from io import BytesIO
-    import aiofiles
-    from anyio import Path as AsyncPath
 
     img_buf = BytesIO()
     page.save(img_buf, format="PNG")
-
-    async with aiofiles.tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp:
-        await tmp.write(img_buf.getvalue())
-        tmp_name = tmp.name
-
-    try:
-        async with aiofiles.open(tmp_name, "rb") as f:
-            return await f.read()
-    finally:
-        await AsyncPath(tmp_name).unlink()
+    return img_buf.getvalue()
 
 
 async def _run_gemini_extraction(
@@ -379,9 +403,11 @@ async def _run_gemini_extraction(
             "Extraction via Gemini Vision successful for %s. Issues: %s. Items: %d",
             Path(filename).name, gemini_issues, len(parsed_gemini_items),
         )
+        # Convert monetary str values to float at the response boundary
+        fields_float = _convert_amounts_to_float(fields)
         return (
             InvoiceExtractionResponse(
-                **fields,
+                **fields_float,
                 confidence=gemini_confidence,
                 raw_text="Extraction via Gemini Vision",
                 engine_used="gemini",
@@ -427,33 +453,36 @@ def _run_ocr_extraction(
     if has_mismatch or collision:
         confidence = min(confidence, 0.5)
 
-    field_names = [k for k, v in fields.items() if v is not None]        # Item-table extraction (Prompt 7)
-        items = extract_item_table(all_lines)
-        parsed_items = [
-            InvoiceItem(
-                designation=it.get("designation"),
-                quantite=it.get("quantite"),
-                prix_unitaire=it.get("prix_unitaire"),
-                tva_rate=it.get("tva_rate"),
-                montant=it.get("montant"),
-            )
-            for it in items if isinstance(it, dict)
-        ]
-
-        logger.info(
-            "Extraction via OCR successful for %s. Fields: %s. Issues: %s. Items: %d",
-            Path(filename).name, field_names, issues, len(parsed_items),
+    field_names = [k for k, v in fields.items() if v is not None]
+    # Item-table extraction (Prompt 7)
+    items = extract_item_table(all_lines)
+    parsed_items = [
+        InvoiceItem(
+            designation=it.get("designation"),
+            quantite=it.get("quantite"),
+            prix_unitaire=it.get("prix_unitaire"),
+            tva_rate=it.get("tva_rate"),
+            montant=it.get("montant"),
         )
+        for it in items if isinstance(it, dict)
+    ]
 
-        return InvoiceExtractionResponse(
-            **fields,
-            confidence=confidence,
-            raw_text=raw_text,
-            engine_used="ocr",
-            computed_fields=list(computed_fields),
-            amount_mismatch=has_mismatch,
-            items=parsed_items,
-        )
+    logger.info(
+        "Extraction via OCR successful for %s. Fields: %s. Issues: %s. Items: %d",
+        Path(filename).name, field_names, issues, len(parsed_items),
+    )
+
+    # Convert monetary str values to float at the response boundary
+    fields_float = _convert_amounts_to_float(fields)
+    return InvoiceExtractionResponse(
+        **fields_float,
+        confidence=confidence,
+        raw_text=raw_text,
+        engine_used="ocr",
+        computed_fields=list(computed_fields),
+        amount_mismatch=has_mismatch,
+        items=parsed_items,
+    )
 
 
 @app.post("/extract", response_model=InvoiceExtractionResponse)
@@ -489,13 +518,11 @@ async def extract(
         async with _ocr_semaphore:
             result = await asyncio.to_thread(_run_ocr_extraction, pages, filename, ocr_engine)
 
-            # Increment request counter and recycle engine if threshold reached
-            app.state.ocr_request_counter += 1
-            if app.state.ocr_request_counter >= OCR_ENGINE_RECYCLE_INTERVAL:
-                async with app.state.ocr_recycle_lock:
-                    # Double-check after acquiring lock
-                    if app.state.ocr_request_counter >= OCR_ENGINE_RECYCLE_INTERVAL:
-                        _recycle_ocr_engine(app.state)
+            # Increment + recycle under a single lock to prevent thundering-herd
+            async with app.state.ocr_recycle_lock:
+                app.state.ocr_request_counter += 1
+                if app.state.ocr_request_counter >= OCR_ENGINE_RECYCLE_INTERVAL:
+                    _recycle_ocr_engine(app.state)
 
         if gemini_fallback_reason:
             result.gemini_fallback_reason = gemini_fallback_reason

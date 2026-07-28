@@ -116,6 +116,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
 
         BrowseFolderCommand    = new RelayCommand(_ => BrowseFolder());
         BrowseFilesCommand     = new RelayCommand(_ => BrowseFiles());
+        RemoveFileCommand      = new RelayCommand(p => RemoveFile(p as FileItemViewModel));
         StartExtractionCommand = new RelayCommand(async _ => await StartExtractionAsync(), _ => CanStartExtraction());
         CancelExtractionCommand = new RelayCommand(_ => CancelExtraction(), _ => IsExtracting);
         ExportExcelCommand     = new RelayCommand(_ => ExportExcel(), _ => CanExport());
@@ -190,6 +191,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
 
     public ICommand BrowseFolderCommand     { get; }
     public ICommand BrowseFilesCommand      { get; }
+    public ICommand RemoveFileCommand       { get; }
     public ICommand StartExtractionCommand  { get; }
     public ICommand CancelExtractionCommand { get; }
     public ICommand ExportExcelCommand      { get; }
@@ -1695,14 +1697,25 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         string? folder = Path.GetDirectoryName(dialog.FileNames[0]);
         if (folder != null) SelectedFolder = folder;
 
-        DetectedFiles.Clear();
+        // APPEND — keep existing files, skip duplicates
         foreach (string file in dialog.FileNames.OrderBy(f => f))
         {
+            if (DetectedFiles.Any(f => string.Equals(f.FilePath, file, StringComparison.OrdinalIgnoreCase)))
+                continue;
             var item = new FileItemViewModel(file);
             item.PropertyChanged += OnFileItemPropertyChanged;
             DetectedFiles.Add(item);
         }
 
+        NotifyFileCountChanged();
+        RaiseCommandStateChanged();
+    }
+
+    private void RemoveFile(FileItemViewModel? file)
+    {
+        if (file == null) return;
+        file.PropertyChanged -= OnFileItemPropertyChanged;
+        DetectedFiles.Remove(file);
         NotifyFileCountChanged();
         RaiseCommandStateChanged();
     }
