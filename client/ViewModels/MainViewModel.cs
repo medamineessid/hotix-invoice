@@ -287,7 +287,9 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             {
                 OnPropertyChanged(nameof(ResolvedEngineDisplay));
                 OnPropertyChanged(nameof(HasGeminiKey));
+                OnPropertyChanged(nameof(HasActiveKey));
                 (ClearGeminiKeyCommand as RelayCommand)?.RaiseCanExecuteChanged();
+                (ClearActiveKeyCommand as RelayCommand)?.RaiseCanExecuteChanged();
             }
         }
     }
@@ -311,7 +313,9 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             {
                 OnPropertyChanged(nameof(ResolvedEngineDisplay));
                 OnPropertyChanged(nameof(HasGrokKey));
+                OnPropertyChanged(nameof(HasActiveKey));
                 (ClearGrokKeyCommand as RelayCommand)?.RaiseCanExecuteChanged();
+                (ClearActiveKeyCommand as RelayCommand)?.RaiseCanExecuteChanged();
             }
         }
     }
