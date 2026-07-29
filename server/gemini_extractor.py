@@ -21,6 +21,11 @@ Chaque article a les clés : designation, quantite, prix_unitaire, tva_rate, mon
 Pour tva_rate, utilise le format décimal (ex: 0.20 pour 20%, 0.10 pour 10%, 0.055 pour 5.5%).
 Utilise null si une information est absente. Ne devine jamais.
 Si la facture n'a pas de tableau d'articles, mets items à [].
+RÈGLES STRICTES :
+- numero_facture, date, fournisseur, client doivent être des strings simples (pas d'objet, pas de nombre sans guillemets).
+- Les montants (montant_ht, montant_tva, montant_taxe, montant_ttc) doivent être des nombres (float), jamais des strings.
+- Chaque item dans "items" doit avoir designation comme string simple.
+- Ne retourne JAMAIS un objet là où une string est attendue.
 Réponds uniquement avec le JSON."""
 
 _GEMINI_PROMPT_EN = """Extract the information from this invoice as JSON only.
@@ -31,6 +36,11 @@ Each item has keys: designation, quantite, prix_unitaire, tva_rate, montant.
 For tva_rate use decimal format (e.g. 0.20 for 20%, 0.10 for 10%, 0.055 for 5.5%).
 Use null if information is missing. Never guess.
 If the invoice has no item table, set items to [].
+STRICT RULES:
+- numero_facture, date, fournisseur, client must be plain strings (no objects, no unquoted numbers).
+- Amounts (montant_ht, montant_tva, montant_taxe, montant_ttc) must be numbers (float), never strings.
+- Each item in "items" must have designation as a plain string.
+- NEVER return an object where a string is expected.
 Reply with JSON only."""
 
 
@@ -51,14 +61,66 @@ class GeminiExtractionError(Exception):
     pass
 
 
-def _safe_float(value: Any) -> Optional[float]:
-    """Safely convert a value to float, returning None on failure."""
+def _normalize_string_field(value: Any) -> Optional[str]:
+    """Force any JSON value into a clean string or None."""
     if value is None:
         return None
-    try:
-        return float(value)
-    except (ValueError, TypeError):
+    if isinstance(value, str):
+        return value.strip() or None
+    if isinstance(value, (int, float)):
+        return str(value)
+    if isinstance(value, dict):
+        # Gemini sometimes returns {"text": "..."} or {"value": "..."}
+        # Try common keys, fallback to first string value
+        for key in ("text", "value", "content", "nom", "name", "designation"):
+            if key in value and isinstance(value[key], str):
+                return value[key].strip() or None
+        # If no known key, convert first string value found
+        for v in value.values():
+            if isinstance(v, str):
+                return v.strip() or None
         return None
+    if isinstance(value, list):
+        # Flatten array to comma-separated string (e.g. ["Ordinateur", "portable"])
+        flat = [str(x) for x in value if x is not None]
+        return ", ".join(flat).strip() or None
+    return str(value).strip() or None
+
+
+def _normalize_amount_field(value: Any) -> Optional[float]:
+    """Extract a float amount from various Gemini output formats."""
+    if value is None:
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, str):
+        # Handle "1 234,56" → 1234.56, "1,234.56" → 1234.56, "1234.56" → 1234.56
+        cleaned = value.strip().replace(" ", "").replace("\u00a0", "")
+        # French format: "1 234,56" or "1234,56"
+        if "," in cleaned and "." not in cleaned:
+            cleaned = cleaned.replace(",", ".")
+        # US format with comma thousands: "1,234.56" → remove comma
+        elif "," in cleaned and "." in cleaned:
+            # Determine which is the decimal separator: the LAST occurrence
+            last_comma = cleaned.rfind(",")
+            last_dot = cleaned.rfind(".")
+            if last_comma > last_dot:
+                # European: "1.234,56" → decimal is comma
+                cleaned = cleaned.replace(".", "").replace(",", ".")
+            else:
+                # US: "1,234.56" → decimal is dot
+                cleaned = cleaned.replace(",", "")
+        try:
+            return float(cleaned)
+        except (ValueError, TypeError):
+            return None
+    if isinstance(value, dict):
+        # Try common amount keys
+        for key in ("value", "amount", "montant", "total"):
+            if key in value:
+                return _normalize_amount_field(value[key])
+    return None
+
 
 
 def _get_settings_path() -> Path:
@@ -202,35 +264,58 @@ async def extract_with_gemini(image_data: bytes, mime_type: str) -> Dict[str, An
             if key not in data:
                  raise GeminiExtractionError(f"Clé manquante dans la réponse JSON: {key}")
 
-        # Build result dict: keep original types (str for text, number for amounts)
-        result: Dict[str, Any] = {
-            k: (str(v) if v is not None else None)
-            for k, v in data.items() if k in required_keys
-        }
+        # Build result dict with robust normalization for each field type
+        result: Dict[str, Any] = {}
+        for key in required_keys:
+            value = data.get(key)
+            if key in ("montant_ht", "montant_tva", "montant_taxe", "montant_ttc"):
+                result[key] = _normalize_amount_field(value)
+            else:
+                result[key] = _normalize_string_field(value)
 
-        # Parse items array (optional — may be missing or empty)
+        # Parse items array with robust normalization (optional — may be missing or empty)
         raw_items = data.get("items", [])
+        parsed_items: list[dict[str, Any]] = []
+
         if isinstance(raw_items, list):
-            parsed_items: list[dict[str, Any]] = []
             for raw_item in raw_items:
                 if not isinstance(raw_item, dict):
                     continue
+
+                # Handle Gemini returning a single string instead of an object
+                if len(raw_item) == 1 and isinstance(list(raw_item.values())[0], str):
+                    key = list(raw_item.keys())[0]
+                    raw_item = {"designation": raw_item[key]}
+
                 parsed_items.append({
-                    "designation": str(raw_item.get("designation") or "") if raw_item.get("designation") else None,
-                    "quantite": _safe_float(raw_item.get("quantite")),
-                    "prix_unitaire": _safe_float(raw_item.get("prix_unitaire")),
-                    "tva_rate": _safe_float(raw_item.get("tva_rate")),
-                    "montant": _safe_float(raw_item.get("montant")),
+                    "designation": _normalize_string_field(raw_item.get("designation")),
+                    "quantite": _normalize_amount_field(raw_item.get("quantite")),
+                    "prix_unitaire": _normalize_amount_field(raw_item.get("prix_unitaire")),
+                    "tva_rate": _normalize_amount_field(raw_item.get("tva_rate")),
+                    "montant": _normalize_amount_field(raw_item.get("montant")),
                 })
-            result["items"] = parsed_items
-        else:
-            result["items"] = []
+        elif isinstance(raw_items, dict):
+            # Gemini sometimes returns items as a dict with numeric keys
+            for key in sorted(raw_items.keys()):
+                item = raw_items[key]
+                if isinstance(item, dict):
+                    parsed_items.append({
+                        "designation": _normalize_string_field(item.get("designation")),
+                        "quantite": _normalize_amount_field(item.get("quantite")),
+                        "prix_unitaire": _normalize_amount_field(item.get("prix_unitaire")),
+                        "tva_rate": _normalize_amount_field(item.get("tva_rate")),
+                        "montant": _normalize_amount_field(item.get("montant")),
+                    })
+
+        result["items"] = parsed_items
 
         return result
 
     except json.JSONDecodeError:
+        logger.error("Gemini returned non-JSON response: %s", response_text[:500])
         raise GeminiExtractionError("Échec de l'analyse du JSON renvoyé par Gemini")
     except GeminiExtractionError:
         raise
     except Exception as e:
+        logger.error("Gemini extraction failed. Raw response: %s", response_text[:1000])
         raise GeminiExtractionError(f"Erreur inattendue lors de l'extraction Gemini: {e}")
