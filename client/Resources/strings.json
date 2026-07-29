@@ -215,8 +215,11 @@
 
   "ExtractionPreparing": "Preparing extraction...",
   "ExtractionProcessing": "Processing: {0}",
-  "ExtractionProcessingElapsed": "Processing: {0} — {1}m {2}s elapsed",
-  "ExtractionNoFiles": "No files selected for extraction.",
+  "ExtractionProcessingElapsed": "Processing: {0} — {1}m {2}s elapsed",    "ExtractionNoFiles": "No files selected for extraction.",
+    "ExportNoRows": "No rows match the selected filter.",
+    "DropNotSupported": "Only files can be dropped here. Please drag a file or folder.",
+    "DropUnsupportedFiles": "File type not supported: {0}",
+    "DropNoRecognizedFiles": "No recognizable files in the drop. Supported formats: PDF, JPG, PNG, BMP, TIFF.",
   "ExtractionQuotaFallback": "Gemini quota exceeded — switching to local OCR for remaining files",
   "QuotaFallbackBanner": "Gemini API quota reached. Remaining files will be processed with local OCR. Consider using the Grok engine or try again later.",
   "FileReady": "✓ Ready",

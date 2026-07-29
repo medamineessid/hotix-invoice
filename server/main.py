@@ -484,31 +484,6 @@ async def engine_status() -> dict[str, bool]:
     }
 
 
-MONETARY_FIELDS = {"montant_ht", "montant_tva", "montant_taxe", "montant_ttc"}
-
-
-def _convert_amounts_to_float(fields: dict[str, object]) -> dict[str, object]:
-    """Convert monetary string values to float for the response model.
-
-    The internal extraction pipeline keeps monetary fields as strings
-    (for compat with cross_validate_fields / reconcile_amounts which
-    parse from strings).  This helper converts them at the boundary
-    where InvoiceExtractionResponse is constructed, satisfying the
-    API contract (montant fields are Optional[float]).
-    """
-    result = dict(fields)
-    for key in MONETARY_FIELDS:
-        val = result.get(key)
-        if val is not None:
-            try:
-                result[key] = float(val)
-            except (ValueError, TypeError):
-                result[key] = None
-        else:
-            result[key] = None
-    return result
-
-
 async def _prepare_pages_for_gemini(pages: list) -> bytes:
     """Prepare pages for Gemini by sending the first page (or stacking up to 2).
 
@@ -582,11 +557,9 @@ async def _run_gemini_extraction(
             "Extraction via Gemini Vision successful for %s. Issues: %s. Items: %d",
             Path(filename).name, gemini_issues, len(parsed_gemini_items),
         )
-        # Convert monetary str values to float at the response boundary
-        fields_float = _convert_amounts_to_float(fields)
         return (
             InvoiceExtractionResponse(
-                **fields_float,
+                **fields,
                 confidence=gemini_confidence,
                 raw_text="Extraction via Gemini Vision",
                 engine_used="gemini",
@@ -611,14 +584,28 @@ async def _run_gemini_extraction(
 
 
 def _run_ocr_extraction(
-    pages: list, filename: str, ocr_engine: PaddleOcrEngine
+    pages: list, filename: str, ocr_engine: PaddleOcrEngine,
+    gemini_hint: Optional[str] = None,
 ) -> InvoiceExtractionResponse:
+    """Run OCR extraction, optionally using a Gemini hint for numero_facture.
+
+    When gemini_hint is provided (a numero_facture value from a previous
+    Gemini attempt that failed), it is passed to extract_invoice_fields to
+    boost matching candidates in the v2 hybrid extraction.  If the OCR path
+    finds no numero_facture, the hint is used as a fallback value.
+    """
     all_lines = []
     for page_index, page_image in enumerate(pages):
         result = ocr_engine.recognize(page_image, page_index)
         all_lines.extend(result.lines)
 
-    fields = extract_invoice_fields(all_lines)
+    fields = extract_invoice_fields(all_lines, gemini_hint=gemini_hint)
+
+    # Part 1.5 fallback: if OCR found no numero_facture but Gemini hint exists,
+    # inject it as a fallback value.
+    if gemini_hint and not fields.get("numero_facture"):
+        fields["numero_facture"] = gemini_hint
+        logger.info("Injected Gemini hint as fallback numero_facture: %s", gemini_hint)
     confidences = extract_field_confidences(all_lines)
     # Cross-field validation before reconciliation
     issues = cross_validate_fields(fields)
@@ -640,7 +627,7 @@ def _run_ocr_extraction(
             designation=it.get("designation"),
             quantite=it.get("quantite"),
             prix_unitaire=it.get("prix_unitaire"),
-            tva_rate=(it.get("tva_rate") / 100.0) if it.get("tva_rate") is not None else None,
+            tva_rate=it.get("tva_rate"),
             montant=it.get("montant"),
         )
         for it in items if isinstance(it, dict)
@@ -651,10 +638,8 @@ def _run_ocr_extraction(
         Path(filename).name, field_names, issues, len(parsed_items),
     )
 
-    # Convert monetary str values to float at the response boundary
-    fields_float = _convert_amounts_to_float(fields)
     return InvoiceExtractionResponse(
-        **fields_float,
+        **fields,
         confidence=confidence,
         raw_text=raw_text,
         engine_used="ocr",

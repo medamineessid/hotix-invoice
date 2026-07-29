@@ -13,7 +13,7 @@ public sealed class ExcelWriter
     private static readonly XLColor White         = XLColor.White;
 
     private static readonly string[] Headers =
-        { "N° Facture", "Date", "Fournisseur", "Client", "Montant HT", "TVA", "Taxe", "TTC", "Confiance", "Fichier", "Moteur" };
+        { "N° Facture", "Date", "Fournisseur", "Client", "Direction", "Montant HT", "TVA", "Taxe", "TTC", "Nb Articles", "TVA/Article", "Confiance", "Fichier", "Moteur" };
 
     /// <summary>
     /// Creates a brand-new workbook with Results and Incomplete Results sheets.
@@ -125,22 +125,41 @@ public sealed class ExcelWriter
             SetCell(ws, rowIndex, 2,  row.Date,          rowBg, highlightMissing && row.DateMissing, showMissingText && row.DateMissing);
             SetCell(ws, rowIndex, 3,  row.Fournisseur,   rowBg, highlightMissing && row.FournisseurMissing, showMissingText && row.FournisseurMissing);
             SetCell(ws, rowIndex, 4,  row.Client,        rowBg, highlightMissing && row.ClientMissing, showMissingText && row.ClientMissing);
-            SetCell(ws, rowIndex, 5,  row.MontantHt,     rowBg, highlightMissing && row.MontantHtMissing, showMissingText && row.MontantHtMissing);
-            SetCell(ws, rowIndex, 6,  row.MontantTva,    rowBg, highlightMissing && row.MontantTvaMissing, showMissingText && row.MontantTvaMissing);
-            SetCell(ws, rowIndex, 7,  row.MontantTaxe,   rowBg, highlightMissing && row.MontantTaxeMissing, showMissingText && row.MontantTaxeMissing);
-            SetCell(ws, rowIndex, 8,  row.MontantTtc,    rowBg, highlightMissing && row.MontantTtcMissing, showMissingText && row.MontantTtcMissing);
+
+            // Direction (Achat/Vente)
+            SetCell(ws, rowIndex, 5,  row.DirectionDisplay, rowBg, false);
+
+            SetCell(ws, rowIndex, 6,  row.MontantHt,     rowBg, highlightMissing && row.MontantHtMissing, showMissingText && row.MontantHtMissing);
+            SetCell(ws, rowIndex, 7,  row.MontantTva,    rowBg, highlightMissing && row.MontantTvaMissing, showMissingText && row.MontantTvaMissing);
+            SetCell(ws, rowIndex, 8,  row.MontantTaxe,   rowBg, highlightMissing && row.MontantTaxeMissing, showMissingText && row.MontantTaxeMissing);
+            SetCell(ws, rowIndex, 9,  row.MontantTtc,    rowBg, highlightMissing && row.MontantTtcMissing, showMissingText && row.MontantTtcMissing);
+
+            // Items count
+            SetCell(ws, rowIndex, 10, row.ItemsCountDisplay, rowBg, false);
+
+            // Per-item VAT rate summary (distinct rates present, e.g. "10%, 19%")
+            string vatRatesSummary = row.Items.Count > 0
+                ? string.Join(", ", row.Items
+                    .Where(i => i.TvaRate.HasValue)
+                    .Select(i => i.TvaDisplay)
+                    .Distinct()
+                    .OrderBy(r => r))
+                : "—";
+            SetCell(ws, rowIndex, 11, vatRatesSummary, rowBg, false);
 
             // Confidence as integer %
-            var confCell = ws.Cell(rowIndex, 9);
+            var confCell = ws.Cell(rowIndex, 12);
             confCell.Value = row.HasError ? "—" : $"{(int)Math.Round(row.Confidence * 100)}%";
             confCell.Style.Fill.BackgroundColor = rowBg;
             confCell.Style.Font.FontColor = White;
 
-            SetCell(ws, rowIndex, 10, row.FileName, rowBg, false);
+            SetCell(ws, rowIndex, 13, row.FileName, rowBg, false);
 
             // Engine used
-            string engineLabel = row.EngineUsed == "gemini" ? "Gemini (cloud)" : "OCR local";
-            SetCell(ws, rowIndex, 11, engineLabel, rowBg, false);
+            string engineLabel = row.EngineUsed == "gemini" ? "Gemini (cloud)"
+                : row.EngineUsed == "grok" ? "Grok (xAI)"
+                : "OCR local";
+            SetCell(ws, rowIndex, 14, engineLabel, rowBg, false);
 
             rowIndex++;
         }

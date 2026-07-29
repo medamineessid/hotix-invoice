@@ -215,8 +215,11 @@
 
   "ExtractionPreparing": "Préparation de l'extraction...",
   "ExtractionProcessing": "Traitement : {0}",
-  "ExtractionProcessingElapsed": "Traitement : {0} — {1}m {2}s écoulées",
-  "ExtractionNoFiles": "Aucun fichier sélectionné pour l'extraction.",
+  "ExtractionProcessingElapsed": "Traitement : {0} — {1}m {2}s écoulées",    "ExtractionNoFiles": "Aucun fichier sélectionné pour l'extraction.",
+    "ExportNoRows": "Aucune ligne ne correspond au filtre sélectionné.",
+    "DropNotSupported": "Seuls les fichiers peuvent être déposés ici. Veuillez glisser un fichier ou un dossier.",
+    "DropUnsupportedFiles": "Type de fichier non pris en charge : {0}",
+    "DropNoRecognizedFiles": "Aucun fichier reconnu dans le dépôt. Formats supportés : PDF, JPG, PNG, BMP, TIFF.",
   "ExtractionQuotaFallback": "Quota Gemini dépassé — passage en OCR local pour les fichiers restants",
   "QuotaFallbackBanner": "Quota de l'API Gemini atteint. Les fichiers restants seront traités par OCR local. Utilisez le moteur Grok ou réessayez plus tard.",
   "FileReady": "✓ Prêt",

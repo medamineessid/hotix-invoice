@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 
 _GEMINI_PROMPT_FR = """Extrais les informations de cette facture sous forme de JSON uniquement.
 Les clés doivent être exactement : numero_facture, date, fournisseur, client, montant_ht, montant_tva, montant_taxe, montant_ttc.
+Pour numero_facture : cherche dans le coin supérieur droit ou gauche de la facture. Même s'il n'y a pas de label "N° Facture", il y a souvent un identifiant comme "FAC-2025-001", "2025/042", ou "REF-12345" près de la date ou du logo. Si tu trouves un tel identifiant, retourne-le comme numero_facture.
 Extrais également les lignes d'articles si présentes dans un tableau nommé "items".
 Chaque article a les clés : designation, quantite, prix_unitaire, tva_rate, montant.
 Pour tva_rate, utilise le format décimal (ex: 0.20 pour 20%, 0.10 pour 10%, 0.055 pour 5.5%).
@@ -24,6 +25,7 @@ Réponds uniquement avec le JSON."""
 
 _GEMINI_PROMPT_EN = """Extract the information from this invoice as JSON only.
 The keys must be exactly: numero_facture, date, fournisseur, client, montant_ht, montant_tva, montant_taxe, montant_ttc.
+For numero_facture: look in the top-right or top-left corner of the invoice. Even if there's no "Invoice Number" label, there is often an identifier like "FAC-2025-001", "2025/042", or "REF-12345" near the date or logo. If you find such an identifier, return it as numero_facture.
 Also extract line items if present in an array named "items".
 Each item has keys: designation, quantite, prix_unitaire, tva_rate, montant.
 For tva_rate use decimal format (e.g. 0.20 for 20%, 0.10 for 10%, 0.055 for 5.5%).
@@ -60,9 +62,9 @@ def _safe_float(value: Any) -> Optional[float]:
 
 
 def _get_settings_path() -> Path:
-    """
+    r"""
     Returns the canonical path to the user-writable appsettings.json.
-    
+
     Prefers %LOCALAPPDATA%\Hotix\appsettings.json (always writable by the current user).
     Falls back to the install-directory location (server/appsettings.json) for backwards
     compatibility with existing installations that haven't been migrated yet.

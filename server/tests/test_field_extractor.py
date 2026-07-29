@@ -10,7 +10,6 @@ from server.field_extractor import (
     _contains_any_alias,
     _extract_field_selections,
     _extract_inline_value,
-    _invoice_number_quality_score,
     _looks_like_label,
     _matches_alias_relaxed,
     _score_candidate,
@@ -922,80 +921,3 @@ class TestComputeConfidence:
         assert conf < 0.7, f"Expected <0.7 with compound penalties, got {conf}"
 
 
-# ── _invoice_number_quality_score ────────────────────────────────────────────
-
-
-class TestInvoiceNumberQualityScore:
-    """Tests for the invoice-number quality-boost scoring function."""
-
-    def test_empty_string(self):
-        """Empty string → score = -0.3 (minimum)."""
-        score = _invoice_number_quality_score("")
-        assert score == -0.3, f"Expected -0.3, got {score}"
-
-    def test_inv_prefix(self):
-        """"INV-2025-001" contains 'INV' → positive score."""
-        score = _invoice_number_quality_score("INV-2025-001")
-        assert score > 0.0, f"Expected positive score for INV prefix, got {score}"
-
-    def test_fac_prefix(self):
-        """"FAC-2025-001" contains 'FAC' → positive score."""
-        score = _invoice_number_quality_score("FAC-2025-001")
-        assert score > 0.0, f"Expected positive score for FAC prefix, got {score}"
-
-    def test_contains_recent_year(self):
-        """Value with current year should get year boost."""
-        from datetime import datetime
-        current_year = str(datetime.now().year)
-        score = _invoice_number_quality_score(f"{current_year}-001")
-        # Has year boost (+0.2), no INV/FAC prefix, no penalties → 0.2
-        assert score == 0.2, f"Expected 0.2 for year-only boost, got {score}"
-
-    def test_very_short_pure_digit(self):
-        """"42" → very short (< 3), pure digit → negative score."""
-        score = _invoice_number_quality_score("42")
-        # length < 3 → -0.3, pure digits len < 6 → -0.2, clamped to -0.3
-        assert score == -0.3, f"Expected -0.3, got {score}"
-
-    def test_very_short_pure_digit_len_4(self):
-        """"1234" → short (4 chars), pure digit → moderately penalised."""
-        score = _invoice_number_quality_score("1234")
-        # len < 5 → -0.1, pure digits len < 6 → -0.2, total = -0.3
-        assert score == -0.3, f"Expected -0.3, got {score}"
-
-    def test_date_like_penalty(self):
-        """"24/11/2020" looks like a date → date penalty (-0.3)."""
-        score = _invoice_number_quality_score("24/11/2020")
-        # Only date penalty applies (-0.3), no year boost (2020 is out of range)
-        assert score == -0.3, f"Expected -0.3 for date-like, got {score}"
-
-    def test_inv_with_short_digit(self):
-        """"INV-42" → INV boost (+0.25) + short pure digit penalty (-0.2) + short length penalty (-0.1)."""
-        score = _invoice_number_quality_score("INV-42")
-        # +0.25 (INV) - 0.1 (len <5) = +0.15 (no pure-digit penalty due to dash)
-        # Actually "INV-42" has a dash so value.isdigit() is False → no pure-digit penalty
-        # len("INV-42") = 6, so no length penalty
-        # Score = 0.25, clamped to 0.25
-        assert score == 0.25, f"Expected 0.25, got {score}"
-
-    def test_score_clamped_to_max(self):
-        """Score must not exceed 0.3."""
-        # INV(+0.25) + year(+0.2) = 0.45 → clamped to 0.3
-        from datetime import datetime
-        current_year = str(datetime.now().year)
-        score = _invoice_number_quality_score(f"INV-{current_year}-001")
-        assert score <= 0.3, f"Expected <=0.3, got {score}"
-
-    def test_score_clamped_to_min(self):
-        """Score must not go below -0.3."""
-        # Multiple penalties should not push below -0.3
-        score = _invoice_number_quality_score("42")  # <3 chars + pure digit
-        assert score >= -0.3, f"Expected >= -0.3, got {score}"
-
-    def test_typical_invoice_number(self):
-        """A realistic invoice number "FAC-2025-0042" should score high (> 0)."""
-        from datetime import datetime
-        current_year = str(datetime.now().year)
-        score = _invoice_number_quality_score(f"FAC-{current_year}-0042")
-        # FAC(+0.25) + year(+0.2) = 0.45 → clamped to 0.3
-        assert score > 0.0, f"Expected positive, got {score}"

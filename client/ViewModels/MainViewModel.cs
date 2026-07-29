@@ -121,8 +121,9 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         CancelExtractionCommand = new RelayCommand(_ => CancelExtraction(), _ => IsExtracting);
         ExportExcelCommand     = new RelayCommand(_ => ExportExcel(), _ => CanExport());
         ClearCommand           = new RelayCommand(_ => ClearResults(), _ => CanClear());
-        RerunCommand           = new RelayCommand(async p => await RerunRowAsync(p as InvoiceRowViewModel));
+        RerunCommand           = new RelayCommand(async p => await RerunRowAsync(p as InvoiceRowViewModel), _ => !IsExtracting);
         RerunAllErrorsCommand  = new RelayCommand(async _ => await RerunAllErrorsAsync(), _ => Results.Any(r => r.HasError) && !IsExtracting);
+        RerunAllErrorsCommand = new RelayCommand(async _ => await RerunAllErrorsAsync(), _ => Results.Any(r => r.HasError) && !IsExtracting);
         ToggleAllFilesCommand  = new RelayCommand(_ => ToggleAllFiles());
         ToggleAllRowsCommand   = new RelayCommand(_ => ToggleAllRows());
         ClearSelectedRowCommand = new RelayCommand(_ => SelectedRow = null);
@@ -156,9 +157,9 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             wizard.ShowDialog();
         });
         SaveGeminiKeyCommand   = new RelayCommand(async _ => await SaveGeminiKeyAsync());
-        ClearGeminiKeyCommand  = new RelayCommand(async _ => await ClearGeminiKeyAsync());
+        ClearGeminiKeyCommand  = new RelayCommand(async _ => await ClearGeminiKeyAsync(), _ => HasGeminiKey);
         SaveGrokKeyCommand     = new RelayCommand(async _ => await SaveGrokKeyAsync());
-        ClearGrokKeyCommand    = new RelayCommand(async _ => await ClearGrokKeyAsync());
+        ClearGrokKeyCommand    = new RelayCommand(async _ => await ClearGrokKeyAsync(), _ => HasGrokKey);
 
         LoadSettings();
         LoadProviderKeysFromAppSettings();
@@ -249,13 +250,21 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         }
     }
 
+    public bool HasGeminiKey => !string.IsNullOrEmpty(_geminiKeyInput);
+
+    public bool HasGrokKey => !string.IsNullOrEmpty(_grokKeyInput);
+
     public string GeminiKeyInput
     {
         get => _geminiKeyInput;
         set
         {
             if (SetField(ref _geminiKeyInput, value))
+            {
                 OnPropertyChanged(nameof(ResolvedEngineDisplay));
+                OnPropertyChanged(nameof(HasGeminiKey));
+                (ClearGeminiKeyCommand as RelayCommand)?.RaiseCanExecuteChanged();
+            }
         }
     }
 
@@ -275,7 +284,11 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         set
         {
             if (SetField(ref _grokKeyInput, value))
+            {
                 OnPropertyChanged(nameof(ResolvedEngineDisplay));
+                OnPropertyChanged(nameof(HasGrokKey));
+                (ClearGrokKeyCommand as RelayCommand)?.RaiseCanExecuteChanged();
+            }
         }
     }
 
@@ -502,19 +515,19 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     public bool ShowSummaryBanner
     {
         get => _showSummaryBanner;
-        private set => SetField(ref _showSummaryBanner, value);
+        set => SetField(ref _showSummaryBanner, value);
     }
 
     public string SummaryBannerText
     {
         get => _summaryBannerText;
-        private set => SetField(ref _summaryBannerText, value);
+        set => SetField(ref _summaryBannerText, value);
     }
 
     public string SummaryBannerColor
     {
         get => _summaryBannerColor;
-        private set => SetField(ref _summaryBannerColor, value);
+        set => SetField(ref _summaryBannerColor, value);
     }
 
     public string? SaveConfirmationPath
@@ -1340,7 +1353,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         }
     }
 
-    private async Task SaveGeminiKeyAsync()
+    public async Task SaveGeminiKeyAsync()
     {
         try
         {
@@ -1423,7 +1436,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         }
     }
 
-    private async Task SaveGrokKeyAsync()
+    public async Task SaveGrokKeyAsync()
     {
         try
         {
@@ -1662,6 +1675,9 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         File.Replace(tempPath, appSettingsPath, null); // atomic replace (no backup)
     }
 
+    /// <summary>Static copy of AllowedExtensions used by Window_Drop in the code-behind.</summary>
+    public static readonly HashSet<string> AllowedExtensionsStatic = new(AllowedExtensions, StringComparer.OrdinalIgnoreCase);
+
     // ── Folder / File Selection ──────────────────────────────────────────
 
     private void BrowseFolder()
@@ -1697,18 +1713,8 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         string? folder = Path.GetDirectoryName(dialog.FileNames[0]);
         if (folder != null) SelectedFolder = folder;
 
-        // APPEND — keep existing files, skip duplicates
-        foreach (string file in dialog.FileNames.OrderBy(f => f))
-        {
-            if (DetectedFiles.Any(f => string.Equals(f.FilePath, file, StringComparison.OrdinalIgnoreCase)))
-                continue;
-            var item = new FileItemViewModel(file);
-            item.PropertyChanged += OnFileItemPropertyChanged;
-            DetectedFiles.Add(item);
-        }
-
-        NotifyFileCountChanged();
-        RaiseCommandStateChanged();
+        // APPEND — use shared method (same logic as drag-and-drop)
+        AddValidatedFilePaths(dialog.FileNames);
     }
 
     private void RemoveFile(FileItemViewModel? file)
@@ -2154,74 +2160,91 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             return;
         }
 
-        // ── Ensure server is ready before processing any files ──
-        // This is called once at the batch level, not per-file.
-        // If the server fails to start, show a single banner and abort
-        // without populating the Results list with per-file errors.
-        try
-        {
-            await EnsureServerReadyAsync();
-        }
-        catch (Exception ex)
-        {
-            LogPipeline($"Server startup failed — aborting batch: {ex.GetType().Name}: {ex.Message}");
-            IsServerRunning = false; // Ensure sidebar indicator updates instantly
-            IsExtracting = false;
-            IsProgressVisible = false;
-            _extractionStatusText = string.Empty;
-            OnPropertyChanged(nameof(ExtractionStatusText));
-            OnPropertyChanged(nameof(HasErrors));
-            SummaryBannerText = ex.Message;
-            SummaryBannerColor = "#C0392B";
-            ShowSummaryBanner = true;
-            return;
-        }
+        _extractionCts = new CancellationTokenSource();
 
-        // ── Pre-flight health check ──
-        try
+        // ── Decide extraction strategy FIRST (before starting server) ──
+        LogPipeline("Pre-processing: loading keys and checking internet");
+        string? geminiKey = LoadGeminiApiKey();
+        string? grokKey = LoadGrokApiKey();
+        _internetAvailable = await CheckInternetAsync();
+        bool hasGemini = _internetAvailable && !string.IsNullOrEmpty(geminiKey);
+        bool hasGrok = _internetAvailable && !string.IsNullOrEmpty(grokKey);
+
+        LogPipeline($"Internet: {_internetAvailable}, Gemini key: {!string.IsNullOrEmpty(geminiKey)}, Grok key: {!string.IsNullOrEmpty(grokKey)}");
+
+        string selectedEngine = SelectedEngine;
+        LogPipeline($"Engine dispatch: selected={selectedEngine}, gemini={hasGemini}, grok={hasGrok}");
+
+        // Determine if we actually need the local OCR server
+        bool needsServer = selectedEngine == "ocr"
+            || (selectedEngine == "auto" && !hasGemini && !hasGrok)
+            || (selectedEngine == "gemini" && !hasGemini)
+            || (selectedEngine == "grok" && !hasGrok);
+
+        if (needsServer)
         {
-            using var healthResponse = await _apiHttpClient.GetAsync(
-                "http://127.0.0.1:8000/health",
-                CancellationToken.None);
-            if (!healthResponse.IsSuccessStatusCode)
+            LogPipeline("PRE-FLIGHT: Server needed — starting/checking OCR server");
+            try
+            {
+                await EnsureServerReadyAsync();
+            }
+            catch (Exception ex)
+            {
+                LogPipeline($"Server startup failed — aborting batch: {ex.GetType().Name}: {ex.Message}");
+                IsServerRunning = false;
+                IsExtracting = false;
+                IsProgressVisible = false;
+                _extractionCts?.Dispose();
+                _extractionCts = null;
+                _extractionStatusText = string.Empty;
+                OnPropertyChanged(nameof(ExtractionStatusText));
+                OnPropertyChanged(nameof(HasErrors));
+                SummaryBannerText = ex.Message;
+                SummaryBannerColor = "#C0392B";
+                ShowSummaryBanner = true;
+                return;
+            }
+
+            // ── Pre-flight health check (server should be running now) ──
+            try
+            {
+                using var healthResponse = await _apiHttpClient.GetAsync(
+                    "http://127.0.0.1:8000/health",
+                    _extractionCts?.Token ?? CancellationToken.None);
+                if (!healthResponse.IsSuccessStatusCode)
+                {
+                    IsServerRunning = false;
+                    throw new InvalidOperationException(
+                        TranslationSource.Get("ServerHealthCheckFailed"));
+                }
+            }
+            catch (InvalidOperationException)
+            {
+                _extractionCts?.Dispose();
+                _extractionCts = null;
+                throw; // rethrow our own health-check failure (shown as server-level banner)
+            }
+            catch (Exception)
             {
                 IsServerRunning = false;
+                _extractionCts?.Dispose();
+                _extractionCts = null;
                 throw new InvalidOperationException(
                     TranslationSource.Get("ServerHealthCheckFailed"));
             }
         }
-        catch (InvalidOperationException)
+        else
         {
-            throw; // rethrow our own health-check failure (shown as server-level banner)
-        }
-        catch (Exception)
-        {
-            IsServerRunning = false;
-            throw new InvalidOperationException(
-                TranslationSource.Get("ServerHealthCheckFailed"));
+            LogPipeline("PRE-FLIGHT: Cloud API available — skipping server startup");
+            // No server needed — mark as running so UI indicators don't show errors
+            IsServerRunning = true;
+            IsServerStarted = true;
         }
 
-        _extractionCts = new CancellationTokenSource();
         var batchStopwatch = Stopwatch.StartNew();
 
         try
         {
-            // ── Decide extraction strategy ──
-            LogPipeline("Pre-processing: loading keys and checking internet");
-            string? geminiKey = LoadGeminiApiKey();
-            string? grokKey = LoadGrokApiKey();
-            _internetAvailable = await CheckInternetAsync();
-            bool hasGemini = _internetAvailable && !string.IsNullOrEmpty(geminiKey);
-            bool hasGrok = _internetAvailable && !string.IsNullOrEmpty(grokKey);
-
-            LogPipeline($"Internet: {_internetAvailable}, Gemini key: {!string.IsNullOrEmpty(geminiKey)}, Grok key: {!string.IsNullOrEmpty(grokKey)}");
-
-            string selectedEngine = SelectedEngine;
-            LogPipeline($"Engine dispatch: selected={selectedEngine}, gemini={hasGemini}, grok={hasGrok}");
-
-            if (!hasGemini && !hasGrok && selectedEngine != "ocr")
-                LogPipeline("PRE-FLIGHT: No cloud engine available, checking OCR server");
-
             var semaphore = new SemaphoreSlim(_batchConcurrency, _batchConcurrency);
             try
             {
@@ -2230,7 +2253,6 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                     bool entered = false;
                     try
                     {
-                        // Capture to local for null-safety (Dispose may null the field mid-batch)
                         var extractionCts = _extractionCts;
                         if (extractionCts == null) return;
 
@@ -2415,7 +2437,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
 
     private async Task RerunRowAsync(InvoiceRowViewModel? row)
     {
-        if (row is null || IsExtracting) return;
+        if (row is null) return;
 
         // Use the stored full FilePath (set once at row creation) instead of
         // reconstructing from SelectedFolder, which may have changed since extraction.
@@ -2446,10 +2468,18 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         _extractionStatusText = TranslationSource.Get("RerunErrorsProgress");
         OnPropertyChanged(nameof(ExtractionStatusText));
 
+        _extractionCts = new CancellationTokenSource();
+
         try
         {
             foreach (var row in errorRows)
             {
+                if (_extractionCts.Token.IsCancellationRequested)
+                {
+                    LogPipeline("Rerun errors cancelled by user");
+                    break;
+                }
+
                 string fileName = row.FileName;
                 _extractionStatusText = TranslationSource.Fmt("ExtractionProcessing", fileName);
                 OnPropertyChanged(nameof(ExtractionStatusText));
@@ -2462,6 +2492,8 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         }
         finally
         {
+            _extractionCts?.Dispose();
+            _extractionCts = null;
             IsExtracting = false;
             IsProgressVisible = false;
             _extractionStatusText = string.Empty;
@@ -2797,10 +2829,44 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         RaiseCommandStateChanged();
     }
 
+    /// <summary>
+    /// Adds validated file paths to the DetectedFiles collection with deduplication.
+    /// Extracted from BrowseFiles() so drag-and-drop can reuse the same logic.
+    /// </summary>
+    public void AddValidatedFilePaths(IEnumerable<string> filePaths)
+    {
+        foreach (string file in filePaths.OrderBy(f => f))
+        {
+            string ext = Path.GetExtension(file).ToLowerInvariant();
+            if (!AllowedExtensions.Contains(ext))
+                continue;
+            if (DetectedFiles.Any(f => string.Equals(f.FilePath, file, StringComparison.OrdinalIgnoreCase)))
+                continue;
+            var item = new FileItemViewModel(file);
+            item.PropertyChanged += OnFileItemPropertyChanged;
+            DetectedFiles.Add(item);
+        }
+        NotifyFileCountChanged();
+        RaiseCommandStateChanged();
+    }
+
+    /// <summary>
+    /// Handles a folder being dropped via drag-and-drop (append mode).
+    /// Non-destructively adds all supported files from the folder to the existing list,
+    /// unlike BrowseFolder() which deliberately clears and replaces for the "choose source" action.
+    /// </summary>
     public void SetFolderFromDrop(string folder)
     {
         SelectedFolder = folder;
-        LoadDetectedFiles();
+
+        if (!Directory.Exists(folder))
+            return;
+
+        var files = Directory
+            .EnumerateFiles(folder, "*.*", SearchOption.TopDirectoryOnly)
+            .Where(f => AllowedExtensions.Contains(Path.GetExtension(f), StringComparer.OrdinalIgnoreCase));
+
+        AddValidatedFilePaths(files);
     }
 
     // ── Settings persistence ──────────────────────────────────────────────

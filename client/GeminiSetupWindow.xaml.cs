@@ -61,6 +61,9 @@ public partial class GeminiSetupWindow : Window
             {
                 _ = TryPopulateModelsAsync(vm, currentKey);
             }
+
+            // Update clear button state based on whether a key exists
+            UpdateClearButtonState();
         }
 
         Activate();
@@ -69,21 +72,38 @@ public partial class GeminiSetupWindow : Window
 
     private void Window_Closing(object sender, System.ComponentModel.CancelEventArgs e)
     {
-        // Don't save the masked placeholder ("••••••••") back to the ViewModel —
-        // the real key is already saved via Save_Click or was loaded from settings.
-        // Only save a real (non-placeholder) value if the user typed something.
-        if (DataContext is MainViewModel vm &&
-            !string.IsNullOrEmpty(GeminiKeyBox.Password) &&
-            GeminiKeyBox.Password != "••••••••")
+        if (DataContext is not MainViewModel vm) return;
+
+        string password = GeminiKeyBox.Password;
+
+        // Save the actual key (not placeholder, not empty) to memory AND disk
+        if (!string.IsNullOrEmpty(password) && password != "••••••••")
         {
             if (_isGeminiProvider)
             {
-                vm.GeminiKeyInput = GeminiKeyBox.Password;
+                vm.GeminiKeyInput = password;
             }
             else
             {
-                vm.GrokKeyInput = GeminiKeyBox.Password;
+                vm.GrokKeyInput = password;
             }
+
+            // Auto-persist to disk so the key survives app restart.
+            // Fire-and-forget is safe here since the async save is best-effort.
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    if (_isGeminiProvider)
+                        await vm.SaveGeminiKeyAsync();
+                    else
+                        await vm.SaveGrokKeyAsync();
+                }
+                catch
+                {
+                    // Best-effort save; key is at least in memory for this session.
+                }
+            });
         }
     }
 
@@ -105,6 +125,7 @@ public partial class GeminiSetupWindow : Window
         _isGeminiProvider = ProviderGeminiRadio.IsChecked == true;
         UpdateKeyBoxFromProvider();
         UpdateUIForProvider();
+        UpdateClearButtonState();
 
         // Repopulate model list for the new provider
         PopulateDefaultModels();
@@ -128,6 +149,16 @@ public partial class GeminiSetupWindow : Window
             }
         }
         MessageLabel.Text = string.Empty;
+    }
+
+    /// <summary>Enables or disables the clear-key button depending on whether a key exists.</summary>
+    private void UpdateClearButtonState()
+    {
+        if (DataContext is MainViewModel vm)
+        {
+            string currentKey = _isGeminiProvider ? vm.GeminiKeyInput : vm.GrokKeyInput;
+            ClearKeyButton.IsEnabled = !string.IsNullOrEmpty(currentKey);
+        }
     }
 
     /// <summary>
@@ -366,6 +397,7 @@ public partial class GeminiSetupWindow : Window
                 GeminiKeyBox.Password = string.Empty;
                 KeyStatusIcon.Text = string.Empty;
                 MessageLabel.Foreground = System.Windows.Media.Brushes.Orange;
+                UpdateClearButtonState();
             }
         }
         catch (Exception ex)
@@ -472,6 +504,8 @@ public partial class GeminiSetupWindow : Window
             KeyStatusIcon.Text = "✓ Saved";
             KeyStatusIcon.Foreground = (System.Windows.Media.Brush)Application.Current.FindResource("BrushSuccess");
 
+            UpdateClearButtonState();
+
             // ── Populate model dropdown now that key is saved ──
             _ = TryPopulateModelsAsync(vm, key);
 
@@ -525,6 +559,8 @@ public partial class GeminiSetupWindow : Window
         if (GeminiKeyBox.Password != "••••••••")
         {
             KeyStatusIcon.Text = string.Empty;
+            // Update clear button state when user types a new key
+            UpdateClearButtonState();
         }
     }
 

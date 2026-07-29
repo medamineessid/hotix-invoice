@@ -295,14 +295,20 @@ public sealed class InvoiceRowViewModel : INotifyPropertyChanged
         if (!string.IsNullOrEmpty(_invoiceDirection))
             return;
 
-        bool hotixInFournisseur = _fournisseur?.Contains("Hotix", StringComparison.OrdinalIgnoreCase) == true;
-        bool hotixInClient = _client?.Contains("Hotix", StringComparison.OrdinalIgnoreCase) == true;
+        // Don't auto-detect until BOTH Fournisseur and Client have been populated.
+        // This prevents a premature decision when FromSuccess sets Fournisseur first
+        // (triggering this setter side-effect) before Client has been assigned.
+        if (string.IsNullOrEmpty(_fournisseur) || string.IsNullOrEmpty(_client))
+            return;
+
+        bool hotixInFournisseur = _fournisseur.Contains("Hotix", StringComparison.OrdinalIgnoreCase);
+        bool hotixInClient = _client.Contains("Hotix", StringComparison.OrdinalIgnoreCase);
 
         if (hotixInFournisseur && !hotixInClient)
             InvoiceDirection = "issued";
         else if (hotixInClient && !hotixInFournisseur)
             InvoiceDirection = "received";
-        // else: ambiguous or no match — leave as unset
+        // else: ambiguous (both or neither) — leave as unset
     }
 
     // ── Items / Line-Articles (UI placeholder for future item-level data) ──

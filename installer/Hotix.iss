@@ -726,9 +726,9 @@ begin
   begin
     if InstallSuccess then
     begin
-      { Launch app and wait for it to exit }
+      { Launch app without blocking the installer wizard from finishing }
       WriteLog('Launching app...');
-      if Exec(ExpandConstant('{app}\client\{#MyAppExeName}'), '', ExpandConstant('{app}'), SW_SHOW, ewWaitUntilTerminated, ResultCode) then
+      if Exec(ExpandConstant('{app}\client\{#MyAppExeName}'), '', ExpandConstant('{app}'), SW_SHOW, ewNoWait, ResultCode) then
       begin
         if ResultCode = 0 then
         begin

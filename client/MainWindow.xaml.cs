@@ -218,12 +218,76 @@ public partial class MainWindow : Window
         // Hide drag-over overlay
         DragOverlay.Visibility = Visibility.Collapsed;
 
-        if (!e.Data.GetDataPresent(DataFormats.FileDrop)) return;
+        if (!e.Data.GetDataPresent(DataFormats.FileDrop))
+        {
+            // Dragged something that isn't a file — give visible feedback
+            ViewModel.SummaryBannerText = TranslationSource.Get("DropNotSupported");
+            ViewModel.SummaryBannerColor = "#E74C3C";
+            ViewModel.ShowSummaryBanner = true;
+            return;
+        }
 
         var paths = (string[])e.Data.GetData(DataFormats.FileDrop);
-        string? folder = paths.FirstOrDefault(Directory.Exists);
-        if (folder != null)
+
+        // Split paths into files and folders
+        var individualFiles = new List<string>();
+        var folders = new List<string>();
+        var unsupportedFiles = new List<string>();
+
+        foreach (string path in paths)
+        {
+            if (Directory.Exists(path))
+            {
+                folders.Add(path);
+            }
+            else if (File.Exists(path))
+            {
+                string ext = Path.GetExtension(path).ToLowerInvariant();
+                if (MainViewModel.AllowedExtensionsStatic.Contains(ext))
+                    individualFiles.Add(path);
+                else
+                    unsupportedFiles.Add(Path.GetFileName(path));
+            }
+            // else: path doesn't exist on disk — silently skip
+        }
+
+        // Process folders first (adds their supported-file contents)
+        foreach (string folder in folders)
+        {
             ViewModel.SetFolderFromDrop(folder);
+        }
+
+        // Process individual supported files
+        ViewModel.AddValidatedFilePaths(individualFiles);
+
+        // If individual files were dropped (and no folder drop already set SelectedFolder),
+        // derive the source folder from the first file's directory so the file-list card
+        // (bound to HasSelectedFolder) becomes visible and the extraction button works.
+        if (individualFiles.Count > 0 && string.IsNullOrWhiteSpace(ViewModel.SelectedFolder))
+        {
+            string? dir = Path.GetDirectoryName(individualFiles[0]);
+            if (dir != null)
+                ViewModel.SelectedFolder = dir;
+        }
+
+        // Show feedback for unsupported file types
+        if (unsupportedFiles.Count > 0)
+        {
+            string fileList = string.Join(", ", unsupportedFiles.Take(3));
+            if (unsupportedFiles.Count > 3)
+                fileList += $"… (+{unsupportedFiles.Count - 3} autres)";
+            ViewModel.SummaryBannerText = TranslationSource.Fmt("DropUnsupportedFiles", fileList);
+            ViewModel.SummaryBannerColor = "#E67E22";
+            ViewModel.ShowSummaryBanner = true;
+        }
+
+        // If nothing was added at all, give visible feedback
+        if (individualFiles.Count == 0 && folders.Count == 0 && unsupportedFiles.Count == 0)
+        {
+            ViewModel.SummaryBannerText = TranslationSource.Get("DropNoRecognizedFiles");
+            ViewModel.SummaryBannerColor = "#E74C3C";
+            ViewModel.ShowSummaryBanner = true;
+        }
     }
 
     // ── Add Button Context Menu ──────────────────────────────────────

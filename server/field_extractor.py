@@ -428,10 +428,17 @@ MIN_ACCEPTABLE_SCORE = -300.0
 SAME_ROW_H_OVERLAP_THRESHOLD = 0.3  # min horizontal overlap ratio for "same row"
 
 
-def extract_invoice_fields(ocr_lines: Sequence[OCRLine]) -> dict[str, Optional[str]]:
-    """Extract the eight invoice fields from OCR lines."""
+def extract_invoice_fields(
+    ocr_lines: Sequence[OCRLine],
+    gemini_hint: Optional[str] = None,
+) -> dict[str, Optional[str]]:
+    """Extract the eight invoice fields from OCR lines.
 
-    selections = _extract_field_selections(ocr_lines)
+    If gemini_hint is provided (a numero_facture value from Gemini extraction),
+    it is passed to _extract_numero_facture_v2 to boost matching candidates.
+    """
+
+    selections = _extract_field_selections(ocr_lines, gemini_hint=gemini_hint)
     return {
         field: (
             selections[field].value
@@ -443,15 +450,21 @@ def extract_invoice_fields(ocr_lines: Sequence[OCRLine]) -> dict[str, Optional[s
     }
 
 
-def extract_field_selections_raw(ocr_lines: Sequence[OCRLine]) -> dict[str, FieldSelection]:
+def extract_field_selections_raw(
+    ocr_lines: Sequence[OCRLine],
+    gemini_hint: Optional[str] = None,
+) -> dict[str, FieldSelection]:
     """Return the full FieldSelection dict (including OCR line refs) for downstream use."""
-    return _extract_field_selections(ocr_lines)
+    return _extract_field_selections(ocr_lines, gemini_hint=gemini_hint)
 
 
-def extract_field_confidences(ocr_lines: Sequence[OCRLine]) -> dict[str, float]:
+def extract_field_confidences(
+    ocr_lines: Sequence[OCRLine],
+    gemini_hint: Optional[str] = None,
+) -> dict[str, float]:
     """Return the per-field confidence values selected by the extractor."""
 
-    selections = _extract_field_selections(ocr_lines)
+    selections = _extract_field_selections(ocr_lines, gemini_hint=gemini_hint)
     return {field: selections[field].confidence for field in FIELD_ORDER}
 
 
@@ -648,10 +661,17 @@ def _is_same_row(anchor: OCRLine, candidate: OCRLine) -> bool:
 # ── Field selection with collision tracking ──────────────────────────────────
 
 
-def _extract_field_selections(ocr_lines: Sequence[OCRLine]) -> dict[str, FieldSelection]:
+def _extract_field_selections(
+    ocr_lines: Sequence[OCRLine],
+    gemini_hint: Optional[str] = None,
+) -> dict[str, FieldSelection]:
     """Resolve the best candidate for each field from the OCR lines, preventing
     two fields from claiming the same OCR line unless the second's score is
-    meaningfully higher."""
+    meaningfully higher.
+
+    If gemini_hint is provided, it is passed to _extract_numero_facture_v2
+    to boost matching candidates using the Gemini-extracted invoice number.
+    """
 
     rows = cluster_rows(ocr_lines)
     all_lines = sorted(ocr_lines, key=lambda item: (item.page_index, item.line_index, item.box.y1, item.box.x1))
@@ -662,8 +682,8 @@ def _extract_field_selections(ocr_lines: Sequence[OCRLine]) -> dict[str, FieldSe
 
     for field in FIELD_ORDER:
         if field == "numero_facture":
-            # Use specialized extraction to avoid false positives from broad anchors
-            selection = _extract_numero_facture(rows, all_lines)
+            # Use v2 hybrid extraction (pattern + position + date proximity + Gemini hint)
+            selection = _extract_numero_facture_v2(rows, all_lines, gemini_hint=gemini_hint)
         else:
             selection = _select_best_selection_for_field(field, rows, all_lines, FieldSelection(value=None, confidence=0.0, score=float("-inf"), ocr_line=None))
         if selection.ocr_line is not None and selection.score > float("-inf"):
@@ -1130,148 +1150,291 @@ _NUMERO_FACTURE_ANCHORS = (
 )
 
 
-def _extract_numero_facture(rows: list[list[OCRLine]], all_lines: Sequence[OCRLine]) -> FieldSelection:
-    """Extract invoice number with strict + relaxed anchor matching.
+# ── v5: Hybrid invoice-number extraction (pattern + position + date proximity) ──
 
-    Phase 1: strict compound anchors (word-boundary matched).
-    Phase 2: if Phase 1 yields no usable value, try relaxed subsequence
-    matching which tolerates inserted stopwords — e.g. "n° de la facture
-    d'origine" matching "n° de facture".
+# Regex patterns for detecting invoice numbers without explicit labels.
+# Each pattern contributes a different base score depending on confidence.
+_NUMERO_PATTERNS: list[tuple[str, int]] = [
+    # 0: Letter prefix + separator + digits (FAC-2025-001, INV-001, REF-ABC-123)
+    # Handles both simple "INV-001" and year-prefix "FAC-2025-001" / "INV-2024-001"
+    (r'^[A-Za-z]{2,5}[-.\s]+(?:\d{4}[-.\s]\d{2,8}|\d{3,8})$', 150),
+    # 1: Letter prefix stuck to digits (F2025001, FACT001)
+    (r'^[A-Za-z]{1,4}\d{4,10}$', 120),
+    # 2: Year + separator + sequence (2025/001, 2025-00042)
+    (r'^\d{4}[-/.\\]+\d{2,6}$', 140),
+    # 3: Long pure digit (8-12 chars — typical e-invoice)
+    (r'^\d{8,12}$', 100),
+    # 4: Medium pure digit (5-7 chars)
+    (r'^\d{5,7}$', 60),
+    # 5: N°/No/Num/Ref prefix — capture group 1 is the number
+    (r'(?:^|\s)(?:N[°oº]|No|Num\.?|R\xe9f\.?|Ref\.?)[\s:.]*([A-Za-z0-9/-]{3,20})(?:\s|$)', 90),
+    # 6: Facture/Invoice/FAC/INV prefix — value with label inline (e.g. "Facture: 2025-001")
+    (r'(?:Facture|Invoice)[\s#:]*([A-Za-z0-9/-]{3,20})', 80),
+]
+
+
+def _looks_like_amount(text: str) -> bool:
+    """Return True when the text looks like a monetary amount."""
+    # Match pattern like 1.234,56 or 1234.56
+    if re.match(r'^\d{1,3}(?:[ .]\d{3})*[,.]\d{2}$', text):
+        return True
+    return False
+
+
+def _looks_like_address(text: str) -> bool:
+    """Return True when the text looks like a postal address."""
+    normalized = normalize_text(text)
+    # Contains street type or address keywords
+    address_keywords = ["rue", "avenue", "boulevard", "bp", "code postal",
+                        "codepostal", "tunis", "france", "paris", "ville"]
+    for kw in address_keywords:
+        if kw in normalized.lower():
+            return True
+    # Contains 2+ commas (strong address signal)
+    if normalized.count(",") >= 2:
+        return True
+    # Starts with digit + street type
+    if re.match(r"^\d+\s+(rue|avenue|boulevard|place|chemin|allee|cour|impasse|quai|route)", normalized):
+        return True
+    return False
+
+
+def _find_numero_candidates_by_pattern(ocr_lines: Sequence[OCRLine]) -> list[tuple[OCRLine, float, str]]:
+    """Strategy A: Find invoice-number candidates via regex pattern matching.
+
+    Tests each OCR line against NUMERO_PATTERNS and returns (line, score, value)
+    tuples for every match.  Handles grouped vs un-grouped regexes.
     """
-    selection = FieldSelection(value=None, confidence=0.0, score=float("-inf"))
-
-    # Phase 1: strict word-boundary matching (prevents false positives)
-    strict_anchors = [line for line in all_lines if _contains_any_alias(line.text, _NUMERO_FACTURE_ANCHORS)]
-    _debug_log(f"_extract_numero_facture: strict anchors found = {len(strict_anchors)}")
-
-    for anchor in strict_anchors:
-        selection = _process_numero_anchor(anchor, rows, selection)
-
-    # Phase 2: if strict matching found nothing, try relaxed subsequence matching
-    # to handle inserted stopwords (e.g. "n° de la facture d'origine").
-    if selection.value is None:
-        relaxed_anchors = [
-            line for line in all_lines
-            if _matches_alias_relaxed(line.text, _NUMERO_FACTURE_ANCHORS)
-            and not _contains_any_alias(line.text, _NUMERO_FACTURE_ANCHORS)  # avoid re-processing
-        ]
-        _debug_log(f"_extract_numero_facture: relaxed anchors found = {len(relaxed_anchors)}")
-        for anchor in relaxed_anchors:
-            selection = _process_numero_anchor(anchor, rows, selection)
-
-    _debug_log(
-        f"_extract_numero_facture: final={selection.value!r} "
-        f"score={selection.score:.1f} "
-        f"strict_anchors={len(strict_anchors)}"
-    )
-    return selection
+    candidates: list[tuple[OCRLine, float, str]] = []
+    for line in ocr_lines:
+        text = line.text.strip()
+        if not text:
+            continue
+        for pattern_str, base_score in _NUMERO_PATTERNS:
+            m = re.search(pattern_str, text)
+            if m:
+                # Use group(1) if captured, else full match
+                try:
+                    raw_val = m.group(1) if m.group(1) else m.group(0)
+                except IndexError:
+                    raw_val = m.group(0)
+                # Normalize
+                cleaned = normalize_text_for_output(raw_val)
+                if cleaned:
+                    candidates.append((line, float(base_score), cleaned))
+    return candidates
 
 
-def _process_numero_anchor(anchor: OCRLine, rows: list[list[OCRLine]], current_selection: FieldSelection) -> FieldSelection:
-    """Try to extract a numero_facture value from a single anchor line.
+def _score_by_position(line: OCRLine, page_height: float, page_width: float) -> float:
+    """Strategy B: Score based on page position.
 
-    Tries same-line extraction first, then geometric search.
-    Returns the best selection found (or the original if nothing better).
+    Invoice numbers are statistically in the top third of the page.
+    Returns bonus score based on relative position.
     """
-    selection = current_selection
+    if page_height <= 0:
+        return 0.0
+    rel_y = line.box.y1 / page_height
+    rel_x = line.box.x1 / page_width if page_width > 0 else 0.5
 
-    # Try same-line extraction first (e.g. "N° Facture: INV-2024-001")
-    same_line = _selection_from_same_line("numero_facture", anchor, selection)
-    if same_line is not None:
-        value = same_line.value or ""
-        # Apply heavy date penalty to same-line results too
-        if _looks_like_date(value):
-            _debug_log(
-                f"  numero_facture: same-line value {value!r} looks like a date — "
-                f"applying -500 penalty"
-            )
-            same_line = FieldSelection(
-                value=same_line.value,
-                confidence=same_line.confidence,
-                score=same_line.score - 500.0,
-                ocr_line=same_line.ocr_line,
-            )
-        quality_boost = _invoice_number_quality_score(same_line.value or "")
-        adjusted = FieldSelection(
-            value=same_line.value,
-            confidence=same_line.confidence,
-            score=same_line.score + quality_boost * 100.0,
-            ocr_line=same_line.ocr_line,
-        )
-        if adjusted.score > selection.score:
-            selection = adjusted
-
-    # Try geometric search (value on same row to right, or row below)
-    geometric = _selection_from_geometric_search("numero_facture", anchor, rows, selection)
-    if geometric is not None:
-        # ── Date penalty for invoice numbers ────────────────────────────────
-        # A value that parses cleanly as a date (e.g. "24/11/2020") is very
-        # unlikely to also be a valid invoice number, even if it scores better
-        # geometrically because it happens to be closer to the anchor.  Apply
-        # a HEAVY penalty (500 points, not the small ±30 in quality_score) to
-        # make date-like values lose against any non-date candidate.
-        value = geometric.value or ""
-        if _looks_like_date(value):
-            _debug_log(
-                f"  numero_facture: value {value!r} looks like a date — "
-                f"applying -500 penalty"
-            )
-            geometric = FieldSelection(
-                value=geometric.value,
-                confidence=geometric.confidence,
-                score=geometric.score - 500.0,
-                ocr_line=geometric.ocr_line,
-            )
-        quality_boost = _invoice_number_quality_score(geometric.value or "")
-        adjusted = FieldSelection(
-            value=geometric.value,
-            confidence=geometric.confidence,
-            score=geometric.score + quality_boost * 100.0,
-            ocr_line=geometric.ocr_line,
-        )
-        if adjusted.score > selection.score:
-            selection = adjusted
-
-    return selection
+    if rel_x > 0.6 and rel_y < 0.25:
+        return 80.0  # Top-right corner
+    if rel_x < 0.4 and rel_y < 0.25:
+        return 60.0  # Top-left corner
+    if 0.4 <= rel_x <= 0.6 and rel_y < 0.20:
+        return 40.0  # Top-center
+    if rel_y < 0.35:
+        return 20.0  # Upper third, not in a specific corner
+    return 0.0
 
 
-def _invoice_number_quality_score(value: str) -> float:
-    """Score how likely a text value is a real invoice number vs a false positive.
+def _score_by_date_proximity(line: OCRLine, rows: list[list[OCRLine]], all_lines: Sequence[OCRLine]) -> float:
+    """Strategy C: Score based on proximity to a date field.
 
-    Returns a quality boost between -0.3 and +0.3.
-    Positive for invoice-like patterns (INV, FAC, year prefixes).
-    Negative for very short values, pure-digit short strings, or date-like patterns.
+    Invoice numbers are often near the date.  Returns bonus score based on
+    pixel distance to the nearest date-like line.
     """
-    if not value:
-        return -0.3
+    # Find all date-like lines
+    date_lines = [
+        l for l in all_lines
+        if _looks_like_date(l.text) or re.search(r'\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b', l.text)
+    ]
+    if not date_lines:
+        return 0.0
 
-    score: float = 0.0
+    # Compute minimum Euclidean distance to any date line
+    min_dist = float("inf")
+    line_center = (line.box.center_x, line.box.center_y)
+    for dl in date_lines:
+        dx = line_center[0] - dl.box.center_x
+        dy = line_center[1] - dl.box.center_y
+        dist = (dx * dx + dy * dy) ** 0.5
+        if dist < min_dist:
+            min_dist = dist
 
-    # Boost if it looks like an invoice number pattern
-    if any(pattern in value.upper() for pattern in ["INV", "FAC"]):
-        score += 0.25
+    if min_dist < 100:
+        bonus = 50.0
+    elif min_dist < 200:
+        bonus = 30.0
+    elif min_dist < 400:
+        bonus = 10.0
+    else:
+        bonus = 0.0
 
-    # Boost if it contains a recent year (common in invoice IDs)
-    _current_year = datetime.now().year
-    _recent_years = [str(y) for y in range(_current_year - 3, _current_year + 1)]
-    if any(year in value for year in _recent_years):
-        score += 0.2
+    # Additional bonus if on the same visual row
+    line_row_idx = _row_index_of(line, rows)
+    if line_row_idx >= 0:
+        for dl in date_lines:
+            dl_row_idx = _row_index_of(dl, rows)
+            if dl_row_idx >= 0 and dl_row_idx == line_row_idx:
+                bonus += 40.0
+                break
 
-    # Penalize very short values (likely false positives like "42" or "001")
-    if len(value) < 3:
-        score -= 0.3
-    elif len(value) < 5:
-        score -= 0.1
+    return bonus
 
-    # Penalize if only digits and short (could be quantity, PO reference)
-    if value.isdigit() and len(value) < 6:
-        score -= 0.2
 
-    # Penalize if it looks like a date
-    if re.match(r"\d{1,2}[/-]\d{1,2}[/-]\d{2,4}", value):
-        score -= 0.3
+def _compute_page_extents(ocr_lines: Sequence[OCRLine]) -> tuple[float, float]:
+    """Compute page height and width from OCR line bounding boxes."""
+    max_x = max_y = 0.0
+    for line in ocr_lines:
+        if line.box.x2 > max_x:
+            max_x = line.box.x2
+        if line.box.y2 > max_y:
+            max_y = line.box.y2
+    return max_y, max_x
 
-    return max(-0.3, min(0.3, score))
+
+def _extract_numero_facture_v2(
+    rows: list[list[OCRLine]],
+    all_lines: Sequence[OCRLine],
+    gemini_hint: Optional[str] = None,
+) -> FieldSelection:
+    """Hybrid invoice-number extraction with 4-strategy cascade (v5).
+
+    Strategies:
+      A — Regex pattern matching
+      B — Page position (top-right/left)
+      C — Date proximity
+      D — Gemini hint similarity
+
+    Each candidate line is scored with all applicable strategies.
+    Penalties suppress false positives (dates, amounts, addresses).
+    Returns the best candidate with total_score > MIN_NUMERO_SCORE, or None.
+    """
+    page_height, page_width = _compute_page_extents(all_lines)
+    candidate_map: dict[int, tuple[OCRLine, float, str]] = {}  # id -> (line, score, value)
+
+    # Strategy A: Pattern matching
+    for line, pattern_score, val in _find_numero_candidates_by_pattern(all_lines):
+        lid = id(line)
+        # Use normalize_text_for_output for consistency with _clean_candidate_value
+        clean_val = normalize_text_for_output(val)
+        if clean_val:
+            total = pattern_score
+            if lid in candidate_map:
+                cur_score = candidate_map[lid][1]
+                if total > cur_score:
+                    candidate_map[lid] = (line, total, clean_val)
+            else:
+                candidate_map[lid] = (line, total, clean_val)
+
+    # Strategy E: Anchor-based extraction — strict then relaxed subsequence matching
+    _default_sel = FieldSelection(value=None, confidence=0.0, score=float("-inf"))
+    for anchor in all_lines:
+        # Phase 1: strict word-boundary matching
+        is_anchor = _contains_any_alias(anchor.text, _NUMERO_FACTURE_ANCHORS)
+        # Phase 2: relaxed subsequence matching for inserted stopwords (e.g.
+        # "n° de la facture d'origine" matching "n° de facture")
+        if not is_anchor:
+            is_anchor = _matches_alias_relaxed(anchor.text, _NUMERO_FACTURE_ANCHORS)
+
+        if is_anchor:
+            # Try same-line extraction first (e.g. "N° Facture: INV-2024-001")
+            val = _extract_inline_value("numero_facture", anchor.text)
+            if val:
+                clean_val = normalize_text_for_output(val)
+                if clean_val:
+                    lid = id(anchor)
+                    if lid not in candidate_map:
+                        candidate_map[lid] = (anchor, 80.0, clean_val)
+                    else:
+                        old_score = candidate_map[lid][1]
+                        if 80.0 > old_score:
+                            candidate_map[lid] = (anchor, 80.0, clean_val)
+            # Try geometric search for value near anchor
+            geom_sel = _selection_from_geometric_search("numero_facture", anchor, rows, _default_sel)
+            if geom_sel is not None and geom_sel.value and geom_sel.score > float("-inf"):
+                clean_val = normalize_text_for_output(geom_sel.value)
+                if clean_val and geom_sel.ocr_line:
+                    glid = id(geom_sel.ocr_line)
+                    threshold = 70.0
+                    if glid in candidate_map:
+                        old_val = candidate_map[glid][2]
+                        if len(clean_val) > len(old_val):
+                            threshold += 20.0
+                    if glid not in candidate_map or threshold > candidate_map[glid][1]:
+                        candidate_map[glid] = (geom_sel.ocr_line, threshold, clean_val)
+
+    if not candidate_map:
+        _debug_log("_extract_numero_facture_v2: no candidates from any strategy")
+        return FieldSelection(value=None, confidence=0.0, score=float("-inf"))
+
+    # Score each candidate: position + date proximity + gemini hint
+    scored: list[tuple[OCRLine, float, str]] = []
+    for lid, (line, pattern_score, val) in candidate_map.items():
+        total_score = pattern_score
+
+        # Strategy B: Position scoring
+        total_score += _score_by_position(line, page_height, page_width)
+
+        # Strategy C: Date proximity scoring
+        total_score += _score_by_date_proximity(line, rows, all_lines)
+
+        # Strategy D: Gemini hint similarity
+        if gemini_hint and val:
+            # Simple character-overlap similarity
+            val_upper = val.upper()
+            hint_upper = gemini_hint.upper()
+            common = sum(1 for c in val_upper if c in hint_upper)
+            max_len = max(len(val_upper), len(hint_upper))
+            similarity = common / max_len if max_len > 0 else 0.0
+            if similarity > 0.7:
+                total_score += 100.0
+            elif similarity > 0.5:
+                total_score += 50.0
+
+        # ── Penalties ────────────────────────────────────────────────────
+        if _looks_like_date(val):
+            total_score -= 300.0
+        if _looks_like_amount(val):
+            total_score -= 250.0
+        if _looks_like_address(val):
+            total_score -= 200.0
+        if _looks_like_label(val):
+            total_score -= 400.0  # Label words like "Facture" should NEVER be invoice numbers
+        if len(val) < 3:
+            total_score -= 150.0
+        if len(val) > 25:
+            total_score -= 50.0
+
+        scored.append((line, total_score, val))
+
+    # Pick the best candidate
+    scored.sort(key=lambda x: x[1], reverse=True)
+    best_line, best_score, best_val = scored[0]
+
+    MIN_NUMERO_SCORE = 50.0
+    if best_score < MIN_NUMERO_SCORE:
+        _debug_log(f"_extract_numero_facture_v2: best score {best_score:.1f} < MIN ({MIN_NUMERO_SCORE}), rejecting")
+        return FieldSelection(value=None, confidence=0.0, score=float("-inf"))
+
+    _debug_log(f"_extract_numero_facture_v2: selected {best_val!r} score={best_score:.1f} from {len(scored)} candidates")
+    # Use the OCR line's actual confidence when available, falling back to
+    # score-derived confidence.  The derive-from-score approach produces values
+    # well below FIELD_CONFIDENCE_THRESHOLD (0.6) for reasonable scores like 80,
+    # causing the field to be silently dropped in extract_invoice_fields.
+    line_conf = best_line.confidence if best_line else 0.0
+    confidence = max(line_conf, min(1.0, best_score / 500.0))
+    return FieldSelection(value=best_val, confidence=confidence, score=best_score, ocr_line=best_line)
 
 
 # ── Scoring functions ────────────────────────────────────────────────────────
@@ -1403,49 +1566,89 @@ def extract_item_table(ocr_lines: Sequence[OCRLine]) -> list[dict[str, object]]:
 
 
 def _find_table_header(rows: list[list[OCRLine]]) -> tuple[int | None, dict[str, tuple[float, float]]]:
-    """Find the table header row and return its index and column boundaries.
+    """Find the table header row using a sliding window of 2 rows.
 
-    A row is considered a table header when at least TABLE_HEADER_MIN_MATCHES
-    (2) column-header aliases from TABLE_COLUMN_HEADERS match on the same row.
+    A row (or pair of adjacent rows) is considered a table header when at least
+    TABLE_HEADER_MIN_MATCHES (2) column-header aliases from TABLE_COLUMN_HEADERS
+    match in the combined text of the two rows.  This handles headers that span
+    two lines (e.g. "Prix\nUnitaire" → "prix unitaire").
 
-    Returns (row_index, {column_name: (x_min, x_max)}).
+    For each matched column, the column center is computed as the average
+    center_x of all matching OCR lines.  This enables grid snapping (distance-
+    based cell assignment) downstream.
+
+    Returns (row_index, {column_name: (x_center, x_center)}).
     If no header found, returns (None, {}).
     """
-    for row_idx, row in enumerate(rows):
+    for row_idx in range(len(rows)):
+        # Single-row check
+        row = rows[row_idx]
         row_text = " ".join(line.text.strip() for line in row)
-        matched_columns: dict[str, tuple[float, float]] = {}
-
-        for col_name, col_aliases in TABLE_COLUMN_HEADERS.items():
-            if _contains_any_alias(row_text, col_aliases):
-                # Find which OCR line(s) matched and record their x-range
-                x_positions: list[float] = []
-                for line in row:
-                    if _contains_any_alias(line.text, col_aliases):
-                        x_positions.extend([line.box.x1, line.box.x2])
-                if x_positions:
-                    matched_columns[col_name] = (min(x_positions), max(x_positions))
-
+        matched_columns = _match_columns_in_text(row, row_text)
         if len(matched_columns) >= TABLE_HEADER_MIN_MATCHES:
             return row_idx, matched_columns
+
+        # Two-row sliding window: combine this row and the next
+        if row_idx + 1 < len(rows):
+            next_row = rows[row_idx + 1]
+            combined_lines = list(row) + list(next_row)
+            combined_text = " ".join(line.text.strip() for line in combined_lines)
+            matched_columns = _match_columns_in_text(combined_lines, combined_text)
+            if len(matched_columns) >= TABLE_HEADER_MIN_MATCHES:
+                return row_idx, matched_columns
 
     return None, {}
 
 
-def _extract_row_as_item(row: list[OCRLine], column_bounds: dict[str, tuple[float, float]], all_rows: list[list[OCRLine]], row_idx: int) -> dict[str, object] | None:
-    """Extract an item from a single row using pre-determined column boundaries.
+def _match_columns_in_text(lines: list[OCRLine], text: str) -> dict[str, tuple[float, float]]:
+    """Match column headers in the given text and return column-center positions.
 
-    For each known column, finds the OCR line whose center_x falls within that
-    column's x-range. Applies bounded directional search as repair fallback.
+    Returns {column_name: (center_x, center_x)} where both values are the same
+    (the average center_x of all matching OCR lines for that column).  Using
+    identical min/max simplifies downstream grid snapping.
+    """
+    matched: dict[str, tuple[float, float]] = {}
+    for col_name, col_aliases in TABLE_COLUMN_HEADERS.items():
+        if _contains_any_alias(text, col_aliases):
+            # Compute average center_x of matching lines
+            x_centers: list[float] = []
+            for line in lines:
+                if _contains_any_alias(line.text, col_aliases):
+                    x_centers.append(line.box.center_x)
+            if x_centers:
+                center = sum(x_centers) / len(x_centers)
+                # Store as (center, center) so downstream code that uses
+                # (x_min, x_max) tuple unpacking still works
+                matched[col_name] = (center, center)
+    return matched
+
+
+# Maximum distance (pixels) for grid snapping: an OCR line must be within this
+# distance of a column center to be assigned to that column.
+_COLUMN_SNAP_MAX_DISTANCE = 150.0
+
+
+def _extract_row_as_item(row: list[OCRLine], column_bounds: dict[str, tuple[float, float]], all_rows: list[list[OCRLine]], row_idx: int) -> dict[str, object] | None:
+    """Extract an item from a single row using grid snapping.
+
+    For each known column, finds the OCR line whose center_x is closest to the
+    column's center_x, within _COLUMN_SNAP_MAX_DISTANCE.  If the column bounds
+    store an x-range (x_min != x_max), also accepts lines strictly within the
+    range as a fallback.  Applies bounded directional search as repair fallback.
     """
     item: dict[str, object] = {}
     found_any = False
+    used_line_ids: set[int] = set()
 
-    for col_name, (x_min, x_max) in column_bounds.items():
-        value = _find_cell_value(row, col_name, x_min, x_max)
+    for col_name, (x1, x2) in column_bounds.items():
+        col_center = (x1 + x2) / 2.0
+        value, best_line = _find_cell_value_by_snap_or_range(
+            row, col_name, col_center, x1, x2, used_line_ids,
+        )
 
-        # Repair fallback: bounded directional search
+        # Repair fallback: bounded directional search around column center
         if value is None:
-            value = _bounded_directional_search(row, all_rows, row_idx, col_name, x_min, x_max)
+            value = _bounded_directional_search(row, all_rows, row_idx, col_name, col_center)
 
         if value is not None:
             item[col_name] = value
@@ -1456,30 +1659,60 @@ def _extract_row_as_item(row: list[OCRLine], column_bounds: dict[str, tuple[floa
     return item if found_any else None
 
 
-def _find_cell_value(row: list[OCRLine], col_name: str, x_min: float, x_max: float) -> object | None:
-    """Find the value for a column in a single row using x-range."""
+def _find_cell_value_by_snap_or_range(
+    row: list[OCRLine], col_name: str, col_center: float,
+    x_min: float, x_max: float, used_line_ids: set[int],
+) -> tuple[object | None, OCRLine | None]:
+    """Find a cell value using grid snapping, falling back to strict x-range.
+
+    First pass: snap to the closest OCR line within _COLUMN_SNAP_MAX_DISTANCE
+    of col_center that hasn't been used by another column.
+    Second pass (if no snap found): use strict x-range (x_min, x_max).
+    """
+    best_line = None
+    best_dist = float("inf")
+
+    for line in row:
+        if id(line) in used_line_ids:
+            continue
+        dist = abs(line.box.center_x - col_center)
+        if dist <= _COLUMN_SNAP_MAX_DISTANCE and dist < best_dist:
+            best_dist = dist
+            best_line = line
+
+    if best_line is not None:
+        text = best_line.text.strip()
+        if text:
+            val = _parse_cell_value(col_name, text)
+            if val is not None:
+                used_line_ids.add(id(best_line))
+                return val, best_line
+
+    # Fallback: strict x-range (unchanged behaviour for existing callers)
     for line in row:
         cx = line.box.center_x
         if x_min <= cx <= x_max:
             text = line.text.strip()
-            if not text:
-                continue
-            return _parse_cell_value(col_name, text)
-    return None
+            if text:
+                val = _parse_cell_value(col_name, text)
+                if val is not None:
+                    return val, line
+
+    return None, None
 
 
-def _bounded_directional_search(row: list[OCRLine], all_rows: list[list[OCRLine]], row_idx: int, col_name: str, x_min: float, x_max: float) -> object | None:
-    """Search a small distance from the expected column region for a value.
+def _bounded_directional_search(row: list[OCRLine], all_rows: list[list[OCRLine]], row_idx: int, col_name: str, col_center: float) -> object | None:
+    """Search a small distance from the column center for a value.
 
-    Looks right and left within the same row, then up and down one adjacent
-    row within _TABLE_REPAIR_RADIUS pixels. Returns None if nothing found.
+    Looks within _TABLE_REPAIR_RADIUS pixels of col_center in the same row,
+    then in adjacent rows. Returns None if nothing found.
     """
-    expanded_min = x_min - _TABLE_REPAIR_RADIUS
-    expanded_max = x_max + _TABLE_REPAIR_RADIUS
+    x_min = col_center - _TABLE_REPAIR_RADIUS
+    x_max = col_center + _TABLE_REPAIR_RADIUS
 
     for line in row:
         cx = line.box.center_x
-        if expanded_min <= cx <= expanded_max:
+        if x_min <= cx <= x_max:
             text = line.text.strip()
             if text:
                 val = _parse_cell_value(col_name, text)
@@ -1492,7 +1725,7 @@ def _bounded_directional_search(row: list[OCRLine], all_rows: list[list[OCRLine]
             continue
         for line in all_rows[adj_idx]:
             cx = line.box.center_x
-            if expanded_min <= cx <= expanded_max:
+            if x_min <= cx <= x_max:
                 text = line.text.strip()
                 if text:
                     val = _parse_cell_value(col_name, text)
@@ -1507,7 +1740,23 @@ def _parse_cell_value(col_name: str, text: str) -> object:
     if col_name == "designation":
         return text
 
-    # Numeric columns
+    # TVA rate: normalize to decimal (0.20 for 20%)
+    if col_name == "tva_rate":
+        cleaned = text.strip().replace(",", ".").replace(" ", "")
+        if "%" in cleaned:
+            try:
+                return float(cleaned.replace("%", "").strip()) / 100.0
+            except (ValueError, TypeError):
+                return None
+        try:
+            val = float(cleaned)
+            if val > 1:
+                return val / 100.0
+            return val
+        except (ValueError, TypeError):
+            return None
+
+    # Numeric columns (quantite, prix_unitaire, montant)
     cleaned = clean_amount(text)
     if cleaned:
         try:
@@ -1516,7 +1765,7 @@ def _parse_cell_value(col_name: str, text: str) -> object:
             pass
 
     # If cleaning failed but col expects a number, try direct parse
-    if col_name in ("quantite", "prix_unitaire", "tva_rate", "montant"):
+    if col_name in ("quantite", "prix_unitaire", "montant"):
         try:
             return float(text.replace(",", ".").replace(" ", ""))
         except (ValueError, TypeError):
