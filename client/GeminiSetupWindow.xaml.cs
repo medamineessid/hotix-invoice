@@ -52,6 +52,15 @@ public partial class GeminiSetupWindow : Window
             // (UpdateKeyBoxFromProvider handles showing masked dots + "✓ Saved" badge)
             UpdateKeyBoxFromProvider();
 
+            // React to key state changes (save, clear) to keep the UI in sync
+            vm.PropertyChanged += (_, e) =>
+            {
+                if (e.PropertyName is nameof(MainViewModel.HasGeminiKey) or nameof(MainViewModel.HasGrokKey))
+                {
+                    UpdateKeyBoxFromProvider();
+                }
+            };
+
             // Pre-populate models immediately (not waiting for API validation)
             PopulateDefaultModels();
 
@@ -61,9 +70,6 @@ public partial class GeminiSetupWindow : Window
             {
                 _ = TryPopulateModelsAsync(vm, currentKey);
             }
-
-            // Update clear button state based on whether a key exists
-            UpdateClearButtonState();
         }
 
         Activate();
@@ -80,30 +86,22 @@ public partial class GeminiSetupWindow : Window
         if (!string.IsNullOrEmpty(password) && password != "••••••••")
         {
             if (_isGeminiProvider)
-            {
                 vm.GeminiKeyInput = password;
-            }
             else
-            {
                 vm.GrokKeyInput = password;
-            }
 
-            // Auto-persist to disk so the key survives app restart.
-            // Fire-and-forget is safe here since the async save is best-effort.
-            _ = Task.Run(async () =>
+            // Synchronous save — blocks the window close (~50ms) to guarantee persistence
+            try
             {
-                try
-                {
-                    if (_isGeminiProvider)
-                        await vm.SaveGeminiKeyAsync();
-                    else
-                        await vm.SaveGrokKeyAsync();
-                }
-                catch
-                {
-                    // Best-effort save; key is at least in memory for this session.
-                }
-            });
+                if (_isGeminiProvider)
+                    vm.SaveGeminiKeyAsync().GetAwaiter().GetResult();
+                else
+                    vm.SaveGrokKeyAsync().GetAwaiter().GetResult();
+            }
+            catch
+            {
+                // Best-effort
+            }
         }
     }
 
@@ -125,7 +123,6 @@ public partial class GeminiSetupWindow : Window
         _isGeminiProvider = ProviderGeminiRadio.IsChecked == true;
         UpdateKeyBoxFromProvider();
         UpdateUIForProvider();
-        UpdateClearButtonState();
 
         // Repopulate model list for the new provider
         PopulateDefaultModels();
@@ -147,18 +144,11 @@ public partial class GeminiSetupWindow : Window
                 GeminiKeyBox.Password = string.Empty;
                 KeyStatusIcon.Text = string.Empty;
             }
+
+            // Notify the ViewModel which provider is active so the command canExecute works
+            vm.ActiveKeyProvider = _isGeminiProvider ? "gemini" : "grok";
         }
         MessageLabel.Text = string.Empty;
-    }
-
-    /// <summary>Enables or disables the clear-key button depending on whether a key exists.</summary>
-    private void UpdateClearButtonState()
-    {
-        if (DataContext is MainViewModel vm)
-        {
-            string currentKey = _isGeminiProvider ? vm.GeminiKeyInput : vm.GrokKeyInput;
-            ClearKeyButton.IsEnabled = !string.IsNullOrEmpty(currentKey);
-        }
     }
 
     /// <summary>
@@ -372,42 +362,6 @@ public partial class GeminiSetupWindow : Window
         Close();
     }
 
-    private void ClearKey_Click(object sender, RoutedEventArgs e)
-    {
-        var title = TranslationSource.Get(_isGeminiProvider ? "GeminiClearTitle" : "GrokClearTitle");
-        var confirm = TranslationSource.Get(_isGeminiProvider ? "GeminiClearConfirm" : "GrokClearConfirm");
-
-        var result = MessageBox.Show(confirm, title, MessageBoxButton.YesNo, MessageBoxImage.Warning);
-        if (result != MessageBoxResult.Yes) return;
-
-        try
-        {
-            if (DataContext is MainViewModel vm)
-            {
-                if (_isGeminiProvider)
-                {
-                    vm.ClearGeminiKeyCommand.Execute(null);
-                    MessageLabel.Text = TranslationSource.Get("GeminiCleared");
-                }
-                else
-                {
-                    vm.ClearGrokKeyCommand.Execute(null);
-                    MessageLabel.Text = TranslationSource.Get("GrokCleared");
-                }
-                GeminiKeyBox.Password = string.Empty;
-                KeyStatusIcon.Text = string.Empty;
-                MessageLabel.Foreground = System.Windows.Media.Brushes.Orange;
-                UpdateClearButtonState();
-            }
-        }
-        catch (Exception ex)
-        {
-            string errorKey = _isGeminiProvider ? "GeminiSaveError" : "GrokSaveError";
-            MessageLabel.Text = TranslationSource.Fmt(errorKey, $"{ex.GetType().Name}: {ex.Message}");
-            MessageLabel.Foreground = System.Windows.Media.Brushes.Red;
-        }
-    }
-
     private async void Save_Click(object sender, RoutedEventArgs e)
     {
         string key = GeminiKeyBox.Password.Trim();
@@ -504,8 +458,6 @@ public partial class GeminiSetupWindow : Window
             KeyStatusIcon.Text = "✓ Saved";
             KeyStatusIcon.Foreground = (System.Windows.Media.Brush)Application.Current.FindResource("BrushSuccess");
 
-            UpdateClearButtonState();
-
             // ── Populate model dropdown now that key is saved ──
             _ = TryPopulateModelsAsync(vm, key);
 
@@ -559,8 +511,6 @@ public partial class GeminiSetupWindow : Window
         if (GeminiKeyBox.Password != "••••••••")
         {
             KeyStatusIcon.Text = string.Empty;
-            // Update clear button state when user types a new key
-            UpdateClearButtonState();
         }
     }
 

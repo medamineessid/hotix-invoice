@@ -160,6 +160,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         ClearGeminiKeyCommand  = new RelayCommand(async _ => await ClearGeminiKeyAsync(), _ => HasGeminiKey);
         SaveGrokKeyCommand     = new RelayCommand(async _ => await SaveGrokKeyAsync());
         ClearGrokKeyCommand    = new RelayCommand(async _ => await ClearGrokKeyAsync(), _ => HasGrokKey);
+        ClearActiveKeyCommand  = new RelayCommand(async _ => await ClearActiveKeyAsync(), _ => HasActiveKey);
 
         LoadSettings();
         LoadProviderKeysFromAppSettings();
@@ -213,6 +214,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     public ICommand ClearGeminiKeyCommand   { get; }
     public ICommand SaveGrokKeyCommand      { get; }
     public ICommand ClearGrokKeyCommand     { get; }
+    public ICommand ClearActiveKeyCommand   { get; }
 
     public string SelectedFolder
     {
@@ -253,6 +255,28 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     public bool HasGeminiKey => !string.IsNullOrEmpty(_geminiKeyInput);
 
     public bool HasGrokKey => !string.IsNullOrEmpty(_grokKeyInput);
+
+    /// <summary>Tracks which provider tab is active in the Gemini/Grok setup window.</summary>
+    private string _activeKeyProvider = "gemini";
+
+    /// <summary>Set by GeminiSetupWindow when the user switches between Gemini/Grok tabs.</summary>
+    public string ActiveKeyProvider
+    {
+        get => _activeKeyProvider;
+        set
+        {
+            if (SetField(ref _activeKeyProvider, value))
+            {
+                OnPropertyChanged(nameof(HasActiveKey));
+                (ClearActiveKeyCommand as RelayCommand)?.RaiseCanExecuteChanged();
+            }
+        }
+    }
+
+    /// <summary>True when the currently-active provider has a stored key.</summary>
+    public bool HasActiveKey => _activeKeyProvider == "gemini"
+        ? HasGeminiKey
+        : HasGrokKey;
 
     public string GeminiKeyInput
     {
@@ -1337,12 +1361,17 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
 
     private async Task ClearGeminiKeyAsync()
     {
+        // Confirmation dialog
+        var confirm = TranslationSource.Get("GeminiClearConfirm");
+        var title = TranslationSource.Get("GeminiClearTitle");
+        if (MessageBox.Show(confirm, title, MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
+            return;
+
         GeminiKeyInput = string.Empty;
         GeminiAvailable = false;
 
         try
         {
-            // Read existing settings, mutate only gemini_api_key, write back full object
             var settings = ReadAppSettings();
             settings["gemini_api_key"] = "";
             await WriteAppSettingsAsync(settings);
@@ -1420,12 +1449,17 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
 
     private async Task ClearGrokKeyAsync()
     {
+        // Confirmation dialog
+        var confirm = TranslationSource.Get("GrokClearConfirm");
+        var title = TranslationSource.Get("GrokClearTitle");
+        if (MessageBox.Show(confirm, title, MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
+            return;
+
         GrokKeyInput = string.Empty;
         GrokAvailable = false;
 
         try
         {
-            // Read existing settings, mutate only grok_api_key, write back full object
             var settings = ReadAppSettings();
             settings["grok_api_key"] = "";
             await WriteAppSettingsAsync(settings);
@@ -1434,6 +1468,15 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         {
             MessageBox.Show(TranslationSource.Fmt("ErrorClearKey", $"{ex.GetType().Name}: {ex.Message}"), TranslationSource.Get("ErrorFatalTitle"), MessageBoxButton.OK, MessageBoxImage.Error);
         }
+    }
+
+    /// <summary>Clears the key for whichever provider tab is active in the setup window.</summary>
+    private async Task ClearActiveKeyAsync()
+    {
+        if (_activeKeyProvider == "gemini")
+            await ClearGeminiKeyAsync();
+        else
+            await ClearGrokKeyAsync();
     }
 
     public async Task SaveGrokKeyAsync()
@@ -1897,7 +1940,8 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         string? geminiKey,
         string? grokKey,
         bool hasGemini,
-        bool hasGrok)
+        bool hasGrok,
+        CancellationToken ct = default)
     {
         string fileName = Path.GetFileName(file);
         LogPipeline($"Invoice started: {fileName}");
@@ -1978,20 +2022,20 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                             TryMarkGrokDisabled(grokEx.Message);
                             LogPipeline("Grok also failed after Gemini quota — falling back to OCR");
                             await ShowQuotaFallbackBannerAsync();
-                            row = await ExtractViaServerAsync(file);
+                            row = await ExtractViaServerAsync(file, ct);
                         }
                         catch (CloudApiException grokEx) when (grokEx.StatusCode.HasValue && IsPermanentCloudFailure(grokEx.StatusCode.Value))
                         {
                             TryMarkGrokDisabled(grokEx.Message);
                             LogPipeline("Grok also failed after Gemini quota — falling back to OCR");
                             await ShowQuotaFallbackBannerAsync();
-                            row = await ExtractViaServerAsync(file);
+                            row = await ExtractViaServerAsync(file, ct);
                         }
                         catch
                         {
                             LogPipeline("Grok also failed after Gemini quota — falling back to OCR");
                             await ShowQuotaFallbackBannerAsync();
-                            row = await ExtractViaServerAsync(file);
+                            row = await ExtractViaServerAsync(file, ct);
                         }
                     }
                     else if (selectedEngine == "gemini")
@@ -2001,7 +2045,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                     else
                     {
                         await ShowQuotaFallbackBannerAsync();
-                        row = await ExtractViaServerAsync(file);
+                        row = await ExtractViaServerAsync(file, ct);
                     }
                 }
                 catch (CloudApiException ex) when (ex.StatusCode.HasValue && IsPermanentCloudFailure(ex.StatusCode.Value))
@@ -2024,24 +2068,24 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                             {
                                 TryMarkGrokDisabled(grokEx.Message);
                                 LogPipeline("Grok fallback also failed — trying OCR server");
-                                row = await ExtractViaServerAsync(file);
+                                row = await ExtractViaServerAsync(file, ct);
                             }
                             catch (CloudApiException grokEx) when (grokEx.StatusCode.HasValue && IsPermanentCloudFailure(grokEx.StatusCode.Value))
                             {
                                 TryMarkGrokDisabled(grokEx.Message);
                                 LogPipeline("Grok fallback also failed — trying OCR server");
-                                row = await ExtractViaServerAsync(file);
+                                row = await ExtractViaServerAsync(file, ct);
                             }
                             catch
                             {
                                 LogPipeline("Grok fallback also failed — trying OCR server");
-                                row = await ExtractViaServerAsync(file);
+                                row = await ExtractViaServerAsync(file, ct);
                             }
                         }
                         else
                         {
                             LogPipeline("No Grok key — falling back to OCR server");
-                            row = await ExtractViaServerAsync(file);
+                            row = await ExtractViaServerAsync(file, ct);
                         }
                     }
                     else
@@ -2073,14 +2117,14 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                 catch (Exception) when (selectedEngine == "auto")
                 {
                     LogPipeline("Grok failed in auto mode — falling back to OCR server");
-                    row = await ExtractViaServerAsync(file);
+                    row = await ExtractViaServerAsync(file, ct);
                 }
                 catch (CloudQuotaExceededException ex)
                 {
                     TryMarkGrokDisabled(ex.Message);
                     LogPipeline("Grok quota exceeded");
                     row = selectedEngine == "auto"
-                        ? await ExtractViaServerAsync(file)
+                        ? await ExtractViaServerAsync(file, ct)
                         : InvoiceRowViewModel.FromError(file, ex.Message);
                 }
                 catch (CloudApiException ex) when (ex.StatusCode.HasValue && IsPermanentCloudFailure(ex.StatusCode.Value))
@@ -2088,7 +2132,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                     TryMarkGrokDisabled(ex.Message);
                     LogPipeline($"Grok skipped (cached failure) for {fileName}");
                     row = selectedEngine == "auto"
-                        ? await ExtractViaServerAsync(file)
+                        ? await ExtractViaServerAsync(file, ct)
                         : InvoiceRowViewModel.FromError(file, ex.Message);
                 }
                 catch (CloudApiException ex)
@@ -2105,7 +2149,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             else
             {
                 LogPipeline($"Engine dispatch: OCR server for {fileName}");
-                row = await ExtractViaServerAsync(file);
+                row = await ExtractViaServerAsync(file, ct);
             }
         }
         finally
@@ -2162,7 +2206,21 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
 
         _extractionCts = new CancellationTokenSource();
 
-        // ── Decide extraction strategy FIRST (before starting server) ──
+        // ── Start server in background (always) so it's ready for fallback ──
+        LogPipeline("PRE-FLIGHT: Starting server in background for potential fallback");
+        var serverTask = Task.Run(async () =>
+        {
+            try
+            {
+                await EnsureServerReadyAsync();
+            }
+            catch (Exception ex)
+            {
+                LogPipeline($"Background server startup failed: {ex.GetType().Name}: {ex.Message}");
+            }
+        });
+
+        // ── Decide extraction strategy ──
         LogPipeline("Pre-processing: loading keys and checking internet");
         string? geminiKey = LoadGeminiApiKey();
         string? grokKey = LoadGrokApiKey();
@@ -2175,42 +2233,24 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         string selectedEngine = SelectedEngine;
         LogPipeline($"Engine dispatch: selected={selectedEngine}, gemini={hasGemini}, grok={hasGrok}");
 
-        // Determine if we actually need the local OCR server
-        bool needsServer = selectedEngine == "ocr"
+        // Determine if we need the server NOW (for OCR or fallback)
+        bool needsServerNow = selectedEngine == "ocr"
             || (selectedEngine == "auto" && !hasGemini && !hasGrok)
             || (selectedEngine == "gemini" && !hasGemini)
             || (selectedEngine == "grok" && !hasGrok);
 
-        if (needsServer)
+        if (needsServerNow)
         {
-            LogPipeline("PRE-FLIGHT: Server needed — starting/checking OCR server");
+            LogPipeline("PRE-FLIGHT: Server needed for extraction — waiting for it");
             try
             {
-                await EnsureServerReadyAsync();
-            }
-            catch (Exception ex)
-            {
-                LogPipeline($"Server startup failed — aborting batch: {ex.GetType().Name}: {ex.Message}");
-                IsServerRunning = false;
-                IsExtracting = false;
-                IsProgressVisible = false;
-                _extractionCts?.Dispose();
-                _extractionCts = null;
-                _extractionStatusText = string.Empty;
-                OnPropertyChanged(nameof(ExtractionStatusText));
-                OnPropertyChanged(nameof(HasErrors));
-                SummaryBannerText = ex.Message;
-                SummaryBannerColor = "#C0392B";
-                ShowSummaryBanner = true;
-                return;
-            }
+                // Wait for the background server to be ready
+                await serverTask;
 
-            // ── Pre-flight health check (server should be running now) ──
-            try
-            {
+                // ── Pre-flight health check ──
                 using var healthResponse = await _apiHttpClient.GetAsync(
                     "http://127.0.0.1:8000/health",
-                    _extractionCts?.Token ?? CancellationToken.None);
+                    _extractionCts.Token);
                 if (!healthResponse.IsSuccessStatusCode)
                 {
                     IsServerRunning = false;
@@ -2222,23 +2262,36 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             {
                 _extractionCts?.Dispose();
                 _extractionCts = null;
-                throw; // rethrow our own health-check failure (shown as server-level banner)
+                IsExtracting = false;
+                IsProgressVisible = false;
+                _extractionStatusText = string.Empty;
+                OnPropertyChanged(nameof(ExtractionStatusText));
+                OnPropertyChanged(nameof(HasErrors));
+                SummaryBannerText = TranslationSource.Get("ServerHealthCheckFailed");
+                SummaryBannerColor = "#C0392B";
+                ShowSummaryBanner = true;
+                return;
             }
-            catch (Exception)
+            catch (Exception ex)
             {
+                LogPipeline($"Server startup failed — aborting batch: {ex.GetType().Name}: {ex.Message}");
                 IsServerRunning = false;
                 _extractionCts?.Dispose();
                 _extractionCts = null;
-                throw new InvalidOperationException(
-                    TranslationSource.Get("ServerHealthCheckFailed"));
+                IsExtracting = false;
+                IsProgressVisible = false;
+                _extractionStatusText = string.Empty;
+                OnPropertyChanged(nameof(ExtractionStatusText));
+                OnPropertyChanged(nameof(HasErrors));
+                SummaryBannerText = ex.Message;
+                SummaryBannerColor = "#C0392B";
+                ShowSummaryBanner = true;
+                return;
             }
         }
         else
         {
-            LogPipeline("PRE-FLIGHT: Cloud API available — skipping server startup");
-            // No server needed — mark as running so UI indicators don't show errors
-            IsServerRunning = true;
-            IsServerStarted = true;
+            LogPipeline("PRE-FLIGHT: Cloud API available — server will be ready for fallback");
         }
 
         var batchStopwatch = Stopwatch.StartNew();
@@ -2262,13 +2315,15 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                         if (extractionCts.Token.IsCancellationRequested)
                             return;
 
+                        var extractionToken = _extractionCts?.Token ?? CancellationToken.None;
                         InvoiceRowViewModel row = await ProcessInvoiceAsync(
                             file,
                             selectedEngine,
                             geminiKey,
                             grokKey,
                             hasGemini,
-                            hasGrok);
+                            hasGrok,
+                            extractionToken);
 
                         await AddExtractionResultAsync(row);
                         LogPipeline("UI update triggered — ObservableCollection updated");
@@ -2346,17 +2401,15 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     private static readonly TimeSpan OcrExtractionTimeout = TimeSpan.FromMinutes(15);
 
     /// <summary>Extract a file through the local OCR server (starts it lazily if needed).</summary>
-    private async Task<InvoiceRowViewModel> ExtractViaServerAsync(string file)
+    private async Task<InvoiceRowViewModel> ExtractViaServerAsync(string file, CancellationToken ct = default)
     {
         LogPipeline("OCR started");
         CancellationTokenSource? linkedCts = null;
         try
         {
-            // Server readiness is ensured by the batch-level call before the loop.
-            // Create a linked token that includes both the user-cancellation token
+            // Create a linked token that includes the passed cancellation token
             // and a longer timeout for the OCR call.
-            linkedCts = CancellationTokenSource.CreateLinkedTokenSource(
-                _extractionCts?.Token ?? CancellationToken.None);
+            linkedCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
             linkedCts.CancelAfter(OcrExtractionTimeout);
 
             InvoiceResult result = await _invoiceClient.ExtractAsync(file, "ocr", linkedCts.Token);
@@ -2435,10 +2488,20 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         if (SelectedRow == row) SelectedRow = updated;
     }
 
+    /// <summary>
+    /// Rerun a single row (called from context menu). Guards against concurrent extraction.
+    /// </summary>
     private async Task RerunRowAsync(InvoiceRowViewModel? row)
     {
-        if (row is null) return;
+        if (row is null || IsExtracting) return;
+        await RerunRowCoreAsync(row);
+    }
 
+    /// <summary>
+    /// Rerun a single row without guard (called from RerunAllErrorsAsync where IsExtracting is already set).
+    /// </summary>
+    private async Task RerunRowCoreAsync(InvoiceRowViewModel row)
+    {
         // Use the stored full FilePath (set once at row creation) instead of
         // reconstructing from SelectedFolder, which may have changed since extraction.
         string filePath = row.FilePath;
@@ -2484,7 +2547,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                 _extractionStatusText = TranslationSource.Fmt("ExtractionProcessing", fileName);
                 OnPropertyChanged(nameof(ExtractionStatusText));
 
-                await RerunRowAsync(row);
+                await RerunRowCoreAsync(row);
 
                 ProcessedFiles += 1;
                 NotifySummaryChanged();
