@@ -843,7 +843,8 @@
                                               SelectedItem="{Binding SelectedRow}"
                                               VirtualizingPanel.VirtualizationMode="Recycling"
                                               EnableRowVirtualization="True"
-                                              LoadingRow="ResultsGrid_LoadingRow">
+                                              LoadingRow="ResultsGrid_LoadingRow"
+                                              MouseDoubleClick="ResultsGrid_MouseDoubleClick">
                                         <DataGrid.Resources>
                                             <ContextMenu x:Key="RowContextMenu">
                                                 <MenuItem Header="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ContextMenuRerun]}" Command="{Binding DataContext.RerunCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}" CommandParameter="{Binding}" />
@@ -1087,9 +1088,11 @@
                                     </StackPanel>
 
                                     <DataGrid Grid.Row="1"
+                                              x:Name="IncompleteGrid"
                                               ItemsSource="{Binding IncompleteView}"
                                               Style="{StaticResource ResultGridStyle}"
-                                              SelectedItem="{Binding SelectedRow}">
+                                              SelectedItem="{Binding SelectedRow}"
+                                              MouseDoubleClick="ResultsGrid_MouseDoubleClick">
                                         <DataGrid.Resources>
                                             <ContextMenu x:Key="RowContextMenu">
                                                 <MenuItem Header="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ContextMenuRerun]}" Command="{Binding DataContext.RerunCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}" CommandParameter="{Binding}" />
@@ -1382,7 +1385,7 @@
                                                            Margin="4,0,0,0" />
                                             </StackPanel>
 
-                                            <TextBlock Text="Numéro Facture"
+                                            <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ColumnInvoiceNo]}"
                                                        Style="{StaticResource TextTiny}"
                                                        Foreground="{StaticResource BrushTextSecondary}"
                                                        Margin="0,0,0,2" />
@@ -1390,7 +1393,7 @@
                                                      Style="{StaticResource TextBoxStyle}"
                                                      Margin="0,0,0,10" />
 
-                                            <TextBlock Text="Date"
+                                            <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ColumnDate]}"
                                                        Style="{StaticResource TextTiny}"
                                                        Foreground="{StaticResource BrushTextSecondary}"
                                                        Margin="0,0,0,2" />
@@ -1398,7 +1401,7 @@
                                                      Style="{StaticResource TextBoxStyle}"
                                                      Margin="0,0,0,10" />
 
-                                            <TextBlock Text="Fournisseur"
+                                            <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ColumnSupplier]}"
                                                        Style="{StaticResource TextTiny}"
                                                        Foreground="{StaticResource BrushTextSecondary}"
                                                        Margin="0,0,0,2" />
@@ -1406,7 +1409,7 @@
                                                      Style="{StaticResource TextBoxStyle}"
                                                      Margin="0,0,0,10" />
 
-                                            <TextBlock Text="Client"
+                                            <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ColumnClient]}"
                                                        Style="{StaticResource TextTiny}"
                                                        Foreground="{StaticResource BrushTextSecondary}"
                                                        Margin="0,0,0,2" />
@@ -1414,13 +1417,13 @@
                                                      Style="{StaticResource TextBoxStyle}"
                                                      Margin="0,0,0,10" />
 
-                                            <TextBlock Text="Montant HT"
+                                            <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ColumnAmountExcl]}"
                                                        Style="{StaticResource TextTiny}"
                                                        Foreground="{StaticResource BrushTextSecondary}"
                                                        Margin="0,0,0,2" />
                                             <TextBox Text="{Binding SelectedRow.MontantHt, UpdateSourceTrigger=PropertyChanged}"
                                                      Style="{StaticResource TextBoxStyle}"
-                                                     Margin="0,0,0,10" /><TextBlock Text="TVA"
+                                                     Margin="0,0,0,10" />            <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ColumnVat]}"
            Style="{StaticResource TextTiny}"
            Foreground="{StaticResource BrushTextSecondary}"
            Margin="0,0,0,2" />
@@ -1448,7 +1451,7 @@
     </Border>
 </StackPanel>
 
-                                            <TextBlock Text="Taxe"
+                                            <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ColumnTax]}"
                                                        Style="{StaticResource TextTiny}"
                                                        Foreground="{StaticResource BrushTextSecondary}"
                                                        Margin="0,0,0,2" />
@@ -1456,7 +1459,7 @@
                                                      Style="{StaticResource TextBoxStyle}"
                                                      Margin="0,0,0,10" />
 
-                                            <TextBlock Text="TTC"
+                                            <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ColumnTotalIncl]}"
                                                        Style="{StaticResource TextTiny}"
                                                        Foreground="{StaticResource BrushTextSecondary}"
                                                        Margin="0,0,0,2" />

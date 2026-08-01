@@ -380,7 +380,7 @@ public partial class MainWindow : Window
         // Subtitle
         stack.Children.Add(new TextBlock
         {
-            Text = "Invoice Extraction",
+            Text = TranslationSource.Get("SplashSubtitle"),
             Style = (Style)FindResource("TextCaption"),
             HorizontalAlignment = HorizontalAlignment.Center,
             Margin = new Thickness(0, 0, 0, 20),
@@ -398,7 +398,7 @@ public partial class MainWindow : Window
         string version = TranslationSource.Get("SidebarVersion");
         stack.Children.Add(new TextBlock
         {
-            Text = $"Version {version.TrimStart('v')}",
+            Text = TranslationSource.Fmt("AboutVersionLabel", version.TrimStart('v')),
             Style = (Style)FindResource("TextBody"),
             Foreground = (Brush)FindResource("BrushTextSecondary"),
             HorizontalAlignment = HorizontalAlignment.Center,
@@ -408,7 +408,7 @@ public partial class MainWindow : Window
         // Description
         stack.Children.Add(new TextBlock
         {
-            Text = "A professional invoice extraction tool powered by AI.",
+            Text = TranslationSource.Get("AboutTagline"),
             Style = (Style)FindResource("TextBody"),
             Foreground = (Brush)FindResource("BrushTextSecondary"),
             TextWrapping = TextWrapping.Wrap,
@@ -528,6 +528,19 @@ public partial class MainWindow : Window
     }
 
     // ── Staggered Row Animation ──────────────────────────────────────
+
+    private void ResultsGrid_MouseDoubleClick(object sender, MouseButtonEventArgs e)
+    {
+        // Double-clicking a result row opens the full invoice view:
+        // selects the row (which loads the source image preview in the
+        // right panel) and expands the collapsible Articles dropdown.
+        if (sender is not DataGrid grid || grid.SelectedItem is not InvoiceRowViewModel row)
+            return;
+
+        ViewModel.SelectedRow = row;
+        row.AreItemsExpanded = true;
+        e.Handled = true;
+    }
 
     private void ResultsGrid_LoadingRow(object sender, DataGridRowEventArgs e)
     {

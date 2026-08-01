@@ -53,7 +53,7 @@
                 <StackPanel Grid.Row="1">
 
                     <!-- Filter section -->
-                    <TextBlock Text="Filter:"
+                    <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ExportFilterLabel]}"
                                Style="{StaticResource CardLabelStyle}"
                                Margin="0,0,0,10" />
 
@@ -87,10 +87,10 @@
                                         Visibility="Collapsed" />
                             </Border>
                             <StackPanel Grid.Column="1">
-                                <TextBlock Text="Results Only (complete invoices)"
+                                <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ExportResultsOnly]}"
                                            Style="{StaticResource TextBody}"
                                            FontWeight="{StaticResource FontWeightMedium}" />
-                                <TextBlock Text="Export only invoices with all 8 fields filled"
+                                <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ExportResultsOnlyDesc]}"
                                            Style="{StaticResource TextCaption}"
                                            Foreground="{StaticResource BrushTextSecondary}"
                                            TextWrapping="Wrap"
@@ -129,10 +129,10 @@
                                         Visibility="Collapsed" />
                             </Border>
                             <StackPanel Grid.Column="1">
-                                <TextBlock Text="Missing Only (incomplete invoices)"
+                                <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ExportMissingOnly]}"
                                            Style="{StaticResource TextBody}"
                                            FontWeight="{StaticResource FontWeightMedium}" />
-                                <TextBlock Text="Export only invoices with at least 1 empty field"
+                                <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ExportMissingOnlyDesc]}"
                                            Style="{StaticResource TextCaption}"
                                            Foreground="{StaticResource BrushTextSecondary}"
                                            TextWrapping="Wrap"
@@ -171,10 +171,10 @@
                                         Visibility="Visible" />
                             </Border>
                             <StackPanel Grid.Column="1">
-                                <TextBlock Text="Both (all data)"
+                                <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ExportBoth]}"
                                            Style="{StaticResource TextBody}"
                                            FontWeight="{StaticResource FontWeightMedium}" />
-                                <TextBlock Text="Export all invoices, empty fields marked as [MISSING]"
+                                <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ExportBothDesc]}"
                                            Style="{StaticResource TextCaption}"
                                            Foreground="{StaticResource BrushTextSecondary}"
                                            TextWrapping="Wrap"
@@ -189,7 +189,7 @@
                             Background="{StaticResource BrushBorder}"
                             Margin="0,0,0,16" />
 
-                    <TextBlock Text="Destination:"
+                    <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ExportDestinationLabel]}"
                                Style="{StaticResource CardLabelStyle}"
                                Margin="0,0,0,10" />
 
@@ -216,10 +216,10 @@
                                       Checked="AppendCheckBox_Changed"
                                       Unchecked="AppendCheckBox_Changed" />
                             <StackPanel Grid.Column="1">
-                                <TextBlock Text="Append to existing file"
+                                <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ExportAppendOption]}"
                                            Style="{StaticResource TextBody}"
                                            FontWeight="{StaticResource FontWeightMedium}" />
-                                <TextBlock Text="Add data to an existing Excel workbook instead of creating a new one"
+                                <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ExportAppendDesc]}"
                                            Style="{StaticResource TextCaption}"
                                            Foreground="{StaticResource BrushTextSecondary}"
                                            TextWrapping="Wrap"

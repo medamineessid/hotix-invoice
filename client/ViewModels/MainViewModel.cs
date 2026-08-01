@@ -1303,10 +1303,14 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
 
         if (_isServerStarting)
         {
-            // Already starting — wait for completion with a timeout
+            // Already starting — wait for completion. The wait must be LONGER than
+            // App.StartServerAsync's own startup timeout (90s) so concurrent callers
+            // (batch concurrency can reach EnsureServerReadyAsync from multiple
+            // ExtractViaServerAsync tasks) do NOT time out early and re-enter
+            // App.StartServerAsync, which would kill the in-progress server process.
             Debug.WriteLine("[Hotix] EnsureServerReadyAsync: waiting for already-starting server...");
             var waitStart = Stopwatch.StartNew();
-            while (waitStart.Elapsed < TimeSpan.FromSeconds(35))
+            while (waitStart.Elapsed < TimeSpan.FromSeconds(95))
             {
                 await Task.Delay(500);
                 if (_isServerStarted && _isServerRunning)
@@ -1465,7 +1469,10 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                             error ?? "unknown error");
                         MessageBox.Show(msg, TranslationSource.Get("GeminiValidationTitle"),
                             MessageBoxButton.OK, MessageBoxImage.Warning);
-                        return;
+                        // Note: do NOT return here — the key must still be persisted.
+                        // The message above explicitly promises "the key will still be
+                        // saved". Returning early silently erased the user's key.
+                        // Continue to the save block below.
                     }
                 }
                 catch (HttpRequestException)
@@ -1561,7 +1568,10 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                             error ?? "unknown error");
                         MessageBox.Show(msg, TranslationSource.Get("GeminiValidationTitle"),
                             MessageBoxButton.OK, MessageBoxImage.Warning);
-                        return;
+                        // Note: do NOT return here — the key must still be persisted.
+                        // The message above explicitly promises "the key will still be
+                        // saved". Returning early silently erased the user's key.
+                        // Continue to the save block below.
                     }
                 }
                 catch (HttpRequestException)
@@ -1934,6 +1944,24 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         }).Task;
     }
 
+    /// <summary>
+    /// Shows a banner when the selected engine's quota is reached while the engine
+    /// is explicit (no automatic fallback to OCR/Grok). Gives the user a clear,
+    /// actionable message instead of a silent error row.
+    /// </summary>
+    private Task ShowQuotaExceededBannerAsync(bool isGemini)
+    {
+        return Application.Current.Dispatcher.InvokeAsync(() =>
+        {
+            SummaryBannerText = TranslationSource.Get(isGemini ? "QuotaExceededGeminiBanner" : "QuotaExceededGrokBanner");
+            SummaryBannerColor = "#C0392B";
+            ShowSummaryBanner = true;
+            OnPropertyChanged(nameof(SummaryBannerText));
+            OnPropertyChanged(nameof(SummaryBannerColor));
+            OnPropertyChanged(nameof(ShowSummaryBanner));
+        }).Task;
+    }
+
     private static bool IsPermanentCloudFailure(HttpStatusCode statusCode)
     {
         return statusCode is HttpStatusCode.Unauthorized
@@ -2096,6 +2124,9 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                     }
                     else if (selectedEngine == "gemini")
                     {
+                        // Explicit engine — no automatic fallback. Show a clear
+                        // quota message instead of a bare error row.
+                        await ShowQuotaExceededBannerAsync(isGemini: true);
                         row = InvoiceRowViewModel.FromError(file, ex.Message);
                     }
                     else
@@ -2179,9 +2210,17 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                 {
                     TryMarkGrokDisabled(ex.Message);
                     LogPipeline("Grok quota exceeded");
-                    row = selectedEngine == "auto"
-                        ? await ExtractViaServerAsync(file, ct)
-                        : InvoiceRowViewModel.FromError(file, ex.Message);
+                    if (selectedEngine == "auto")
+                    {
+                        row = await ExtractViaServerAsync(file, ct);
+                    }
+                    else
+                    {
+                        // Explicit engine — no automatic fallback. Show a clear
+                        // quota message instead of a bare error row.
+                        await ShowQuotaExceededBannerAsync(isGemini: false);
+                        row = InvoiceRowViewModel.FromError(file, ex.Message);
+                    }
                 }
                 catch (CloudApiException ex) when (ex.StatusCode.HasValue && IsPermanentCloudFailure(ex.StatusCode.Value))
                 {
@@ -2262,20 +2301,6 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
 
         _extractionCts = new CancellationTokenSource();
 
-        // ── Start server in background (always) so it's ready for fallback ──
-        LogPipeline("PRE-FLIGHT: Starting server in background for potential fallback");
-        var serverTask = Task.Run(async () =>
-        {
-            try
-            {
-                await EnsureServerReadyAsync();
-            }
-            catch (Exception ex)
-            {
-                LogPipeline($"Background server startup failed: {ex.GetType().Name}: {ex.Message}");
-            }
-        });
-
         // ── Decide extraction strategy ──
         LogPipeline("Pre-processing: loading keys and checking internet");
         string? geminiKey = LoadGeminiApiKey();
@@ -2295,13 +2320,42 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             || (selectedEngine == "gemini" && !hasGemini)
             || (selectedEngine == "grok" && !hasGrok);
 
+        // ── Start server in background ONLY if it may actually be needed ──
+        // Explicit cloud engines (gemini/grok with a valid key) never fall back
+        // to OCR, so the server must NOT be started (or its status shows
+        // "Starting..." even though nothing uses it). Auto mode may still need
+        // the server for OCR fallback, so it is pre-started here. OCR fallback
+        // paths also lazily ensure the server via EnsureServerReadyAsync().
+        Task? serverTask = null;
+        bool serverMayBeNeeded = needsServerNow || selectedEngine == "auto";
+        if (serverMayBeNeeded)
+        {
+            LogPipeline("PRE-FLIGHT: Starting server in background for potential fallback");
+            serverTask = Task.Run(async () =>
+            {
+                try
+                {
+                    await EnsureServerReadyAsync();
+                }
+                catch (Exception ex)
+                {
+                    LogPipeline($"Background server startup failed: {ex.GetType().Name}: {ex.Message}");
+                }
+            });
+        }
+        else
+        {
+            LogPipeline("PRE-FLIGHT: Cloud API available — server not needed, skipping startup");
+        }
+
         if (needsServerNow)
         {
             LogPipeline("PRE-FLIGHT: Server needed for extraction — waiting for it");
             try
             {
                 // Wait for the background server to be ready
-                await serverTask;
+                if (serverTask != null)
+                    await serverTask;
 
                 // ── Pre-flight health check ──
                 using var healthResponse = await _apiHttpClient.GetAsync(
@@ -2463,6 +2517,10 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         CancellationTokenSource? linkedCts = null;
         try
         {
+            // Lazy server ensure: the server may not have been pre-started
+            // (cloud-only batch), so make sure it is up before calling OCR.
+            await EnsureServerReadyAsync();
+
             // Create a linked token that includes the passed cancellation token
             // and a longer timeout for the OCR call.
             linkedCts = CancellationTokenSource.CreateLinkedTokenSource(ct);

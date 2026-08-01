@@ -16,14 +16,16 @@ public partial class GeminiSetupWindow : Window
 {
     private bool _isGeminiProvider = true;
 
-    /// <summary>Known default models shown even before API validation.</summary>
-    private static readonly Dictionary<string, (string label, string tooltip)> DefaultModels = new()
+    /// <summary>Known default models shown even before API validation.
+    /// The second tuple element is a TranslationSource key (tooltip text) so both
+    /// languages are covered.</summary>
+    private static readonly Dictionary<string, (string label, string tooltipKey)> DefaultModels = new()
     {
-        { "gemini-2.5-flash", ("Gemini 2.5 Flash (Recommended)", "Fastest model. Optimized for invoice extraction. Low cost.") },
-        { "gemini-2.0-flash", ("Gemini 2.0 Flash", "Previous generation. Still accurate. Slightly slower.") },
-        { "gemini-1.5-pro", ("Gemini 1.5 Pro", "Most capable. Highest cost. Best for complex documents.") },
-        { "grok-4.3", ("Grok 4.3 (Recommended)", "Alternative provider. Similar quality to Gemini. Good fallback.") },
-        { "grok-3.0", ("Grok 3.0", "Previous Grok version. Still works.") },
+        { "gemini-2.5-flash", ("Gemini 2.5 Flash (Recommended)", "ModelTooltipGemini25Flash") },
+        { "gemini-2.0-flash", ("Gemini 2.0 Flash", "ModelTooltipGemini20Flash") },
+        { "gemini-1.5-pro", ("Gemini 1.5 Pro", "ModelTooltipGemini15Pro") },
+        { "grok-4.3", ("Grok 4.3 (Recommended)", "ModelTooltipGrok43") },
+        { "grok-3.0", ("Grok 3.0", "ModelTooltipGrok30") },
     };
 
     public GeminiSetupWindow()
@@ -136,7 +138,7 @@ public partial class GeminiSetupWindow : Window
             if (!string.IsNullOrEmpty(key))
             {
                 GeminiKeyBox.Password = "••••••••";
-                KeyStatusIcon.Text = "✓ Saved";
+                KeyStatusIcon.Text = TranslationSource.Get("KeySavedBadge");
                 KeyStatusIcon.Foreground = (System.Windows.Media.Brush)FindResource("BrushSuccess");
             }
             else
@@ -162,19 +164,19 @@ public partial class GeminiSetupWindow : Window
         foreach (var kvp in DefaultModels)
         {
             string modelId = kvp.Key;
-            var (label, tooltip) = kvp.Value;
+            var (label, tooltipKey) = kvp.Value;
 
             // Only show models matching the current provider
             if ((_isGeminiProvider && modelId.StartsWith("gemini")) ||
                 (!_isGeminiProvider && modelId.StartsWith("grok")))
             {
                 string display = label;
-                string toolTipText = tooltip;
+                string toolTipText = TranslationSource.Get(tooltipKey);
 
                 // Mark the default/recommended model
                 if (modelId == "gemini-2.5-flash" || modelId == "grok-4.3")
                 {
-                    display = "⭐ " + label;
+                    display = "⭐ " + label.Replace("(Recommended)", TranslationSource.Get("ModelRecommendedSuffix"));
                 }
 
                 var item = new System.Windows.Controls.ComboBoxItem
@@ -455,7 +457,7 @@ public partial class GeminiSetupWindow : Window
 
             // Show saved indicator
             GeminiKeyBox.Password = "••••••••";
-            KeyStatusIcon.Text = "✓ Saved";
+            KeyStatusIcon.Text = TranslationSource.Get("KeySavedBadge");
             KeyStatusIcon.Foreground = (System.Windows.Media.Brush)Application.Current.FindResource("BrushSuccess");
 
             // ── Populate model dropdown now that key is saved ──
