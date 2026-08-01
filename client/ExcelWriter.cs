@@ -12,8 +12,35 @@ public sealed class ExcelWriter
     private static readonly XLColor MissingCellBg = XLColor.FromHtml("#8B0000");
     private static readonly XLColor White         = XLColor.White;
 
-    private static readonly string[] Headers =
-        { "N° Facture", "Date", "Fournisseur", "Client", "Direction", "Montant HT", "TVA", "Taxe", "TTC", "Nb Articles", "TVA/Article", "Confiance", "Fichier", "Moteur" };
+    // Legacy French sheet names — kept so append-to-existing still matches
+    // files created before localization (and files created in the other language).
+    private const string LegacyResultsSheet = "Résultats";
+    private const string LegacyIncompleteSheet = "Extractions Incomplètes";
+
+    private static string ResultsSheetName => TranslationSource.Get("ExportSheetResults");
+    private static string IncompleteSheetName => TranslationSource.Get("ExportSheetIncomplete");
+
+    /// <summary>
+    /// Builds the localized column headers. Read at export time so a culture
+    /// switch before exporting is reflected in the generated workbook.
+    /// </summary>
+    private static string[] BuildHeaders() => new[]
+    {
+        TranslationSource.Get("ExportHeaderNumero"),
+        TranslationSource.Get("ExportHeaderDate"),
+        TranslationSource.Get("ExportHeaderFournisseur"),
+        TranslationSource.Get("ExportHeaderClient"),
+        TranslationSource.Get("ExportHeaderDirection"),
+        TranslationSource.Get("ExportHeaderMontantHt"),
+        TranslationSource.Get("ExportHeaderTva"),
+        TranslationSource.Get("ExportHeaderTaxe"),
+        TranslationSource.Get("ExportHeaderTtc"),
+        TranslationSource.Get("ExportHeaderItemsCount"),
+        TranslationSource.Get("ExportHeaderTvaPerItem"),
+        TranslationSource.Get("ExportHeaderConfidence"),
+        TranslationSource.Get("ExportHeaderFile"),
+        TranslationSource.Get("ExportHeaderEngine"),
+    };
 
     /// <summary>
     /// Creates a brand-new workbook with Results and Incomplete Results sheets.
@@ -24,23 +51,22 @@ public sealed class ExcelWriter
         Directory.CreateDirectory(directory);
 
         using var workbook = new XLWorkbook();
-        WriteSheet(workbook, "Résultats", rows, highlightMissing: markMissing, showMissingText: markMissing);
-        WriteSheet(workbook, "Extractions Incomplètes", rows.Where(r => r.IsIncomplete).ToList(), highlightMissing: true, showMissingText: false);
+        WriteSheet(workbook, ResultsSheetName, rows, highlightMissing: markMissing, showMissingText: markMissing);
+        WriteSheet(workbook, IncompleteSheetName, rows.Where(r => r.IsIncomplete).ToList(), highlightMissing: true, showMissingText: false);
         workbook.SaveAs(outputPath);
     }
 
     /// <summary>
     /// Appends invoice data to an existing workbook. If a sheet with a known name
-    /// ("Résultats" or the specified sheetName) exists, data is appended below its
-    /// last populated row. Otherwise, a new sheet is created.
+    /// (the localized or legacy "Résultats", or the specified sheetName) exists,
+    /// data is appended below its last populated row. Otherwise, a new sheet is created.
     /// </summary>
     public void AppendToExisting(string outputPath, IReadOnlyList<InvoiceRowViewModel> rows, string? targetSheetName = null, bool markMissing = false)
     {
         using var workbook = new XLWorkbook(outputPath);
 
         // Main results sheet
-        string mainSheet = targetSheetName ?? "Résultats";
-        var resultsWs = workbook.Worksheets.FirstOrDefault(w => string.Equals(w.Name, mainSheet, StringComparison.OrdinalIgnoreCase));
+        var resultsWs = workbook.Worksheets.FirstOrDefault(w => IsResultsSheet(w, targetSheetName));
 
         if (resultsWs != null)
         {
@@ -49,15 +75,14 @@ public sealed class ExcelWriter
         }
         else
         {
-            resultsWs = workbook.Worksheets.Add(mainSheet);
+            resultsWs = workbook.Worksheets.Add(targetSheetName ?? ResultsSheetName);
             WriteHeaders(resultsWs);
             AppendRows(resultsWs, rows, 2, highlightMissing: markMissing, includeHeaders: false, showMissingText: markMissing);
         }
 
         // Incomplete extractions sheet
         var incompleteRows = rows.Where(r => r.IsIncomplete).ToList();
-        string incompleteSheetName = "Extractions Incomplètes";
-        var incWs = workbook.Worksheets.FirstOrDefault(w => string.Equals(w.Name, incompleteSheetName, StringComparison.OrdinalIgnoreCase));
+        var incWs = workbook.Worksheets.FirstOrDefault(w => IsIncompleteSheet(w));
 
         if (incWs != null)
         {
@@ -66,13 +91,33 @@ public sealed class ExcelWriter
         }
         else
         {
-            incWs = workbook.Worksheets.Add(incompleteSheetName);
+            incWs = workbook.Worksheets.Add(IncompleteSheetName);
             WriteHeaders(incWs);
             AppendRows(incWs, incompleteRows, 2, highlightMissing: true, includeHeaders: false, showMissingText: false);
         }
 
         workbook.Save();
     }
+
+    /// <summary>
+    /// True when the worksheet is the main results sheet: matches the explicitly
+    /// requested name, the localized name, or the legacy French name.
+    /// </summary>
+    private static bool IsResultsSheet(IXLWorksheet ws, string? targetSheetName)
+    {
+        return SheetNameEquals(ws.Name, targetSheetName)
+            || SheetNameEquals(ws.Name, ResultsSheetName)
+            || SheetNameEquals(ws.Name, LegacyResultsSheet);
+    }
+
+    private static bool IsIncompleteSheet(IXLWorksheet ws)
+    {
+        return SheetNameEquals(ws.Name, IncompleteSheetName)
+            || SheetNameEquals(ws.Name, LegacyIncompleteSheet);
+    }
+
+    private static bool SheetNameEquals(string a, string? b)
+        => b != null && string.Equals(a, b, StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// Returns the list of worksheet names in an existing workbook for selection.
@@ -97,10 +142,11 @@ public sealed class ExcelWriter
 
     private static void WriteHeaders(IXLWorksheet ws)
     {
-        for (int c = 0; c < Headers.Length; c++)
+        string[] headers = BuildHeaders();
+        for (int c = 0; c < headers.Length; c++)
         {
             var cell = ws.Cell(1, c + 1);
-            cell.Value = Headers[c];
+            cell.Value = headers[c];
             cell.Style.Font.Bold = true;
             cell.Style.Font.FontColor = White;
             cell.Style.Fill.BackgroundColor = HeaderBg;
@@ -156,9 +202,9 @@ public sealed class ExcelWriter
             SetCell(ws, rowIndex, 13, row.FileName, rowBg, false);
 
             // Engine used
-            string engineLabel = row.EngineUsed == "gemini" ? "Gemini (cloud)"
-                : row.EngineUsed == "grok" ? "Grok (xAI)"
-                : "OCR local";
+            string engineLabel = row.EngineUsed == "gemini" ? TranslationSource.Get("ExportEngineGemini")
+                : row.EngineUsed == "grok" ? TranslationSource.Get("ExportEngineGrok")
+                : TranslationSource.Get("ExportEngineOcr");
             SetCell(ws, rowIndex, 14, engineLabel, rowBg, false);
 
             rowIndex++;
@@ -180,7 +226,7 @@ public sealed class ExcelWriter
     private static void SetCell(IXLWorksheet ws, int row, int col, string? value, XLColor rowBg, bool highlight, bool showMissingText)
     {
         var cell = ws.Cell(row, col);
-        cell.Value = showMissingText ? "[MISSING]" : (value ?? string.Empty);
+        cell.Value = showMissingText ? TranslationSource.Get("ExportMissingMarker") : (value ?? string.Empty);
         cell.Style.Fill.BackgroundColor = highlight ? MissingCellBg : rowBg;
         cell.Style.Font.FontColor = White;
     }
