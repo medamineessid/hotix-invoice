@@ -1298,19 +1298,44 @@
                                             <RowDefinition Height="*" />
                                             <RowDefinition Height="Auto" />
                                         </Grid.RowDefinitions>
-                                        <ScrollViewer Grid.Row="0"
-                                                      VerticalScrollBarVisibility="Auto"
-                                                      HorizontalScrollBarVisibility="Auto"
-                                                      Background="{StaticResource BrushAltBackground}">
-                                            <Image Source="{Binding PreviewImageSource}"
-                                                   Stretch="None"
-                                                   RenderTransformOrigin="0.5,0.5">
-                                                <Image.RenderTransform>
-                                                    <ScaleTransform ScaleX="{Binding PreviewZoomLevel}"
-                                                                    ScaleY="{Binding PreviewZoomLevel}" />
-                                                </Image.RenderTransform>
-                                            </Image>
-                                        </ScrollViewer>
+                                        <Grid Grid.Row="0">
+                                            <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                                          HorizontalScrollBarVisibility="Auto"
+                                                          Background="{StaticResource BrushAltBackground}">
+                                                <Image Source="{Binding PreviewImageSource}"
+                                                       Stretch="None"
+                                                       RenderTransformOrigin="0.5,0.5">
+                                                    <Image.RenderTransform>
+                                                        <ScaleTransform ScaleX="{Binding PreviewZoomLevel}"
+                                                                        ScaleY="{Binding PreviewZoomLevel}" />
+                                                    </Image.RenderTransform>
+                                                </Image>
+                                            </ScrollViewer>
+                                            <!-- Overlay: shown when no preview image is available yet
+                                                 (e.g. server still starting for a PDF preview) -->
+                                            <TextBlock HorizontalAlignment="Center"
+                                                       VerticalAlignment="Center"
+                                                       TextWrapping="Wrap"
+                                                       TextAlignment="Center"
+                                                       MaxWidth="240"
+                                                       Margin="16">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock" BasedOn="{StaticResource TextBody}">
+                                                        <Setter Property="Text" Value="{Binding PreviewStatusMessage}" />
+                                                        <Setter Property="Foreground" Value="{StaticResource BrushTextMuted}" />
+                                                        <Setter Property="Visibility" Value="Visible" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding PreviewStatusMessage}" Value="">
+                                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                            </DataTrigger>
+                                                            <DataTrigger Binding="{Binding PreviewStatusMessage}" Value="{x:Null}">
+                                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
+                                        </Grid>
                                         <!-- Zoom controls -->
                                         <StackPanel Grid.Row="1"
                                                     Orientation="Horizontal"
@@ -1451,15 +1476,15 @@
                                                         <RowDefinition Height="Auto" />
                                                     </Grid.RowDefinitions>
 
-                                                    <!-- Header: label + item count + expand/collapse toggle -->
-                                                    <Border Grid.Row="0"
-                                                            Cursor="Hand"
-                                                            Padding="0,4">
-                                                        <Border.InputBindings>
-                                                            <MouseBinding MouseAction="LeftClick"
-                                                                          Command="{Binding DataContext.ToggleItemsExpandedCommand, RelativeSource={RelativeSource AncestorType=ScrollViewer}}"
-                                                                          CommandParameter="{Binding SelectedRow}" />
-                                                        </Border.InputBindings>
+                                                    <!-- Header: label + item count + expand/collapse toggle.
+                                                         Real Button (not Border + InputBindings): InputBindings live
+                                                         outside the visual/logical tree, so RelativeSource lookups
+                                                         inside them fail and the click silently did nothing. -->
+                                                    <Button Grid.Row="0"
+                                                            Style="{StaticResource TransparentButtonStyle}"
+                                                            Padding="0,4"
+                                                            Command="{Binding ToggleItemsExpandedCommand}"
+                                                            CommandParameter="{Binding SelectedRow}">
                                                         <Grid>
                                                             <Grid.ColumnDefinitions>
                                                                 <ColumnDefinition Width="*" />
@@ -1491,7 +1516,7 @@
                                                                 </TextBlock.Style>
                                                             </TextBlock>
                                                         </Grid>
-                                                    </Border>
+                                                    </Button>
 
                                                     <!-- Expandable content area -->
                                                     <Grid Grid.Row="1"

@@ -16,6 +16,7 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using Microsoft.Win32;
+using Sentry;
 using Hotix.InvoiceClient;
 
 namespace Hotix.InvoiceClient.ViewModels;
@@ -56,6 +57,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     private InvoiceRowViewModel? _selectedRow;
     private CancellationTokenSource? _extractionCts;
     private ImageSource? _previewImageSource;
+    private string _previewStatusMessage = string.Empty;
     private double _previewZoomLevel = 1.0;
     private bool _previewShowRawText;
     private string _directionFilter = "all";
@@ -132,9 +134,10 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             if (p is InvoiceRowViewModel row)
             {
                 row.CycleDirection();
-                // Re-evaluate filter in case row no longer matches
-                _resultsView?.Refresh();
-                _incompleteView?.Refresh();
+                // Re-evaluate filter in case row no longer matches.
+                // SafeRefreshView commits any in-flight DataGrid edit first,
+                // so Refresh() cannot throw (Sentry DOTNET-J).
+                RefreshFilteredViews();
             }
         });
         SetDirectionFilterCommand = new RelayCommand(p =>
@@ -626,8 +629,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             {
                 OnPropertyChanged(nameof(DirectionFilter));
                 OnPropertyChanged(nameof(DirectionFilterDisplay));
-                _resultsView?.Refresh();
-                _incompleteView?.Refresh();
+                RefreshFilteredViews();
             }
         }
     }
@@ -652,8 +654,29 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     /// <summary>Refresh both filtered views when collections change.</summary>
     private void RefreshFilteredViews()
     {
-        _resultsView?.Refresh();
-        _incompleteView?.Refresh();
+        SafeRefreshView(_resultsView);
+        SafeRefreshView(_incompleteView);
+    }
+
+    /// <summary>
+    /// Refreshes a filtered view, first committing/cancelling any in-flight
+    /// DataGrid edit transaction (AddNew/EditItem) so Refresh() cannot throw
+    /// InvalidOperationException ("Refresh not allowed during AddNew or
+    /// EditItem"). Residual failures are logged, never swallowed silently.
+    /// </summary>
+    private static void SafeRefreshView(ListCollectionView? view)
+    {
+        if (view == null) return;
+        try
+        {
+            if (view.IsAddingNew) view.CommitNew();
+            if (view.IsEditingItem) view.CommitEdit();
+            view.Refresh();
+        }
+        catch (InvalidOperationException ex)
+        {
+            Debug.WriteLine($"[Hotix] SafeRefreshView: {ex.GetType().Name}: {ex.Message}");
+        }
     }
 
     /// <summary>Image source for the preview panel (source doc page).</summary>
@@ -661,6 +684,16 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     {
         get => _previewImageSource;
         private set => SetField(ref _previewImageSource, value);
+    }
+
+    /// <summary>
+    /// Status message shown in the preview panel when no image can be displayed
+    /// yet (e.g. the server is still starting up for a PDF preview).
+    /// </summary>
+    public string PreviewStatusMessage
+    {
+        get => _previewStatusMessage;
+        private set => SetField(ref _previewStatusMessage, value);
     }
 
     /// <summary>Zoom level for the preview image (0.25x – 3.0x).</summary>
@@ -694,6 +727,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         if (_selectedRow == null || string.IsNullOrEmpty(_selectedRow.FilePath))
         {
             PreviewImageSource = null;
+            PreviewStatusMessage = string.Empty;
             return;
         }
 
@@ -701,6 +735,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         if (!File.Exists(filePath))
         {
             PreviewImageSource = null;
+            PreviewStatusMessage = string.Empty;
             return;
         }
 
@@ -713,8 +748,13 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                 // PDF — call server endpoint to render page 1
                 if (!_isServerStarted || !_isServerRunning)
                 {
-                    // Server not running; show null (no preview possible for PDF)
+                    // Server not ready — show a visible status message instead of a
+                    // silently empty preview. The preview is retried automatically
+                    // once the server becomes ready (see EnsureServerReadyAsync).
                     PreviewImageSource = null;
+                    PreviewStatusMessage = _isServerStarting
+                        ? TranslationSource.Get("PreviewServerStarting")
+                        : TranslationSource.Get("PreviewServerUnavailable");
                     return;
                 }
 
@@ -723,6 +763,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                 if (!response.IsSuccessStatusCode)
                 {
                     PreviewImageSource = null;
+                    PreviewStatusMessage = string.Empty;
                     return;
                 }
 
@@ -733,6 +774,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                 bitmap.StreamSource = new MemoryStream(imageBytes);
                 bitmap.EndInit();
                 bitmap.Freeze(); // Make cross-thread safe
+                PreviewStatusMessage = string.Empty;
                 PreviewImageSource = bitmap;
             }
             else
@@ -744,13 +786,18 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                 bitmap.UriSource = new Uri(filePath);
                 bitmap.EndInit();
                 bitmap.Freeze(); // Make cross-thread safe
+                PreviewStatusMessage = string.Empty;
                 PreviewImageSource = bitmap;
             }
         }
-        catch
+        catch (Exception ex)
         {
-            // Silently fail — preview is best-effort
+            // Preview is best-effort, but never fail silently — log the exact
+            // failure so locked files / bad paths / non-200 responses are visible.
             PreviewImageSource = null;
+            PreviewStatusMessage = string.Empty;
+            Debug.WriteLine($"[LoadPreviewImageAsync] failed for {filePath}: {ex}");
+            SentrySdk.CaptureException(ex);
         }
     }
 
@@ -1305,6 +1352,11 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                 IsServerRunning = true;
                 IsServerStarting = false;
                 ServerStartingStatus = string.Empty;
+
+                // Server is now ready — reload the preview for the selected row
+                // (it may have been skipped earlier because the server wasn't running).
+                if (SelectedRow != null)
+                    Application.Current.Dispatcher.InvokeAsync(() => { _ = LoadPreviewImageAsync(); });
 
                 // Re-check engine status now that server is running
                 await CheckEngineStatusAsync();

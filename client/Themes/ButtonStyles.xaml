@@ -170,6 +170,25 @@
         </Setter>
     </Style>
 
+    <!-- ═══ Transparent Button — chrome-free clickable header ═══ -->
+    <Style x:Key="TransparentButtonStyle" TargetType="Button">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        <Setter Property="HorizontalAlignment" Value="Stretch" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                      VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                                      Margin="{TemplateBinding Padding}" />
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <!-- ═══ Default Button ═══ -->
     <Style TargetType="Button" BasedOn="{StaticResource ButtonSecondaryStyle}" />
 
