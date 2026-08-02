@@ -16,11 +16,132 @@ from server.utils import (
     detect_amount_collision,
     extract_amount,
     extract_date,
+    format_amount_value,
     normalize_text,
     normalize_text_for_output,
     reconcile_amounts,
     validate_amounts,
 )
+
+
+# ── format_amount_value ────────────────────────────────────────────────────────
+
+
+class TestFormatAmountValue:
+    """Tests for the boundary normalizer that converts Gemini float amounts
+    to the canonical 3-decimal string format (regression for the
+    AttributeError/Pydantic string_type crash on engine=gemini)."""
+
+    def test_none_returns_none(self):
+        assert format_amount_value(None) is None
+
+    def test_empty_string_returns_none(self):
+        assert format_amount_value("") is None
+
+    def test_whitespace_string_returns_none(self):
+        assert format_amount_value("   ") is None
+
+    def test_float_formats_three_decimals(self):
+        assert format_amount_value(1250.0) == "1250.000"
+
+    def test_float_fraction(self):
+        assert format_amount_value(1234.5678) == "1234.568"
+
+    def test_int_formats_three_decimals(self):
+        assert format_amount_value(42) == "42.000"
+
+    def test_decimal_formats_three_decimals(self):
+        assert format_amount_value(Decimal("99.99")) == "99.990"
+
+    def test_string_dot_format(self):
+        assert format_amount_value("1250.5") == "1250.500"
+
+    def test_string_french_format(self):
+        assert format_amount_value("1 250,00") == "1250.000"
+
+    def test_string_french_comma_thousands(self):
+        assert format_amount_value("1.234,56") == "1234.560"
+
+    def test_string_us_thousands(self):
+        assert format_amount_value("1,234.56") == "1234.560"
+
+    def test_negative_float(self):
+        assert format_amount_value(-50.5) == "-50.500"
+
+    def test_garbage_string_returns_none(self):
+        assert format_amount_value("not-a-number") is None
+
+    def test_zero(self):
+        assert format_amount_value(0) == "0.000"
+
+    def test_nan_returns_none(self):
+        """NaN must not crash the quantize() call — returns None instead."""
+        assert format_amount_value(float("nan")) is None
+
+    def test_infinity_returns_none(self):
+        assert format_amount_value(float("inf")) is None
+        assert format_amount_value(float("-inf")) is None
+
+    def test_huge_float_returns_none(self):
+        """Extreme magnitudes overflow quantize precision — return None, not crash."""
+        assert format_amount_value(1e308) is None
+
+    def test_us_thousands_multiple_commas(self):
+        """1,234,567.89 → 1234567.890 (US thousands separators)."""
+        assert format_amount_value("1,234,567.89") == "1234567.890"
+
+    def test_french_comma_decimal_only(self):
+        """1234,56 → 1234.560 (French decimal comma, no dot)."""
+        assert format_amount_value("1234,56") == "1234.560"
+
+
+class TestDecimalToleratesNumericInput:
+    """Regression: reconcile_amounts / validate_amounts used to crash with
+    AttributeError ('float' object has no attribute 'strip') when handed a
+    raw numeric amount. Now they must accept floats/ints defensively."""
+
+    def test_reconcile_with_float_amounts(self):
+        fields = {
+            "montant_ht": 1000.0,
+            "montant_tva": 200.0,
+            "montant_taxe": None,
+            "montant_ttc": None,
+        }
+        result, computed, mismatch = reconcile_amounts(fields, {})
+        assert result["montant_ttc"] == "1200.000"
+        assert "montant_ttc" in computed
+        assert not mismatch
+
+    def test_reconcile_mixed_float_and_string(self):
+        fields = {
+            "montant_ht": "1000.000",
+            "montant_tva": 200.0,
+            "montant_taxe": None,
+            "montant_ttc": None,
+        }
+        result, computed, mismatch = reconcile_amounts(fields, {})
+        assert result["montant_ttc"] == "1200.000"
+        assert not mismatch
+
+    def test_validate_amounts_with_float_amounts(self):
+        fields = {
+            "montant_ht": 1000.0,
+            "montant_tva": 200.0,
+            "montant_taxe": None,
+            "montant_ttc": None,
+        }
+        result = validate_amounts(fields)
+        assert result["montant_ttc"] == "1200.000"
+
+    def test_detect_collision_with_float_amounts(self):
+        """detect_amount_collision must not crash on float inputs either."""
+        fields = {
+            "montant_ht": 1000.0,
+            "montant_tva": 1000.0,
+            "montant_taxe": None,
+            "montant_ttc": None,
+        }
+        assert detect_amount_collision(fields) is True
 
 
 # ── extract_amount ────────────────────────────────────────────────────────────

@@ -303,9 +303,26 @@ def cluster_rows(lines: Sequence[OCRLine]) -> list[list[OCRLine]]:
     return [sub_row for _, sub_row in tagged_sub_rows]
 
 
-def _parse_decimal(value: Optional[str]) -> Optional[Decimal]:
-    """Parse a French-format amount string (e.g. '1 250,00' or '1250.000') to Decimal."""
-    if not value:
+def _parse_decimal(value: object) -> Optional[Decimal]:
+    """Parse a French-format amount string (e.g. '1 250,00' or '1250.000') to Decimal.
+
+    Also accepts int/float/Decimal directly (defensive — some callers, notably the
+    Gemini path's normalized fields, may hand this a raw number rather than
+    the canonical formatted string; crashing with AttributeError on
+    non-string input here previously broke extraction for any code path that
+    forgot to pre-format its amounts).
+    """
+    if value is None:
+        return None
+    if isinstance(value, (int, float, Decimal)):
+        try:
+            return Decimal(str(value))
+        except InvalidOperation:
+            return None
+    if not isinstance(value, str):
+        # Truthy non-string non-numeric input (e.g. a list or dict) would
+        # crash on value.strip() — the function's defensive contract is
+        # str/numeric only; anything else is None.
         return None
     cleaned = value.strip()
     if not cleaned:
@@ -314,11 +331,25 @@ def _parse_decimal(value: Optional[str]) -> Optional[Decimal]:
         return Decimal(cleaned)
     except InvalidOperation:
         pass
-    # Try French format: remove spaces, replace comma with dot
+    # Try localized formats: remove spaces, then disambiguate comma vs dot
+    # the same way extract_amount does (French: 1.234,56 → 1234.56 ;
+    # US thousands: 1,234.56 → 1234.56).
     try:
         cleaned = cleaned.replace(" ", "").replace("\u00a0", "")
-        if "," in cleaned:
-            cleaned = cleaned.replace(".", "").replace(",", ".")
+        if "," in cleaned and "." in cleaned:
+            # Ambiguous mixed separators — the last separator wins: if it's a
+            # comma (1.234,56) that comma is the decimal point, otherwise
+            # commas are thousands separators (1,234.56).
+            if cleaned.rfind(",") > cleaned.rfind("."):
+                cleaned = cleaned.replace(".", "").replace(",", ".")
+            else:
+                cleaned = cleaned.replace(",", "")
+        elif "," in cleaned:
+            # Single trailing comma = decimal separator; otherwise thousands.
+            if cleaned.count(",") == 1 and len(cleaned.split(",")[-1]) in {1, 2, 3}:
+                cleaned = cleaned.replace(",", ".")
+            else:
+                cleaned = cleaned.replace(",", "")
         return Decimal(cleaned)
     except (InvalidOperation, ValueError):
         return None
@@ -327,6 +358,27 @@ def _parse_decimal(value: Optional[str]) -> Optional[Decimal]:
 def _format_amount(value: Decimal) -> str:
     """Format a Decimal amount to the canonical 3-decimal string."""
     return f"{value.quantize(Decimal('0.001')):.3f}"
+
+
+def format_amount_value(value: object) -> Optional[str]:
+    """Convert any numeric amount (int, float, Decimal, or numeric string) to the
+    canonical 3-decimal string format used throughout the extraction pipeline
+    and by InvoiceExtractionResponse (montant_ht/tva/taxe/ttc are typed Optional[str]).
+
+    Returns None for None/empty input, values that can't be parsed as a number,
+    and non-finite or extreme-magnitude values (NaN, ±Infinity, values that
+    overflow the 3-decimal quantize precision).
+    """
+    decimal_value = _parse_decimal(value)
+    if decimal_value is None or not decimal_value.is_finite():
+        # NaN / Infinity / huge values can't be quantized to 3 decimals —
+        # Decimal(str(nan)) constructs fine but quantize() would raise.
+        return None
+    try:
+        return _format_amount(decimal_value)
+    except InvalidOperation:
+        # Extreme magnitudes (e.g. 1E+308) overflow the quantize precision.
+        return None
 
 
 def validate_amounts(fields: dict[str, Optional[str]]) -> dict[str, Optional[str]]:

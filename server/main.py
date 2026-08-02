@@ -32,7 +32,7 @@ from .field_extractor import (
     cross_validate_fields,
     compute_confidence,
 )
-from .utils import reconcile_amounts, detect_amount_collision
+from .utils import reconcile_amounts, detect_amount_collision, format_amount_value
 
 from typing import Literal
 from .gemini_extractor import extract_with_gemini, GeminiExtractionError, load_gemini_api_key, load_gemini_model, _get_settings_path
@@ -530,6 +530,20 @@ async def _run_gemini_extraction(
         # Separate items from the flat fields
         gemini_items = result.pop("items", [])
         fields = result  # remaining keys are the 8 flat fields
+
+        # gemini_extractor normalizes montant_* to float by design (the model
+        # is instructed to return numbers, not strings — see gemini_extractor.py
+        # docstring). Every downstream consumer (InvoiceExtractionResponse,
+        # reconcile_amounts, cross_validate_fields, the client DTO) expects
+        # the canonical "123.456" 3-decimal STRING format the OCR path already
+        # produces. Convert here, once, at the boundary, instead of each
+        # consumer having to handle both types — this is what previously broke:
+        # reconcile_amounts._parse_decimal called .strip() on a raw float and
+        # crashed (or, for engine="gemini" explicitly, Pydantic rejected the
+        # float outright with a "string_type" validation error).
+        for amount_key in ("montant_ht", "montant_tva", "montant_taxe", "montant_ttc"):
+            fields[amount_key] = format_amount_value(fields.get(amount_key))
+
         # Cross-field validation before reconciliation
         gemini_issues = cross_validate_fields(fields)
         # Reconcile monetary amounts (compute missing, flag mismatches)
