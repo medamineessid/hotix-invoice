@@ -17,12 +17,15 @@ import pytest
 
 from server.field_extractor import (
     _candidate_is_plausible_numero_facture,
+    _cluster_full_visual_rows,
     _compute_page_extents,
+    _contains_any_alias,
     _extract_numero_facture_v2,
     _find_numero_candidates_by_pattern,
     _looks_like_address,
     _looks_like_amount,
     _parse_cell_value,
+    _row_has_disqualifying_context,
     _score_by_date_proximity,
     _score_by_position,
     extract_field_selections_raw,
@@ -71,6 +74,26 @@ class TestLooksLikeAmount:
     def test_empty_string(self):
         """Empty string → False."""
         assert _looks_like_amount("") is False
+
+    # ── 3-decimal (TND/dinar millimes) support ────────────────────────────
+    # Tunisian invoices quote amounts to 3 decimals (850.000 TND) as
+    # standard; a 2-decimal-only check silently misses most local amounts.
+
+    def test_tnd_three_decimal(self):
+        """850.000 (TND 3-decimal) → True."""
+        assert _looks_like_amount("850.000") is True
+
+    def test_tnd_three_decimal_french_thousands(self):
+        """1 250,000 (space thousands + comma decimal + 3 decimals) → True."""
+        assert _looks_like_amount("1 250,000") is True
+
+    def test_tnd_three_decimal_dot_thousands(self):
+        """1.250,000 → True."""
+        assert _looks_like_amount("1.250,000") is True
+
+    def test_phone_number_not_amount(self):
+        """Bare 8-digit phone number must NOT look like an amount (no separator)."""
+        assert _looks_like_amount("71234567") is False
 
 
 # ── _looks_like_address ───────────────────────────────────────────────────────
@@ -565,13 +588,14 @@ class TestExtractItemTable:
         assert items == []
 
     def test_no_header_no_items(self):
-        """Lines with no table header → empty items list."""
+        """Lines with no table header AND no amount-ending rows → empty list."""
         lines = [
             OCRLine("Some invoice text", BoundingBox(0, 0, 100, 20), 0.9, 0, 0),
             OCRLine("Total TTC: 120.00", BoundingBox(0, 30, 150, 50), 0.95, 0, 1),
         ]
         items = extract_item_table(lines)
-        # No table header found → empty list (safe degradation)
+        # No header → geometric fallback; no row ends with a bare amount
+        # ("Total TTC: 120.00" has label + amount inline) → empty list
         assert items == []
 
     def test_garbage_lines_no_crash(self):
@@ -593,6 +617,174 @@ class TestExtractItemTable:
         items = extract_item_table(lines)
         # Items may be empty (no header found) but should not crash
         assert isinstance(items, list)
+
+
+# ── _row_has_disqualifying_context ────────────────────────────────────────────
+
+
+class TestNumeroDisqualifier:
+    """Tests for the same-row disqualifier that prevents phone/tax-ID/bank
+    numbers from being picked as the invoice number."""
+
+    def test_phone_row_is_disqualifying(self):
+        """An 8-digit phone on the same row as a "Tél" label → disqualifying."""
+        phone = OCRLine("71234567", BoundingBox(40, 100, 120, 120), 0.95, 0, 1)
+        rows = [
+            [OCRLine("Tél", BoundingBox(0, 100, 30, 120), 0.9, 0, 0), phone],
+        ]
+        assert _row_has_disqualifying_context(phone, rows) is True
+
+    def test_iban_row_is_disqualifying(self):
+        """A digit string on a row with an IBAN label → disqualifying."""
+        candidate = OCRLine("TN59 1000 6035 1835", BoundingBox(60, 200, 220, 220), 0.9, 0, 1)
+        rows = [
+            [OCRLine("IBAN", BoundingBox(0, 200, 40, 220), 0.9, 0, 0), candidate],
+        ]
+        assert _row_has_disqualifying_context(candidate, rows) is True
+
+    def test_clean_row_is_not_disqualifying(self):
+        """A row without disqualifying labels → not disqualifying."""
+        candidate = OCRLine("FAC-2025-001", BoundingBox(60, 0, 180, 20), 0.95, 0, 1)
+        rows = [
+            [OCRLine("N° Facture", BoundingBox(0, 0, 60, 20), 0.9, 0, 0), candidate],
+        ]
+        assert _row_has_disqualifying_context(candidate, rows) is False
+
+    def test_phone_rejected_when_label_present(self):
+        """Integration: a phone number next to "Tél" is NOT picked as numero_facture.
+
+        The 8-digit phone matches pattern 3 (score 100) and would normally be
+        accepted — the -350 disqualifier penalty drops it below MIN_NUMERO_SCORE.
+        """
+        lines = [
+            OCRLine("Tél", BoundingBox(0, 100, 30, 120), 0.9, 0, 0),
+            OCRLine("71234567", BoundingBox(40, 100, 120, 120), 0.95, 0, 1),
+        ]
+        rows = [[lines[0], lines[1]]]
+        result = _extract_numero_facture_v2(rows, lines)
+        assert result.value is None
+
+    def test_phone_accepted_without_label(self):
+        """Control: the SAME phone with no disqualifying label IS accepted —
+        proving the rejection above is caused by the disqualifier, not the
+        pattern/penalty machinery."""
+        lines = [
+            OCRLine("71234567", BoundingBox(40, 100, 120, 120), 0.95, 0, 0),
+        ]
+        rows = [[lines[0]]]
+        result = _extract_numero_facture_v2(rows, lines)
+        assert result.value == "71234567"
+
+    def test_real_invoice_number_still_wins_over_phone(self):
+        """A real invoice number elsewhere on the page is picked over a
+        disqualified phone candidate."""
+        lines = [
+            OCRLine("FAC-2025-001", BoundingBox(200, 5, 350, 25), 0.95, 0, 0),
+            OCRLine("Tél", BoundingBox(0, 100, 30, 120), 0.9, 0, 1),
+            OCRLine("71234567", BoundingBox(40, 100, 120, 120), 0.95, 0, 2),
+        ]
+        rows = [[lines[0]], [lines[1], lines[2]]]
+        result = _extract_numero_facture_v2(rows, lines)
+        assert result.value is not None
+        assert "FAC-2025-001" in result.value
+
+
+# ── Arabic column headers ─────────────────────────────────────────────────────
+
+
+class TestArabicColumnHeaders:
+    """Tests for Arabic table-header aliases.
+
+    NOTE: normalize_text() ASCII-folds (strips non-ASCII), which would
+    silently erase Arabic aliases — _contains_any_alias must fall back to
+    whole-word matching against the raw text for non-ASCII aliases.
+    """
+
+    def test_contains_any_alias_arabic(self):
+        """Arabic aliases match the raw text even though normalize_text
+        strips them to empty."""
+        assert _contains_any_alias("البيان الكمية المبلغ", ["البيان"]) is True
+        assert _contains_any_alias("الكمية", ["الكمية"]) is True
+        assert _contains_any_alias("المبلغ", ["المجموع"]) is False
+
+    def test_arabic_header_extracts_items(self):
+        """A table with Arabic column headers yields items via the normal
+        header-anchored path (not the geometric fallback)."""
+        lines = [
+            # Header row
+            OCRLine("البيان", BoundingBox(0, 0, 80, 20), 0.9, 0, 0),
+            OCRLine("الكمية", BoundingBox(100, 0, 160, 20), 0.9, 0, 1),
+            OCRLine("المبلغ", BoundingBox(200, 0, 280, 20), 0.9, 0, 2),
+            # Item row 1
+            OCRLine("منتج أ", BoundingBox(0, 30, 80, 50), 0.95, 0, 3),
+            OCRLine("2", BoundingBox(100, 30, 140, 50), 0.95, 0, 4),
+            OCRLine("850.000", BoundingBox(200, 30, 280, 50), 0.95, 0, 5),
+            # Item row 2
+            OCRLine("منتج ب", BoundingBox(0, 60, 80, 80), 0.95, 0, 6),
+            OCRLine("1", BoundingBox(100, 60, 140, 80), 0.95, 0, 7),
+            OCRLine("250.000", BoundingBox(200, 60, 280, 80), 0.95, 0, 8),
+        ]
+        items = extract_item_table(lines)
+        assert len(items) == 2
+        assert items[0]["designation"] == "منتج أ"
+        assert items[0]["quantite"] == 2.0
+        assert items[0]["montant"] == 850.0
+        assert items[1]["montant"] == 250.0
+
+
+# ── Geometric item-table fallback (no header) ────────────────────────────────
+
+
+class TestItemTableGeometric:
+    """Tests for the headerless item-table fallback that reads rows ending in
+    an amount-like value on their right edge."""
+
+    def test_cluster_full_visual_rows_keeps_wide_rows_together(self):
+        """A designation and its far-right amount stay in one row (no gap split)."""
+        lines = [
+            OCRLine("Designation", BoundingBox(0, 0, 100, 20), 0.9, 0, 0),
+            OCRLine("850.000", BoundingBox(400, 0, 480, 20), 0.95, 0, 1),
+        ]
+        rows = _cluster_full_visual_rows(lines)
+        assert len(rows) == 1
+        assert len(rows[0]) == 2
+
+    def test_no_header_but_amount_rows_extract_items(self):
+        """No header row, but 2+ rows ending in amounts → items via fallback."""
+        lines = [
+            OCRLine("Chaise bureau", BoundingBox(0, 0, 120, 20), 0.9, 0, 0),
+            OCRLine("850.000", BoundingBox(400, 0, 480, 20), 0.95, 0, 1),
+            OCRLine("Table", BoundingBox(0, 30, 80, 50), 0.9, 0, 2),
+            OCRLine("250.000", BoundingBox(400, 30, 480, 50), 0.95, 0, 3),
+        ]
+        items = extract_item_table(lines)
+        assert len(items) == 2
+        assert items[0]["designation"] == "Chaise bureau"
+        assert items[0]["montant"] == 850.0
+        assert items[1]["montant"] == 250.0
+
+    def test_single_amount_row_no_items(self):
+        """A single amount-ending row is more likely a totals line → no items."""
+        lines = [
+            OCRLine("Total TTC", BoundingBox(0, 0, 80, 20), 0.9, 0, 0),
+            OCRLine("1200.000", BoundingBox(300, 0, 380, 20), 0.95, 0, 1),
+        ]
+        items = extract_item_table(lines)
+        assert items == []
+
+    def test_totals_rows_filtered_out(self):
+        """Rows containing footer aliases (Total TTC) are excluded from items."""
+        lines = [
+            OCRLine("Produit A", BoundingBox(0, 0, 100, 20), 0.9, 0, 0),
+            OCRLine("100.000", BoundingBox(300, 0, 380, 20), 0.95, 0, 1),
+            OCRLine("Produit B", BoundingBox(0, 30, 100, 50), 0.9, 0, 2),
+            OCRLine("200.000", BoundingBox(300, 30, 380, 50), 0.95, 0, 3),
+            OCRLine("Total TTC", BoundingBox(0, 60, 90, 80), 0.9, 0, 4),
+            OCRLine("300.000", BoundingBox(300, 60, 380, 80), 0.95, 0, 5),
+        ]
+        items = extract_item_table(lines)
+        assert len(items) == 2  # totals row filtered out
+        assert {i["montant"] for i in items} == {100.0, 200.0}
 
 
 # ── extract_field_selections_raw ──────────────────────────────────────────────

@@ -901,12 +901,21 @@ def _contains_any_alias(text: str, aliases: Sequence[str]) -> bool:
 
     Uses word-boundary matching (\\b) to prevent false positives from short
     aliases — e.g. "no" matching inside "nom", or "ht" matching inside "echt".
+
+    Non-ASCII aliases (e.g. the Arabic column headers like "البيان") are
+    handled separately: normalize_text() ASCII-folds them to an empty string,
+    which would otherwise silently skip every such alias.  They are matched
+    as whole words against the raw text instead.
     """
 
     normalized = normalize_text(text)
     for alias in aliases:
         alias_normalized = normalize_text(alias)
         if not alias_normalized:
+            # Fully non-ASCII alias — normalize_text() strips it to empty,
+            # so match the alias as a whole word against the original text.
+            if alias and re.search(r"(?<!\w)" + re.escape(alias) + r"(?!\w)", text):
+                return True
             continue
         # Word-boundary anchored pattern prevents substring false matches
         pattern = re.compile(r"\b" + re.escape(alias_normalized) + r"\b")
@@ -1150,6 +1159,34 @@ _NUMERO_FACTURE_ANCHORS = (
 )
 
 
+# Labels that, when found on the same visual row as a numero_facture candidate,
+# indicate the digits belong to a different field (phone, tax ID, bank account)
+# and must never be picked as the invoice number — even though they can match
+# the same bare-digit-string regex patterns below (e.g. an 8-digit Tunisian
+# phone number matches pattern 3 just as well as a real invoice number).
+_NUMERO_DISQUALIFIER_ALIASES = (
+    "matricule fiscal", "m.f.", "mf n°", "siret", "siren",
+    "rc n°", "registre de commerce", "tva intracommunautaire", "tva intracom",
+    "tél", "tel", "téléphone", "telephone", "gsm", "fax", "mobile", "portable",
+    "iban", "rib", "swift", "bic",
+)
+
+
+def _row_has_disqualifying_context(line: OCRLine, rows: list[list[OCRLine]]) -> bool:
+    """Return True when the candidate's row also carries a non-invoice label.
+
+    A bare digit string can accidentally match the numero_facture regex
+    patterns while actually being a phone number, tax ID, or bank reference.
+    If another OCR line on the same visual row contains one of the disqualifying
+    labels above, the candidate is rejected regardless of its pattern score.
+    """
+    row_idx = _row_index_of(line, rows)
+    if row_idx < 0:
+        return False
+    row_text = " ".join(l.text for l in rows[row_idx])
+    return _contains_any_alias(row_text, _NUMERO_DISQUALIFIER_ALIASES)
+
+
 # ── v5: Hybrid invoice-number extraction (pattern + position + date proximity) ──
 
 # Regex patterns for detecting invoice numbers without explicit labels.
@@ -1174,9 +1211,14 @@ _NUMERO_PATTERNS: list[tuple[str, int]] = [
 
 
 def _looks_like_amount(text: str) -> bool:
-    """Return True when the text looks like a monetary amount."""
-    # Match pattern like 1.234,56 or 1234.56
-    if re.match(r'^\d{1,3}(?:[ .]\d{3})*[,.]\d{2}$', text):
+    """Return True when the text looks like a monetary amount.
+
+    Accepts both 2-decimal (1.234,56 / 1234.56 — EUR/USD-style) and
+    3-decimal (850.000 — TND/dinar millimes) formats. Tunisian invoices
+    quote amounts to 3 decimals as standard, so a 2-decimal-only check
+    silently fails to recognize the majority of amounts on local invoices.
+    """
+    if re.match(r'^\d{1,3}(?:[ .]\d{3})*[,.]\d{2,3}$', text):
         return True
     return False
 
@@ -1415,6 +1457,8 @@ def _extract_numero_facture_v2(
             total_score -= 150.0
         if len(val) > 25:
             total_score -= 50.0
+        if _row_has_disqualifying_context(line, rows):
+            total_score -= 350.0
 
         scored.append((line, total_score, val))
 
@@ -1485,19 +1529,24 @@ TABLE_COLUMN_HEADERS: dict[str, tuple[str, ...]] = {
     "designation": (
         "désignation", "designation", "description", "libellé", "libelle",
         "article", "produit",
+        "البيان", "الوصف", "الصنف",  # Arabic: statement/description/item
     ),
     "quantite": (
         "quantité", "quantite", "qté", "qte", "qty", "quant",
+        "الكمية",  # Arabic: quantity
     ),
     "prix_unitaire": (
         "prix unitaire", "prixunitaire", "p.u.", "pu", "prix ht", "prix",
+        "سعر الوحدة", "السعر",  # Arabic: unit price / price
     ),
     "tva_rate": (
         "tva", "taux tva", "taux", "tva %", "taux de tva", "tva%",
+        "ض.ق.م", "نسبة",  # Arabic: VAT abbreviation / rate
     ),
     "montant": (
         "montant", "total ht", "total", "montant ht", "montant h.t.",
         "montant ttc",
+        "المبلغ", "المجموع",  # Arabic: amount / total
     ),
 }
 
@@ -1518,6 +1567,134 @@ _FOOTER_ALIASES.add("arrêté")
 _FOOTER_ALIASES.add("arrete")
 _FOOTER_ALIASES.add("total due")
 _FOOTER_ALIASES.add("grand total")
+
+
+def _cluster_full_visual_rows(ocr_lines: Sequence[OCRLine]) -> list[list[OCRLine]]:
+    """Group OCR lines by vertical overlap only, WITHOUT splitting on horizontal gaps.
+
+    cluster_rows() (in utils.py) intentionally splits a visual row into
+    sub-rows when two lines are more than 5x-height apart horizontally —
+    correct for separating unrelated two-column blocks, but wrong here: a
+    real item-table row's designation and its amount are typically *exactly*
+    that far apart (the empty quantity/price columns sit between them). Using
+    cluster_rows() directly would silently split every table row into two
+    "rows" — designation alone, amount alone — and the amount-ending check
+    below would never see a designation next to its amount.
+    """
+    if not ocr_lines:
+        return []
+    sorted_lines = sorted(ocr_lines, key=lambda l: (l.page_index, l.box.y1))
+    rows: list[list[OCRLine]] = []
+    used = [False] * len(sorted_lines)
+    for i, ln in enumerate(sorted_lines):
+        if used[i]:
+            continue
+        current_row = [ln]
+        used[i] = True
+        for j in range(i + 1, len(sorted_lines)):
+            if used[j]:
+                continue
+            candidate = sorted_lines[j]
+            if candidate.page_index != ln.page_index:
+                continue
+            overlap = ln.box.vertical_overlap(candidate.box)
+            shorter_height = min(ln.box.height, candidate.box.height)
+            if shorter_height > 0 and overlap / shorter_height > 0.5:
+                current_row.append(candidate)
+                used[j] = True
+        current_row.sort(key=lambda l: l.box.x1)
+        rows.append(current_row)
+    return rows
+
+
+def _extract_item_table_geometric(
+    ocr_lines: Sequence[OCRLine], rows: list[list[OCRLine]]
+) -> list[dict[str, object]]:
+    """Fallback item-table extraction when no header row can be found.
+
+    Some invoices lay out their item table without OCR-readable column
+    headers (skewed scan, stylized/colored header row, unusual wording not
+    covered by TABLE_COLUMN_HEADERS). This strategy skips header detection
+    entirely and looks for a run of rows that each end with an amount-like
+    value on their right edge — the visual signature of an item table
+    (designation ... price/total flush right on every row). The rightmost
+    token on each row is read as ``montant``; everything to its left is
+    joined as ``designation``; a bare small integer or a "%"-suffixed token
+    among the remaining tokens is opportunistically read as ``quantite`` /
+    ``tva_rate``. ``prix_unitaire`` is left unset — position alone can't
+    reliably distinguish it from designation without a header.
+
+    Because there is no explicit column identity here (only position),
+    results are inherently less certain than header-anchored extraction —
+    this is a best-effort fallback, not a replacement for it.
+
+    NOTE: ``rows`` (the caller's cluster_rows() output, sub-row split) is
+    accepted but intentionally unused for row grouping — see
+    _cluster_full_visual_rows for why. It's kept as a parameter so the call
+    site in extract_item_table doesn't need to special-case this function.
+    """
+    full_rows = _cluster_full_visual_rows(ocr_lines)
+    if not full_rows:
+        return []
+
+    candidate_rows: list[list[OCRLine]] = []
+    for row in full_rows:
+        if len(row) < 2:
+            continue
+        rightmost = max(row, key=lambda l: l.box.x2)
+        if _looks_like_amount(rightmost.text.strip()):
+            candidate_rows.append(row)
+
+    # Require 2+ amount-ending rows — a single match is more likely a totals
+    # line than a genuine item table.
+    if len(candidate_rows) < 2:
+        _debug_log("extract_item_table_geometric: fewer than 2 amount-ending rows — skipping")
+        return []
+
+    # Drop rows that are actually part of the totals block (HT/TVA/TTC etc.)
+    filtered_rows = [
+        row for row in candidate_rows
+        if not _contains_any_alias(
+            " ".join(l.text.strip() for l in row if l.text.strip()).lower(),
+            list(_FOOTER_ALIASES),
+        )
+    ]
+    if len(filtered_rows) < 2:
+        _debug_log("extract_item_table_geometric: fewer than 2 rows after footer filtering — skipping")
+        return []
+
+    items: list[dict[str, object]] = []
+    for row in filtered_rows:
+        sorted_row = sorted(row, key=lambda l: l.box.x1)
+        rightmost = sorted_row[-1]
+        montant = _parse_cell_value("montant", rightmost.text.strip())
+
+        remaining = sorted_row[:-1]
+        designation_parts = [l.text.strip() for l in remaining if l.text.strip()]
+        designation = " ".join(designation_parts) if designation_parts else None
+
+        quantite = None
+        tva_rate = None
+        for token in remaining:
+            text = token.text.strip()
+            if quantite is None and re.match(r'^\d{1,4}$', text):
+                quantite = _parse_cell_value("quantite", text)
+            elif tva_rate is None and "%" in text:
+                tva_rate = _parse_cell_value("tva_rate", text)
+
+        if designation is None and montant is None:
+            continue
+
+        items.append({
+            "designation": designation,
+            "quantite": quantite,
+            "prix_unitaire": None,
+            "tva_rate": tva_rate,
+            "montant": montant,
+        })
+
+    _debug_log(f"extract_item_table_geometric: extracted {len(items)} items via geometric fallback")
+    return items
 
 
 def extract_item_table(ocr_lines: Sequence[OCRLine]) -> list[dict[str, object]]:
@@ -1541,8 +1718,8 @@ def extract_item_table(ocr_lines: Sequence[OCRLine]) -> list[dict[str, object]]:
     # Step 1: find the header row
     header_row_idx, column_bounds = _find_table_header(rows)
     if header_row_idx is None or not column_bounds:
-        _debug_log("extract_item_table: no table header found — returning empty")
-        return []
+        _debug_log("extract_item_table: no table header found — trying geometric fallback")
+        return _extract_item_table_geometric(ocr_lines, rows)
 
     _debug_log(f"extract_item_table: header at row {header_row_idx}, columns: {list(column_bounds.keys())}")
 
