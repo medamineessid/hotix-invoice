@@ -73,10 +73,10 @@ Filename: "{app}\diagnostics\HotixDiagnostics.exe"; Description: "Run Hotix Diag
 
 [Registry]
 ; Add Poppler to system PATH for PDF support
-Root: HKLM; Subkey: "SYSTEM\CurrentControlSet\Control\Session Manager\Environment"; ValueType: expandsz; ValueName: "Path"; ValueData: "{olddata};{app}\poppler\bin"; Check: DirExists(ExpandConstant('{app}\poppler\bin'))
+Root: HKLM; Subkey: "SYSTEM\CurrentControlSet\Control\Session Manager\Environment"; ValueType: expandsz; ValueName: "Path"; ValueData: "{olddata};{app}\poppler\Library\bin"; Check: DirExists(ExpandConstant('{app}\poppler\Library\bin'))
 
 ; Set POPPLER_PATH environment variable for server configuration
-Root: HKLM; Subkey: "SYSTEM\CurrentControlSet\Control\Session Manager\Environment"; ValueType: string; ValueName: "POPPLER_PATH"; ValueData: "{app}\poppler\bin"; Check: DirExists(ExpandConstant('{app}\poppler\bin'))
+Root: HKLM; Subkey: "SYSTEM\CurrentControlSet\Control\Session Manager\Environment"; ValueType: string; ValueName: "POPPLER_PATH"; ValueData: "{app}\poppler\Library\bin"; Check: DirExists(ExpandConstant('{app}\poppler\Library\bin'))
 
 [UninstallDelete]
 ; Clean up venv and logs on uninstall
