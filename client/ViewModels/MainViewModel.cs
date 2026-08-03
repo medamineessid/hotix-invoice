@@ -84,6 +84,10 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     private bool _grokDisabled;
     private string _geminiDisabledReason = string.Empty;
     private string _grokDisabledReason = string.Empty;
+    // Session-scope memory for the quota dialog: when the user picks "continue
+    // with OCR" and asks to remember it, we don't re-prompt on later batches.
+    private bool _geminiOcrChosenForSession;
+    private bool _grokOcrChosenForSession;
 // Gemini REST API endpoint
     private const string GeminiApiBaseTemplate = "https://generativelanguage.googleapis.com/v1beta/models/{0}:generateContent";
     private const string GeminiDefaultModel = "gemini-2.5-flash";
@@ -153,12 +157,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         OpenSavedFolderCommand = new RelayCommand(_ => OpenSavedFolder(), _ => _saveConfirmationPath != null);
         OpenSavedFileCommand = new RelayCommand(_ => OpenSavedFile(), _ => _saveConfirmationPath != null);
         RetryServerCommand    = new RelayCommand(async _ => await RetryServerAsync(), _ => !IsServerStarting && !IsExtracting);
-        ToggleSettingsCommand  = new RelayCommand(_ =>
-        {
-            var wizard = new global::Hotix.InvoiceClient.GeminiSetupWindow { DataContext = this };
-            wizard.Owner = Application.Current.MainWindow;
-            wizard.ShowDialog();
-        });
+        ToggleSettingsCommand  = new RelayCommand(_ => OpenSettingsForProvider(null));
         SaveGeminiKeyCommand   = new RelayCommand(async _ => await SaveGeminiKeyAsync());
         ClearGeminiKeyCommand  = new RelayCommand(async _ => await ClearGeminiKeyAsync(), _ => HasGeminiKey);
         SaveGrokKeyCommand     = new RelayCommand(async _ => await SaveGrokKeyAsync());
@@ -184,7 +183,11 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         TranslationSource.Instance.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName == "Item[]")
+            {
                 OnPropertyChanged(nameof(WindowTitle));
+                OnPropertyChanged(nameof(GeminiKeyStatusText));
+                OnPropertyChanged(nameof(GrokKeyStatusText));
+            }
         };
     }
 
@@ -259,6 +262,14 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
 
     public bool HasGrokKey => !string.IsNullOrEmpty(_grokKeyInput);
 
+    /// <summary>Badge text on the main screen showing the Gemini key configuration status.</summary>
+    public string GeminiKeyStatusText => TranslationSource.Fmt("ApiKeyStatusGemini",
+        HasGeminiKey ? TranslationSource.Get("ApiKeyConfigured") : TranslationSource.Get("ApiKeyNotConfigured"));
+
+    /// <summary>Badge text on the main screen showing the Grok key configuration status.</summary>
+    public string GrokKeyStatusText => TranslationSource.Fmt("ApiKeyStatusGrok",
+        HasGrokKey ? TranslationSource.Get("ApiKeyConfigured") : TranslationSource.Get("ApiKeyNotConfigured"));
+
     /// <summary>Tracks which provider tab is active in the Gemini/Grok setup window.</summary>
     private string _activeKeyProvider = "gemini";
 
@@ -291,6 +302,9 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                 OnPropertyChanged(nameof(ResolvedEngineDisplay));
                 OnPropertyChanged(nameof(HasGeminiKey));
                 OnPropertyChanged(nameof(HasActiveKey));
+                OnPropertyChanged(nameof(GeminiKeyStatusText));
+                if (!string.IsNullOrEmpty(value))
+                    _geminiOcrChosenForSession = false; // new key → re-arm the quota dialog
                 (ClearGeminiKeyCommand as RelayCommand)?.RaiseCanExecuteChanged();
                 (ClearActiveKeyCommand as RelayCommand)?.RaiseCanExecuteChanged();
             }
@@ -317,6 +331,9 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                 OnPropertyChanged(nameof(ResolvedEngineDisplay));
                 OnPropertyChanged(nameof(HasGrokKey));
                 OnPropertyChanged(nameof(HasActiveKey));
+                OnPropertyChanged(nameof(GrokKeyStatusText));
+                if (!string.IsNullOrEmpty(value))
+                    _grokOcrChosenForSession = false; // new key → re-arm the quota dialog
                 (ClearGrokKeyCommand as RelayCommand)?.RaiseCanExecuteChanged();
                 (ClearActiveKeyCommand as RelayCommand)?.RaiseCanExecuteChanged();
             }
@@ -1998,6 +2015,67 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         }
     }
 
+    /// <summary>
+    /// Opens the Gemini/Grok setup window, optionally on a specific provider tab
+    /// ("gemini" or "grok"). Used by the quota dialog's "enter a new key" action.
+    /// </summary>
+    private void OpenSettingsForProvider(string? provider)
+    {
+        var wizard = new global::Hotix.InvoiceClient.GeminiSetupWindow(provider) { DataContext = this };
+        wizard.Owner = Application.Current.MainWindow;
+        wizard.ShowDialog();
+    }
+
+    /// <summary>
+    /// On the FIRST quota detection for a provider in a batch, shows the interactive
+    /// quota dialog on the UI thread (the extraction loop may be on a background
+    /// thread — hence the Dispatcher hop).
+    ///
+    /// Depending on the user's choice:
+    ///  - "Enter a new key": opens the settings window on the provider's tab; if a
+    ///    new key was actually saved, the provider's disabled flag is cleared so the
+    ///    remaining files of the batch retry it.
+    ///  - "Continue with OCR": keeps the current fallback behavior; if "remember for
+    ///    this session" is ticked, the dialog is suppressed for later batches too.
+    /// </summary>
+    private async Task HandleQuotaExceededAsync(bool isGemini, string provider)
+    {
+        await Application.Current.Dispatcher.InvokeAsync(() =>
+        {
+            var dialog = new QuotaExceededDialog(isGemini) { Owner = Application.Current.MainWindow };
+            if (dialog.ShowDialog() != true)
+                return;
+
+            if (dialog.Choice == QuotaDialogChoice.EnterNewKey)
+            {
+                OpenSettingsForProvider(provider);
+                if (isGemini ? HasGeminiKey : HasGrokKey)
+                {
+                    lock (this)
+                    {
+                        if (isGemini)
+                        {
+                            _geminiDisabled = false;
+                            _geminiDisabledReason = string.Empty;
+                        }
+                        else
+                        {
+                            _grokDisabled = false;
+                            _grokDisabledReason = string.Empty;
+                        }
+                    }
+                }
+            }
+            else if (dialog.RememberForSession)
+            {
+                if (isGemini)
+                    _geminiOcrChosenForSession = true;
+                else
+                    _grokOcrChosenForSession = true;
+            }
+        });
+    }
+
     private bool GeminiDisabled
     {
         get { lock (this) { return _geminiDisabled; } }
@@ -2055,8 +2133,13 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                     }
                     catch (CloudQuotaExceededException ex)
                     {
-                        TryMarkGrokDisabled(ex.Message);
+                        bool firstGrokQuota = TryMarkGrokDisabled(ex.Message);
                         LogPipeline($"Grok skipped (cached failure) for {fileName}");
+
+                        // Interactive quota dialog — shown once per batch per provider.
+                        if (firstGrokQuota && !_grokOcrChosenForSession)
+                            await HandleQuotaExceededAsync(isGemini: false, "grok");
+
                         row = InvoiceRowViewModel.FromError(file, ex.Message);
                     }
                     catch (CloudApiException ex) when (ex.StatusCode.HasValue && IsPermanentCloudFailure(ex.StatusCode.Value))
@@ -2089,8 +2172,12 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                 }
                 catch (CloudQuotaExceededException ex)
                 {
-                    TryMarkGeminiDisabled(ex.Message);
+                    bool firstGeminiQuota = TryMarkGeminiDisabled(ex.Message);
                     LogPipeline("Gemini quota exceeded");
+
+                    // Interactive quota dialog — shown once per batch per provider.
+                    if (firstGeminiQuota && !_geminiOcrChosenForSession)
+                        await HandleQuotaExceededAsync(isGemini: true, "gemini");
 
                     if (selectedEngine == "auto" && hasGrok && !GrokDisabled)
                     {
@@ -2103,8 +2190,12 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                         }
                         catch (CloudQuotaExceededException grokEx)
                         {
-                            TryMarkGrokDisabled(grokEx.Message);
+                            bool firstGrokQuota = TryMarkGrokDisabled(grokEx.Message);
                             LogPipeline("Grok also failed after Gemini quota — falling back to OCR");
+
+                            if (firstGrokQuota && !_grokOcrChosenForSession)
+                                await HandleQuotaExceededAsync(isGemini: false, "grok");
+
                             await ShowQuotaFallbackBannerAsync();
                             row = await ExtractViaServerAsync(file, ct);
                         }
@@ -2153,8 +2244,12 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                             }
                             catch (CloudQuotaExceededException grokEx)
                             {
-                                TryMarkGrokDisabled(grokEx.Message);
+                                bool firstGrokQuota = TryMarkGrokDisabled(grokEx.Message);
                                 LogPipeline("Grok fallback also failed — trying OCR server");
+
+                                if (firstGrokQuota && !_grokOcrChosenForSession)
+                                    await HandleQuotaExceededAsync(isGemini: false, "grok");
+
                                 row = await ExtractViaServerAsync(file, ct);
                             }
                             catch (CloudApiException grokEx) when (grokEx.StatusCode.HasValue && IsPermanentCloudFailure(grokEx.StatusCode.Value))
@@ -2208,8 +2303,13 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                 }
                 catch (CloudQuotaExceededException ex)
                 {
-                    TryMarkGrokDisabled(ex.Message);
+                    bool firstGrokQuota = TryMarkGrokDisabled(ex.Message);
                     LogPipeline("Grok quota exceeded");
+
+                    // Interactive quota dialog — shown once per batch per provider.
+                    if (firstGrokQuota && !_grokOcrChosenForSession)
+                        await HandleQuotaExceededAsync(isGemini: false, "grok");
+
                     if (selectedEngine == "auto")
                     {
                         row = await ExtractViaServerAsync(file, ct);

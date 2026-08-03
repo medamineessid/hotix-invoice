@@ -16,6 +16,12 @@ public partial class GeminiSetupWindow : Window
 {
     private bool _isGeminiProvider = true;
 
+    /// <summary>
+    /// Optional provider tab to open on ("gemini" or "grok"). Set by the quota
+    /// dialog when the user wants to enter a new key for a specific provider.
+    /// </summary>
+    private readonly string? _initialProvider;
+
     /// <summary>Known default models shown even before API validation.
     /// The second tuple element is a TranslationSource key (tooltip text) so both
     /// languages are covered.</summary>
@@ -33,6 +39,15 @@ public partial class GeminiSetupWindow : Window
         InitializeComponent();
     }
 
+    /// <summary>
+    /// Opens the setup window directly on the given provider tab.
+    /// </summary>
+    public GeminiSetupWindow(string? initialProvider)
+    {
+        InitializeComponent();
+        _initialProvider = initialProvider;
+    }
+
     private void Window_Loaded(object sender, RoutedEventArgs e)
     {
         // Default to Gemini provider; check which key is already set
@@ -41,7 +56,17 @@ public partial class GeminiSetupWindow : Window
             bool hasGemini = !string.IsNullOrEmpty(vm.GeminiKeyInput);
             bool hasGrok = !string.IsNullOrEmpty(vm.GrokKeyInput);
 
-            if (hasGrok && !hasGemini)
+            // Honor an explicit initial provider (e.g. opened from the quota
+            // dialog to enter a new key for a specific provider).
+            if (_initialProvider == "grok")
+            {
+                ProviderGrokRadio.IsChecked = true;
+            }
+            else if (_initialProvider == "gemini")
+            {
+                ProviderGeminiRadio.IsChecked = true;
+            }
+            else if (hasGrok && !hasGemini)
             {
                 ProviderGrokRadio.IsChecked = true;
             }
@@ -109,16 +134,19 @@ public partial class GeminiSetupWindow : Window
 
     private void Provider_Checked(object sender, RoutedEventArgs e)
     {
-        // Save current box contents before switching
+        // Save current box contents before switching — but NEVER overwrite the
+        // in-memory key with an empty/masked box. This handler also fires when
+        // Window_Loaded sets the initial radio, at which point the PasswordBox
+        // is still empty; copying "" would silently wipe the stored key.
         if (DataContext is MainViewModel vm)
         {
-            if (_isGeminiProvider)
+            string box = GeminiKeyBox.Password;
+            if (!string.IsNullOrEmpty(box) && box != "••••••••")
             {
-                vm.GeminiKeyInput = GeminiKeyBox.Password;
-            }
-            else
-            {
-                vm.GrokKeyInput = GeminiKeyBox.Password;
+                if (_isGeminiProvider)
+                    vm.GeminiKeyInput = box;
+                else
+                    vm.GrokKeyInput = box;
             }
         }
 

@@ -1,0 +1,68 @@
+<Window x:Class="Hotix.InvoiceClient.QuotaExceededDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ui="clr-namespace:Hotix.InvoiceClient"
+        Title="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[QuotaDialogTitle]}"
+        SizeToContent="WidthAndHeight"
+        WindowStyle="None" AllowsTransparency="True" Background="Transparent"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False"
+        Loaded="Window_Loaded"
+        Opacity="0"
+        MinWidth="460">
+
+    <Window.Resources>
+        <Storyboard x:Key="StoryboardWindowEnter">
+            <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                             From="0" To="1"
+                             Duration="0:0:0.25"
+                             EasingFunction="{StaticResource EaseOut}" />
+        </Storyboard>
+    </Window.Resources>
+
+    <Window.Triggers>
+        <EventTrigger RoutedEvent="Loaded">
+            <BeginStoryboard Storyboard="{StaticResource StoryboardWindowEnter}" />
+        </EventTrigger>
+    </Window.Triggers>
+
+    <Border Background="{StaticResource BrushOverlay}">
+        <Border Style="{StaticResource DialogStyle}"
+                Width="440"
+                VerticalAlignment="Center"
+                HorizontalAlignment="Center"
+                Margin="32">
+            <StackPanel>
+                <!-- Header -->
+                <TextBlock x:Name="TitleText"
+                           Style="{StaticResource TextSectionHeading}"
+                           Margin="0,0,0,8"
+                           TextWrapping="Wrap" />
+                <TextBlock x:Name="BodyText"
+                           Style="{StaticResource TextBody}"
+                           Foreground="{StaticResource BrushTextSecondary}"
+                           TextWrapping="Wrap"
+                           Margin="0,0,0,20" />
+
+                <!-- Remember choice for the rest of the session -->
+                <CheckBox x:Name="RememberCheck"
+                          Style="{StaticResource CheckBoxStyle}"
+                          Content="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[QuotaDialogRememberSession]}"
+                          Margin="0,0,0,24" />
+
+                <!-- Actions -->
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                    <Button Content="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[QuotaDialogContinueOcr]}"
+                            Style="{StaticResource ButtonSecondaryStyle}"
+                            MinWidth="130"
+                            Margin="0,0,8,0"
+                            Click="ContinueOcr_Click" />
+                    <Button Content="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[QuotaDialogEnterKey]}"
+                            Style="{StaticResource ButtonPrimaryStyle}"
+                            MinWidth="110"
+                            IsDefault="True"
+                            Click="EnterKey_Click" />
+                </StackPanel>
+            </StackPanel>
+        </Border>
+    </Border>
+</Window>

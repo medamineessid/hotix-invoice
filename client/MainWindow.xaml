@@ -321,6 +321,7 @@
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
                                 </Grid.RowDefinitions>
 
                                 <DockPanel Grid.Row="0" Margin="0,0,0,12">
@@ -459,6 +460,19 @@
                                         <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ControlCancelBtn]}" VerticalAlignment="Center" />
                                     </Button>
                                 </Grid>
+
+                                <!-- API key status badges (configured / not configured) -->
+                                <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,10,0,0">
+                                    <TextBlock Text="{Binding GeminiKeyStatusText}"
+                                               Style="{StaticResource TextCaption}"
+                                               Foreground="{Binding HasGeminiKey, Converter={StaticResource BoolToStatusBrushConverter}}"
+                                               Margin="0,0,16,0"
+                                               VerticalAlignment="Center" />
+                                    <TextBlock Text="{Binding GrokKeyStatusText}"
+                                               Style="{StaticResource TextCaption}"
+                                               Foreground="{Binding HasGrokKey, Converter={StaticResource BoolToStatusBrushConverter}}"
+                                               VerticalAlignment="Center" />
+                                </StackPanel>
                             </Grid>
                         </Grid>
                     </Border>

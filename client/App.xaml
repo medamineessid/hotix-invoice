@@ -26,6 +26,7 @@
                     <converters:ConfidenceToColorConverter x:Key="ConfidenceToColorConverter" />
                     <converters:NullToPlaceholderConverter x:Key="NullToPlaceholderConverter" />
                     <converters:StringToColorBrushConverter x:Key="StringToColorBrushConverter" />
+                    <converters:BoolToStatusBrushConverter x:Key="BoolToStatusBrushConverter" />
                 </ResourceDictionary>
             </ResourceDictionary.MergedDictionaries>
         </ResourceDictionary>
