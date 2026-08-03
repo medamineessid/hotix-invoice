@@ -45,3 +45,7 @@ test_invoice.png
 test_venv312/
 diagnostic.json
 installer/Output/
+
+# Debug artifacts (field_extractor.py debug dumps)
+_debug_*.png
+_debug_*.jpg
