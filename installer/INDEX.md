@@ -43,8 +43,9 @@ installer/
 ├── CRITICAL_ITEMS_ANSWERS.md          ← Quick reference for 6 critical items
 ├── VERIFICATION_REPORT.md             ← Detailed research & verification
 ├── DIAGNOSTICS_SCOPE.md               ← HotixDiagnostics architecture
+├── fetch-vendor.ps1                   ← Downloads + SHA256-verifies vendor deps at build time
 ├── vendor/
-│   └── python-3.12.6-amd64.exe        ← TODO: Download from python.org
+│   └── README.md                      ← Explains what fetch-vendor.ps1 fetches (dir is gitignored)
 ├── INSTALL_NOTES.txt                  ← TODO: Create (shown before install)
 └── hotix_icon.ico                     ← TODO: Create (optional, installer icon)
 
@@ -68,11 +69,11 @@ Item | Name                          | Status    | Location
 BEFORE COMPILATION
 ================================================================================
 
-Required Files (TODO):
-1. installer/vendor/python-3.12.6-amd64.exe
-   - Download from: https://www.python.org/downloads/
-   - Size: ~27 MB
-   - Verify SHA256 hash for security
+Required Files (fetched automatically):
+1. Run installer/fetch-vendor.ps1 BEFORE compiling — it downloads
+   python-3.12.6-amd64.exe + the Poppler binaries into installer/vendor/
+   and verifies each against a pinned SHA256 checksum.
+   (No manual download needed; installer/vendor/ is gitignored.)
 
 2. installer/INSTALL_NOTES.txt
    - System requirements (Windows 10+, 2500 MB free)

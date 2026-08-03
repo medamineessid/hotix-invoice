@@ -46,6 +46,10 @@ test_venv312/
 diagnostic.json
 installer/Output/
 
+# Vendored installer dependencies (fetched at build time by installer/fetch-vendor.ps1)
+installer/vendor/*
+!installer/vendor/README.md
+
 # Debug artifacts (field_extractor.py debug dumps)
 _debug_*.png
 _debug_*.jpg
