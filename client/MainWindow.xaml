@@ -399,7 +399,7 @@
                                             <ComboBoxItem Content="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ControlEngineAuto]}" Tag="auto" />
                                             <ComboBoxItem Content="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ControlEngineGemini]}" Tag="gemini">
                                                 <ComboBoxItem.Style>
-                                                    <Style TargetType="ComboBoxItem">
+                                                    <Style TargetType="ComboBoxItem" BasedOn="{StaticResource ComboBoxItemStyle}">
                                                         <Style.Triggers>
                                                             <DataTrigger Binding="{Binding GeminiAvailable}" Value="False">
                                                                 <Setter Property="Foreground" Value="{StaticResource BrushTextMuted}" />
@@ -411,7 +411,7 @@
                                             </ComboBoxItem>
                                             <ComboBoxItem Content="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ControlEngineGrok]}" Tag="grok">
                                                 <ComboBoxItem.Style>
-                                                    <Style TargetType="ComboBoxItem">
+                                                    <Style TargetType="ComboBoxItem" BasedOn="{StaticResource ComboBoxItemStyle}">
                                                         <Style.Triggers>
                                                             <DataTrigger Binding="{Binding GrokAvailable}" Value="False">
                                                                 <Setter Property="Foreground" Value="{StaticResource BrushTextMuted}" />
