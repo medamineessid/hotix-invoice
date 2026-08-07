@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import io
+from io import BytesIO
 import json
 import logging
 import os
@@ -36,7 +37,7 @@ from .field_extractor import (
 )
 from .utils import reconcile_amounts, detect_amount_collision, format_amount_value
 
-from typing import Literal
+from typing import Literal, Optional
 from .gemini_extractor import extract_with_gemini, GeminiExtractionError, load_gemini_api_key, load_gemini_model, _get_settings_path
 
 # Server-wide semaphore that serialises OCR operations.  PaddleOCR is not

@@ -296,7 +296,7 @@ class TestLooksLikeLabel:
         assert _looks_like_label("SARL Référencement Plus") is True
 
     def test_invoice_number_with_ref_prefix(self):
-        """Invoice numbers like REF-2024-001 should NOT be rejected.
+        r"""Invoice numbers like REF-2024-001 should NOT be rejected.
         "ref" is followed by non-whitespace content ("-2024-001"),
         so the negative lookahead (?!\s*\S) prevents the match."""
         assert _looks_like_label("REF-2024-001") is False

@@ -13,7 +13,7 @@ if _project_root not in sys.path:
     sys.path.insert(0, _project_root)
 
 from server.field_extractor import extract_invoice_fields, extract_field_confidences
-from server.utils import BoundingBox, OCRLine
+from server.utils import BoundingBox, OCRLine, reconcile_amounts
 
 
 def load_ground_truth(csv_path):
@@ -132,7 +132,13 @@ def main():
         ocr_lines = load_ocr_data(ocr_json)
         extracted = extract_invoice_fields(ocr_lines)
         confidences = extract_field_confidences(ocr_lines)
-        
+        # Mirror the production pipeline (server/main.py::_run_ocr_extraction),
+        # which always reconciles amounts after extraction. Without this step,
+        # a legitimately-absent montant_taxe (which reconcile_amounts correctly
+        # derives as 0.000 when HT+TVA+TTC are consistent) is scored as a
+        # failure here even though the live server returns it correctly.
+        extracted, _computed, _mismatch = reconcile_amounts(extracted, confidences)
+
         results = score_invoice(invoice_id, extracted, truth_fields)
         all_results[invoice_id] = {
             "results": results,
