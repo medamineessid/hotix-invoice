@@ -28,6 +28,7 @@ def _debug_log(msg: str) -> None:
 
 from .utils import (
     OCRLine,
+    _parse_decimal,
     clean_amount,
     clean_date,
     cluster_rows,
@@ -556,13 +557,18 @@ def cross_validate_fields(fields: dict[str, Optional[str]]) -> list[str]:
 
 
 def _safe_parse_decimal(value: Optional[str]) -> Optional[Decimal]:
-    """Parse a decimal safely, returning None on failure."""
-    if not value:
-        return None
-    try:
-        return Decimal(value)
-    except Exception:
-        return None
+    """Parse a decimal safely, returning None on failure.
+
+    Delegates to utils._parse_decimal so arithmetic validation uses the SAME
+    robust normalization as the rest of the pipeline (French comma decimal
+    separator, space / NBSP / thin-space (U+202F) thousands separators,
+    3-decimal TND amounts).  A bare Decimal(value) here previously failed on
+    French-formatted amounts, silently dropping them from VAT-rate and
+    arithmetic validation — the source of the spurious 'Unlikely VAT rate'
+    (1.0% / 526.3% / 1428.6%) and 'Arithmetic mismatch' issues seen on real
+    invoices.
+    """
+    return _parse_decimal(value)
 
 
 def compute_confidence(field_scores: Mapping[str, float], fields: Mapping[str, Optional[str]] | None = None, issues: list[str] | None = None) -> float:
@@ -1919,7 +1925,10 @@ def _parse_cell_value(col_name: str, text: str) -> object:
 
     # TVA rate: normalize to decimal (0.20 for 20%)
     if col_name == "tva_rate":
-        cleaned = text.strip().replace(",", ".").replace(" ", "")
+        # Strip all Unicode whitespace (incl. NBSP / thin space U+202F used
+        # as thousands separators on French invoices) before swapping the
+        # comma decimal separator for a dot.
+        cleaned = "".join(text.split()).replace(",", ".")
         if "%" in cleaned:
             try:
                 return float(cleaned.replace("%", "").strip()) / 100.0

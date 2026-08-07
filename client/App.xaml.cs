@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
+using System.Net.NetworkInformation;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows;
@@ -16,7 +17,25 @@ public partial class App : Application
     public static Process? ServerProcess { get; private set; }
     private static string? _pythonPath;
     private static string? _workingDir;
+    // Fast 1s client for the high-frequency /health polling loop.
     private static readonly HttpClient _healthClient = new() { Timeout = TimeSpan.FromSeconds(1) };
+
+    // Slower 5s client for kill/reuse DECISIONS.  A genuinely booting server
+    // (socket accepting, but mid-PaddleOCR-model-load) can take >1s to answer
+    // /health — using the fast client here would misclassify it as a dead
+    // orphan and kill it mid-boot (violates: slow-but-successful startup must
+    // not be killed).  Polling keeps the fast client; only decisions use this.
+    private static readonly HttpClient _probeClient = new() { Timeout = TimeSpan.FromSeconds(5) };
+
+    /// <summary>Startup timeout for the local OCR server. Configurable via the
+    /// HOTIX_SERVER_START_TIMEOUT_SECONDS env var (default 90s). PaddleOCR
+    /// model warm-up on a true cold start can take 30-90s alone, so this must
+    /// not be set too low — a slow-but-successful boot must never be killed.</summary>
+    public static TimeSpan ServerStartTimeout => TimeSpan.FromSeconds(
+        double.TryParse(Environment.GetEnvironmentVariable("HOTIX_SERVER_START_TIMEOUT_SECONDS"), out var seconds)
+            && seconds >= 10
+            ? seconds
+            : 90.0);
 
     // ── Server logging ──────────────────────────────────────────────
     private static readonly object _serverLogLock = new();
@@ -152,7 +171,7 @@ public partial class App : Application
             {
                 try
                 {
-                    using var response = await _healthClient.GetAsync("http://127.0.0.1:8000/health");
+                    using var response = await _probeClient.GetAsync("http://127.0.0.1:8000/health");
                     if (response.IsSuccessStatusCode)
                     {
                         progress?.Report(TranslationSource.Get("ServerStartingAlready"));
@@ -172,6 +191,49 @@ public partial class App : Application
             }
             ServerProcess.Dispose();
             ServerProcess = null;
+        }
+
+        // ── Port 8000 probe: reuse a live server, kill a dead orphan ──
+        // A previous Hotix session can leave a python.exe holding the port
+        // (client crashed, wrapper killed but not the child, stale process
+        // from a prior install, etc.).  If we skip this, uvicorn fails to
+        // bind with WinError 10048 and the app wastes the full startup
+        // timeout.  Distinguish the two cases explicitly:
+        //   • port bound AND /health answers → live healthy server → reuse it
+        //   • port bound AND /health fails     → dead orphan → kill and retry
+        if (IsPortListening(8000))
+        {
+            bool healthy = false;
+            try
+            {
+                using var probe = await _probeClient.GetAsync("http://127.0.0.1:8000/health");
+                healthy = probe.IsSuccessStatusCode;
+            }
+            catch { /* not answering within 5s — treat as orphan */ }
+
+            if (healthy)
+            {
+                LogServerLine("PORT 8000 is held by a live healthy Hotix server — reusing it (no restart)");
+                progress?.Report(TranslationSource.Get("ServerStartingAlready"));
+                return true;
+            }
+
+            LogServerLine("PORT 8000 is bound but did not answer /health within 5s — classifying as dead orphan");
+            int? orphanPid = FindOwningPid(8000);
+            if (orphanPid.HasValue)
+            {
+                LogServerLine($"PORT 8000 is held by a dead orphan (PID {orphanPid.Value}) — killing it before restart");
+                KillProcessById(orphanPid.Value);
+                await Task.Delay(700); // give the OS time to release the socket
+            }
+            else
+            {
+                LogServerLine("PORT 8000 is bound by an unknown process and is not responding to /health — attempting start anyway");
+            }
+        }
+        else
+        {
+            LogServerLine("Port 8000 is free — starting a fresh server process");
         }
 
         if (string.IsNullOrEmpty(_pythonPath) || string.IsNullOrEmpty(_workingDir))
@@ -252,6 +314,11 @@ public partial class App : Application
             if (popplerDir != null)
                 ServerProcess.StartInfo.EnvironmentVariables["POPPLER_PATH"] = popplerDir;
 
+            // Force UTF-8 for Python's stdio so PaddleX/PaddleOCR log lines
+            // (non-ASCII) render correctly in the captured log instead of
+            // mojibake on Windows legacy codepages (cp1252/cp850).
+            ServerProcess.StartInfo.EnvironmentVariables["PYTHONUTF8"] = "1";
+
             // Drain stdout/stderr to prevent pipe-buffer deadlock
             ServerProcess.OutputDataReceived += (s, e) => { if (e.Data != null) LogServerLine(e.Data); };
             ServerProcess.ErrorDataReceived += (s, e) => { if (e.Data != null) LogServerLine(e.Data); };
@@ -260,9 +327,9 @@ public partial class App : Application
             ServerProcess.BeginOutputReadLine();
             ServerProcess.BeginErrorReadLine();
 
-            LogServerLine("Server process started, polling /health...");
+            LogServerLine($"Server process started, polling /health (max {ServerStartTimeout.TotalSeconds:0}s)...");
 
-            // Poll /health until ready (max 90 seconds)
+            // Poll /health until ready (ServerStartTimeout, default 90s)
             // Progress thresholds based on real user logs:
             //   0-15s:   "Starting OCR server..."    — Python/uvicorn startup + imports
             //   15-35s:  "Almost ready..."            — FastAPI lifespan, PaddleOCR init
@@ -272,7 +339,7 @@ public partial class App : Application
             // On a true cold start (no cached models) PaddleOCR needs to download
             // models from HuggingFace/ModelScope, which can add 30-60+ seconds.
             var stopwatch = Stopwatch.StartNew();
-            while (stopwatch.Elapsed < TimeSpan.FromSeconds(90))
+            while (stopwatch.Elapsed < ServerStartTimeout)
             {
                 double elapsed = stopwatch.Elapsed.TotalSeconds;
                 if (elapsed > 55)
@@ -300,7 +367,7 @@ public partial class App : Application
             }
 
             // Timeout — capture diagnostics before cleaning up
-            LogServerLine("TIMEOUT: Server did not become healthy within 90 seconds.");
+            LogServerLine($"TIMEOUT: Server did not become healthy within {ServerStartTimeout.TotalSeconds:0} seconds.");
             string logTail = GetLogTail(20);
             string logPath = ServerLogPath;
             LogServerLine($"Log file location: {logPath}");
@@ -370,6 +437,81 @@ public partial class App : Application
     }
 
     private static string FindFile(string[] paths) => paths.FirstOrDefault(File.Exists) ?? string.Empty;
+
+    private static bool IsPortListening(int port)
+    {
+        try
+        {
+            return IPGlobalProperties.GetIPGlobalProperties()
+                .GetActiveTcpListeners()
+                .Any(ep => ep.Port == port);
+        }
+        catch
+        {
+            return false; // best effort
+        }
+    }
+
+    /// <summary>Find the PID owning a socket bound to the given local port via netstat.
+    ///
+    /// Locale-independent: matches only on the LOCAL-ADDRESS column suffix.  The
+    /// state column ("LISTENING" / "ECOUTE" on French Windows / …) is localized
+    /// and must never be used as a filter — that silently returns null on
+    /// non-English systems and the orphan would never be killed.  A non-listening
+    /// row's local address is an ephemeral port, so the ":port" suffix match on
+    /// the local column alone isolates the owning socket.
+    /// </summary>
+    private static int? FindOwningPid(int port)
+    {
+        try
+        {
+            var psi = new ProcessStartInfo("netstat", "-ano")
+            {
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                CreateNoWindow = true,
+            };
+            using var proc = Process.Start(psi);
+            if (proc == null)
+                return null;
+            string output = proc.StandardOutput.ReadToEnd();
+            proc.WaitForExit(3000);
+
+            string suffix = ":" + port;
+            foreach (var raw in output.Split('\n'))
+            {
+                var parts = raw.Trim().Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
+                // netstat -ano columns: Proto  LocalAddr  ForeignAddr  State  PID
+                // (state column is localized — never inspected here).
+                if (parts.Length >= 5 &&
+                    parts[1].EndsWith(suffix, StringComparison.OrdinalIgnoreCase) &&
+                    int.TryParse(parts[^1], out int pid) && pid > 0)
+                {
+                    return pid;
+                }
+            }
+        }
+        catch { /* best effort */ }
+        return null;
+    }
+
+    private static void KillProcessById(int pid)
+    {
+        try
+        {
+            using var proc = Process.GetProcessById(pid);
+            if (proc != null && !proc.HasExited)
+            {
+                LogServerLine($"Terminating orphaned server process PID {pid}");
+                proc.Kill();
+                proc.WaitForExit(2000);
+            }
+        }
+        catch (Exception ex)
+        {
+            LogServerLine("Failed to kill orphan PID " + pid + ": " + ex.GetType().Name + ": " + ex.Message);
+        }
+    }
 
     private static void CleanupServer()
     {

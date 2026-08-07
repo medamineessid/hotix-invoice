@@ -8,6 +8,7 @@ import json
 import logging
 import os
 import random
+import sys
 import time
 from collections import defaultdict
 from contextlib import asynccontextmanager
@@ -25,6 +26,7 @@ from .models import HealthResponse, InvoiceExtractionResponse, InvoiceItem, ApiK
 from .ingestion import IngestionError, load_invoice_images
 from .ocr_engine import PaddleOcrEngine, OcrEngineError
 from .field_extractor import (
+    FIELD_ORDER,
     extract_invoice_fields,
     extract_field_confidences,
     extract_raw_text,
@@ -52,6 +54,25 @@ OCR_ENGINE_RECYCLE_INTERVAL: int = 25
 # Maximum uploaded file size (50 MB).  Exceeding this raises HTTP 413 Payload Too Large.
 MAX_FILE_SIZE_BYTES: int = 50 * 1024 * 1024
 
+# Per-request extraction timeout (seconds).  PaddleOCR model (re)loading on a
+# cold start or right after an engine recycle can take 30-90s by itself, and
+# requests queued behind the reload wait on the OCR semaphore — the previous
+# hardcoded 120s was too short and produced HTTP 504s during reload windows.
+# Configurable via HOTIX_EXTRACT_TIMEOUT_SECONDS (default 300s = 5 min).
+# Parsed defensively: a malformed env var must never crash module import
+# (that would prevent uvicorn from binding the port at all), and the value
+# is clamped to a 10s floor so a misconfiguration can't create a 0s timeout.
+def _parse_timeout_seconds(env_value: Optional[str], default: float = 300.0) -> float:
+    """Parse HOTIX_EXTRACT_TIMEOUT_SECONDS defensively."""
+    try:
+        value = float(env_value) if env_value else default
+    except (TypeError, ValueError):
+        value = default
+    return max(10.0, value)
+
+
+EXTRACT_TIMEOUT_SECONDS: float = _parse_timeout_seconds(os.getenv("HOTIX_EXTRACT_TIMEOUT_SECONDS"))
+
 # Try to import psutil for RSS memory measurement; fall back gracefully.
 try:
     import psutil as _psutil
@@ -63,6 +84,17 @@ logging.basicConfig(
     format="%(asctime)s %(levelname)s %(name)s %(message)s",
 )
 logger = logging.getLogger(__name__)
+
+# ── UTF-8 console/log output ────────────────────────────────────────────────
+# PaddleX/PaddleOCR log lines contain non-ASCII characters that render as
+# mojibake on Windows consoles using the legacy codepage (cp1252/cp850).
+# Reconfigure the standard streams to UTF-8 so redirected output (captured by
+# the client's server log) and interactive consoles display correctly.
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError, OSError):
+        pass  # Stream does not support reconfigure (e.g. non-text IO) — best effort
 
 # Initialize Sentry for error tracking
 sentry_dsn = os.getenv("SENTRY_DSN")
@@ -89,18 +121,27 @@ class SimpleRateLimiter:
 
     Tracks request timestamps per IP within a rolling time window.
     Does not use Redis or external dependencies.
+
+    cleanup() is called on every is_allowed() check (opportunistic pruning)
+    to prevent unbounded memory growth from stale IP entries.
     """
 
     def __init__(self, max_requests: int = 10, window_seconds: int = 60):
         self.max_requests = max_requests
         self.window = window_seconds
         self._requests: dict[str, list[float]] = defaultdict(list)
+        self._last_cleanup = 0.0
 
     def is_allowed(self, client_ip: str) -> bool:
         now = time.time()
         cutoff = now - self.window
-        # Prune expired timestamps
+        # Prune expired timestamps for this IP
         self._requests[client_ip] = [t for t in self._requests[client_ip] if t > cutoff]
+        # Opportunistic global cleanup every 60s to prevent unbounded
+        # memory growth from stale IP entries.
+        if now - self._last_cleanup > 60:
+            self.cleanup()
+            self._last_cleanup = now
         if len(self._requests[client_ip]) >= self.max_requests:
             return False
         self._requests[client_ip].append(now)
@@ -165,6 +206,18 @@ def _recycle_ocr_engine(app_state) -> float | None:
     # Create a fresh engine
     app_state.ocr_engine = PaddleOcrEngine()
     app_state.ocr_request_counter = 0
+
+    # Warm up the replacement engine's models NOW, inside the recycle (which
+    # runs under _ocr_semaphore + ocr_recycle_lock).  In-flight requests
+    # queued behind us wait for the reload to complete instead of racing it
+    # and timing out; without this, the model load would happen lazily inside
+    # the NEXT request, extending its latency unpredictably.
+    logger.info("Warming up recycled OCR engine (model load in progress)...")
+    try:
+        _ = app_state.ocr_engine.ocr  # property access triggers lazy model init
+        logger.info("Recycled OCR engine warmed up")
+    except Exception as exc:
+        logger.warning("Failed to warm up recycled OCR engine: %s", exc)
 
     rss_after = _get_rss_mb()
     logger.info(
@@ -324,6 +377,9 @@ async def validate_grok_key(
     request: ApiKeyValidationRequest,
     fastapi_request: Request,
 ) -> dict:
+    """Validate a Grok API key by making one lightweight chat completion call.
+    Retries up to 3 times with exponential backoff on transient errors (429, 503, timeout).
+    """
     # Rate limit: 5 req/min per IP
     client_ip = _get_client_ip(fastapi_request)
     if not _rate_limiter_validate.is_allowed(client_ip):
@@ -331,9 +387,6 @@ async def validate_grok_key(
             status_code=429,
             detail="Trop de requêtes. Réessayez dans une minute.",
         )
-    """Validate a Grok API key by making one lightweight chat completion call.
-    Retries up to 3 times with exponential backoff on transient errors (429, 503, timeout).
-    """
     api_key = request.api_key
 
     # Resolve Grok model once (outside retry loop — doesn't change between attempts)
@@ -419,6 +472,7 @@ async def validate_gemini_key(
     request: ApiKeyValidationRequest,
     fastapi_request: Request,
 ) -> dict:
+    """Validate a Gemini API key by making one lightweight generateContent call."""
     # Rate limit: 5 req/min per IP
     client_ip = _get_client_ip(fastapi_request)
     if not _rate_limiter_validate.is_allowed(client_ip):
@@ -426,7 +480,6 @@ async def validate_gemini_key(
             status_code=429,
             detail="Trop de requêtes. Réessayez dans une minute.",
         )
-    """Validate a Gemini API key by making one lightweight generateContent call."""
     api_key = request.api_key
 
     try:
@@ -491,7 +544,6 @@ async def _prepare_pages_for_gemini(pages: list) -> bytes:
     For multi-page documents, stacks the first 2 pages vertically with a
     20px white margin, giving Gemini context across page boundaries.
     """
-    from io import BytesIO
     from PIL import Image
 
     if len(pages) == 1:
@@ -580,6 +632,7 @@ async def _run_gemini_extraction(
                 computed_fields=list(computed_fields),
                 amount_mismatch=has_mismatch,
                 items=parsed_gemini_items,
+                field_confidences={f: gemini_confidence for f in FIELD_ORDER},
             ),
             None,
         )
@@ -652,6 +705,11 @@ def _run_ocr_extraction(
         Path(filename).name, field_names, issues, len(parsed_items),
     )
 
+    # Build per-field confidences from the extractor's FieldSelection results
+    field_confidences = {
+        f: confidences.get(f, 0.0) for f in FIELD_ORDER
+    }
+
     return InvoiceExtractionResponse(
         **fields,
         confidence=confidence,
@@ -660,6 +718,7 @@ def _run_ocr_extraction(
         computed_fields=list(computed_fields),
         amount_mismatch=has_mismatch,
         items=parsed_items,
+        field_confidences=field_confidences,
     )
 
 
@@ -700,11 +759,14 @@ async def _do_extract(
     async with _ocr_semaphore:
         result = await asyncio.to_thread(_run_ocr_extraction, pages, filename, ocr_engine)
 
-        # Increment + recycle under a single lock
+        # Increment + recycle under a single lock.  The recycle (engine swap
+        # + model reload) runs in a worker thread so the event loop stays
+        # responsive; requests queued on _ocr_semaphore wait for the reload
+        # to finish before proceeding.
         async with app.state.ocr_recycle_lock:
             app.state.ocr_request_counter += 1
             if app.state.ocr_request_counter >= OCR_ENGINE_RECYCLE_INTERVAL:
-                _recycle_ocr_engine(app.state)
+                await asyncio.to_thread(_recycle_ocr_engine, app.state)
 
     if gemini_fallback_reason:
         result.gemini_fallback_reason = gemini_fallback_reason
@@ -735,13 +797,13 @@ async def extract(
     try:
         return await asyncio.wait_for(
             _do_extract(file, engine),
-            timeout=120.0,
+            timeout=EXTRACT_TIMEOUT_SECONDS,
         )
     except asyncio.TimeoutError:
         logger.error("Extraction timeout for %s", file.filename)
         raise HTTPException(
             status_code=504,
-            detail="Délai d'extraction dépassé (120s)",
+            detail=f"Délai d'extraction dépassé ({EXTRACT_TIMEOUT_SECONDS:g}s)",
         )
     except (IngestionError, OcrEngineError) as exc:
         logger.exception("Extraction failed for %s", file.filename or "unknown")

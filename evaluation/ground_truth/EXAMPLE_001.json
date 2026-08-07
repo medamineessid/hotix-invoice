@@ -1,0 +1,37 @@
+{
+    "_comment": "HOTIX Evaluation Ground Truth Format",
+    "_instructions": "Place one JSON file per invoice in evaluation/ground_truth/. Set image_path to the invoice PDF/image relative to the ground_truth directory or absolute.",
+    "invoice_id": "EXAMPLE_001",
+    "image_path": "../invoices/sample_invoice.pdf",
+    "fields": {
+        "numero_facture": "FAC-2025-001",
+        "date": "2025-03-15",
+        "fournisseur": "Supplier Company SARL",
+        "client": "Client Enterprise SA",
+        "montant_ht": "1000.000",
+        "montant_tva": "190.000",
+        "montant_taxe": "0.000",
+        "montant_ttc": "1190.000",
+        "direction": "achat"
+    },
+    "items": [
+        {
+            "description": "Product A - Basic Widget",
+            "quantity": 10.0,
+            "unit_price": 50.000,
+            "vat_rate": 0.19,
+            "vat_amount": 95.000,
+            "discount": 0.000,
+            "line_total": 500.000
+        },
+        {
+            "description": "Service B - Consulting",
+            "quantity": 5.0,
+            "unit_price": 100.000,
+            "vat_rate": 0.19,
+            "vat_amount": 95.000,
+            "discount": 0.000,
+            "line_total": 500.000
+        }
+    ]
+}

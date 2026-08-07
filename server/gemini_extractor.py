@@ -95,7 +95,10 @@ def _normalize_amount_field(value: Any) -> Optional[float]:
         return float(value)
     if isinstance(value, str):
         # Handle "1 234,56" → 1234.56, "1,234.56" → 1234.56, "1234.56" → 1234.56
-        cleaned = value.strip().replace(" ", "").replace("\u00a0", "")
+        # Strip ALL Unicode whitespace (ASCII, NBSP, thin-space U+202F, ...)
+        # so French thousands separators of any kind collapse before
+        # separator disambiguation.  Consistent with utils._parse_decimal.
+        cleaned = "".join(value.strip().split())
         # French format: "1 234,56" or "1234,56"
         if "," in cleaned and "." not in cleaned:
             cleaned = cleaned.replace(",", ".")

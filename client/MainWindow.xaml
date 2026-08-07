@@ -855,6 +855,7 @@
                                               ItemsSource="{Binding ResultsView}"
                                               Style="{StaticResource ResultGridStyle}"
                                               SelectedItem="{Binding SelectedRow}"
+                                              RowDetailsVisibilityMode="VisibleWhenSelected"
                                               VirtualizingPanel.VirtualizationMode="Recycling"
                                               EnableRowVirtualization="True"
                                               LoadingRow="ResultsGrid_LoadingRow"
@@ -1016,9 +1017,194 @@
 
                                             <DataGridTextColumn Header="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ColumnFile]}" Binding="{Binding FileDisplay, Mode=OneWay}" MinWidth="120" />
                                         </DataGrid.Columns>
+                                        <DataGrid.RowDetailsTemplate>
+                                            <DataTemplate>
+                                                <Border Background="{StaticResource BrushAltBackground}"
+                                                        BorderThickness="0"
+                                                        Padding="48,16,24,20">
+                                                    <StackPanel>
+                                                        <!-- Invoice Summary -->
+                                                        <Grid Margin="0,0,0,16">
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="Auto" />
+                                                                <ColumnDefinition Width="*" />
+                                                            </Grid.ColumnDefinitions>
+                                                            <Border Grid.Column="0"
+                                                                    Width="32" Height="32"
+                                                                    CornerRadius="8"
+                                                                    Background="{StaticResource BrushAccentLight}"
+                                                                    VerticalAlignment="Top"
+                                                                    Margin="0,2,0,0">
+                                                                <TextBlock Text="📋" FontSize="14"
+                                                                           HorizontalAlignment="Center"
+                                                                           VerticalAlignment="Center" />
+                                                            </Border>
+                                                            <StackPanel Grid.Column="1" Margin="12,0,0,0">
+                                                                <TextBlock Text="Invoice Summary"
+                                                                           Style="{StaticResource TextCardTitle}"
+                                                                           Margin="0,0,0,12" />
+                                                                <Grid>
+                                                                    <Grid.ColumnDefinitions>
+                                                                        <ColumnDefinition Width="Auto" />
+                                                                        <ColumnDefinition Width="*" />
+                                                                    </Grid.ColumnDefinitions>
+                                                                    <StackPanel Grid.Column="0">
+                                                                        <TextBlock Style="{StaticResource TextMetadata}" Margin="0,0,0,6">
+                                                                            <Run Text="Invoice No." /><Run Text="  " />
+                                                                            <Run Text="{Binding NumeroFacture, Converter={StaticResource NullToPlaceholderConverter}}" FontWeight="Medium" />
+                                                                        </TextBlock>
+                                                                        <TextBlock Style="{StaticResource TextMetadata}" Margin="0,0,0,6">
+                                                                            <Run Text="Date" /><Run Text="  " />
+                                                                            <Run Text="{Binding Date, Converter={StaticResource NullToPlaceholderConverter}}" FontWeight="Medium" />
+                                                                        </TextBlock>
+                                                                        <TextBlock Style="{StaticResource TextMetadata}" Margin="0,0,0,6">
+                                                                            <Run Text="Supplier" /><Run Text="  " />
+                                                                            <Run Text="{Binding Fournisseur, Converter={StaticResource NullToPlaceholderConverter}}" FontWeight="Medium" />
+                                                                        </TextBlock>
+                                                                        <TextBlock Style="{StaticResource TextMetadata}" Margin="0,0,0,6">
+                                                                            <Run Text="Client" /><Run Text="  " />
+                                                                            <Run Text="{Binding Client, Converter={StaticResource NullToPlaceholderConverter}}" FontWeight="Medium" />
+                                                                        </TextBlock>
+                                                                    </StackPanel>
+                                                                    <StackPanel Grid.Column="1" Margin="32,0,0,0">
+                                                                        <TextBlock Style="{StaticResource TextMetadata}" Margin="0,0,0,6">
+                                                                            <Run Text="HT" /><Run Text="  " />
+                                                                            <Run Text="{Binding MontantHt, Converter={StaticResource NullToPlaceholderConverter}}" FontWeight="Medium" />
+                                                                        </TextBlock>
+                                                                        <TextBlock Style="{StaticResource TextMetadata}" Margin="0,0,0,6">
+                                                                            <Run Text="TVA" /><Run Text="  " />
+                                                                            <Run Text="{Binding MontantTva, Converter={StaticResource NullToPlaceholderConverter}}" FontWeight="Medium" />
+                                                                        </TextBlock>
+                                                                        <TextBlock Style="{StaticResource TextMetadata}" Margin="0,0,0,6">
+                                                                            <Run Text="Tax" /><Run Text="  " />
+                                                                            <Run Text="{Binding MontantTaxe, Converter={StaticResource NullToPlaceholderConverter}}" FontWeight="Medium" />
+                                                                        </TextBlock>
+                                                                        <TextBlock Style="{StaticResource TextMetadata}" Margin="0,0,0,6">
+                                                                            <Run Text="TTC" /><Run Text="  " />
+                                                                            <Run Text="{Binding MontantTtc, Converter={StaticResource NullToPlaceholderConverter}}" FontWeight="Medium" />
+                                                                        </TextBlock>
+                                                                        <TextBlock Style="{StaticResource TextMetadata}" Margin="0,0,0,6">
+                                                                            <Run Text="Confidence" /><Run Text="  " />
+                                                                            <Run Text="{Binding ConfidenceDisplay}" FontWeight="Medium" />
+                                                                        </TextBlock>
+                                                                        <TextBlock Style="{StaticResource TextMetadata}">
+                                                                            <Run Text="Engine" /><Run Text="  " />
+                                                                            <Run Text="{Binding EngineUsed}" FontWeight="Medium" />
+                                                                        </TextBlock>
+                                                                    </StackPanel>
+                                                                </Grid>
+                                                            </StackPanel>
+                                                        </Grid>
+
+                                                        <!-- Divider -->
+                                                        <Border Height="1" Background="{StaticResource BrushBorder}" Margin="0,0,0,16" />
+
+                                                        <!-- Items Table -->
+                                                        <StackPanel>
+                                                            <TextBlock Text="{Binding ItemsHeaderText}"
+                                                                       Style="{StaticResource TextCardTitle}"
+                                                                       Margin="0,0,0,12" />
+
+                                                            <!-- Items present: show table -->
+                                                            <Border BorderBrush="{StaticResource BrushBorder}"
+                                                                    BorderThickness="1"
+                                                                    CornerRadius="{StaticResource RadiusMedium}"
+                                                                    Background="{StaticResource BrushSurface}"
+                                                                    Visibility="{Binding HasItems, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                                <StackPanel>
+                                                                    <!-- Column headers -->
+                                                                    <Grid Background="{StaticResource BrushAltBackground}">
+                                                                        <Grid.ColumnDefinitions>
+                                                                            <ColumnDefinition Width="*" MinWidth="140" />
+                                                                            <ColumnDefinition Width="64" />
+                                                                            <ColumnDefinition Width="80" />
+                                                                            <ColumnDefinition Width="60" />
+                                                                            <ColumnDefinition Width="90" />
+                                                                        </Grid.ColumnDefinitions>
+                                                                        <TextBlock Grid.Column="0" Text="Description"
+                                                                                   Style="{StaticResource TextMetadata}"
+                                                                                   FontWeight="{StaticResource FontWeightMedium}"
+                                                                                   Padding="14,10" />
+                                                                        <TextBlock Grid.Column="1" Text="Qty"
+                                                                                   Style="{StaticResource TextMetadata}"
+                                                                                   FontWeight="{StaticResource FontWeightMedium}"
+                                                                                   Padding="14,10" />
+                                                                        <TextBlock Grid.Column="2" Text="Unit Price"
+                                                                                   Style="{StaticResource TextMetadata}"
+                                                                                   FontWeight="{StaticResource FontWeightMedium}"
+                                                                                   Padding="14,10" />
+                                                                        <TextBlock Grid.Column="3" Text="VAT%"
+                                                                                   Style="{StaticResource TextMetadata}"
+                                                                                   FontWeight="{StaticResource FontWeightMedium}"
+                                                                                   Padding="14,10" />
+                                                                        <TextBlock Grid.Column="4" Text="Total"
+                                                                                   Style="{StaticResource TextMetadata}"
+                                                                                   FontWeight="{StaticResource FontWeightMedium}"
+                                                                                   Padding="14,10" />
+                                                                    </Grid>
+                                                                    <ItemsControl ItemsSource="{Binding Items}">
+                                                                        <ItemsControl.ItemTemplate>
+                                                                        <DataTemplate>
+                                                                            <Border BorderThickness="0,1,0,0"
+                                                                                    BorderBrush="{StaticResource BrushBorder}"
+                                                                                    Padding="0">
+                                                                                <Grid>
+                                                                                    <Grid.ColumnDefinitions>
+                                                                                        <ColumnDefinition Width="*" MinWidth="140" />
+                                                                                        <ColumnDefinition Width="64" />
+                                                                                        <ColumnDefinition Width="80" />
+                                                                                        <ColumnDefinition Width="60" />
+                                                                                        <ColumnDefinition Width="90" />
+                                                                                    </Grid.ColumnDefinitions>
+                                                                                    <TextBlock Grid.Column="0"
+                                                                                               Text="{Binding DisplayLine}"
+                                                                                               Style="{StaticResource TextBody}"
+                                                                                               Padding="14,8"
+                                                                                               TextTrimming="CharacterEllipsis" />
+                                                                                    <TextBlock Grid.Column="1"
+                                                                                               Text="{Binding QuantiteDisplay}"
+                                                                                               Style="{StaticResource TextBody}"
+                                                                                               Padding="14,8" />
+                                                                                    <TextBlock Grid.Column="2"
+                                                                                               Text="{Binding PriceDisplay}"
+                                                                                               Style="{StaticResource TextBody}"
+                                                                                               Padding="14,8" />
+                                                                                    <TextBlock Grid.Column="3"
+                                                                                               Text="{Binding TvaDisplay}"
+                                                                                               Style="{StaticResource TextBody}"
+                                                                                               Padding="14,8" />
+                                                                                    <TextBlock Grid.Column="4"
+                                                                                               Text="{Binding MontantDisplay}"
+                                                                                               Style="{StaticResource TextBody}"
+                                                                                               FontWeight="{StaticResource FontWeightMedium}"
+                                                                                               Padding="14,8" />
+                                                                                </Grid>
+                                                                            </Border>
+                                                                        </DataTemplate>
+                                                                    </ItemsControl.ItemTemplate>
+                                                                </ItemsControl>
+                                                            </StackPanel>
+                                                            </Border>
+
+                                                            <!-- No items placeholder -->
+                                                            <Border Padding="24,16"
+                                                                    CornerRadius="{StaticResource RadiusMedium}"
+                                                                    BorderBrush="{StaticResource BrushBorder}"
+                                                                    BorderThickness="1"
+                                                                    Visibility="{Binding HasItems, Converter={StaticResource InverseBooleanToVisibilityConverter}}">
+                                                                <TextBlock Text="No extracted items available."
+                                                                           Style="{StaticResource TextCaption}"
+                                                                           Foreground="{StaticResource BrushTextMuted}"
+                                                                           HorizontalAlignment="Center" />
+                                                            </Border>
+                                                        </StackPanel>
+                                                    </StackPanel>
+                                                </Border>
+                                            </DataTemplate>
+                                        </DataGrid.RowDetailsTemplate>
                                     </DataGrid>
 
-                                    <!-- Empty State Overlay -->
+                                    <!-- Empty State Overlay (ResultsGrid) -->
                                     <Border Grid.Row="1" Background="Transparent" Visibility="Collapsed">
                                         <Border.Style>
                                             <Style TargetType="Border">
@@ -1101,11 +1287,12 @@
                                         </Grid>
                                     </StackPanel>
 
-                                    <DataGrid Grid.Row="1"
+                      <DataGrid Grid.Row="1"
                                               x:Name="IncompleteGrid"
                                               ItemsSource="{Binding IncompleteView}"
                                               Style="{StaticResource ResultGridStyle}"
                                               SelectedItem="{Binding SelectedRow}"
+                                              RowDetailsVisibilityMode="VisibleWhenSelected"
                                               MouseDoubleClick="ResultsGrid_MouseDoubleClick">
                                         <DataGrid.Resources>
                                             <ContextMenu x:Key="RowContextMenu">
@@ -1203,6 +1390,191 @@
 
                                             <DataGridTextColumn Header="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ColumnFile]}" Binding="{Binding FileDisplay, Mode=OneWay}" MinWidth="120" />
                                         </DataGrid.Columns>
+                                        <DataGrid.RowDetailsTemplate>
+                                            <DataTemplate>
+                                                <Border Background="{StaticResource BrushAltBackground}"
+                                                        BorderThickness="0"
+                                                        Padding="48,16,24,20">
+                                                    <StackPanel>
+                                                        <!-- Invoice Summary -->
+                                                        <Grid Margin="0,0,0,16">
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="Auto" />
+                                                                <ColumnDefinition Width="*" />
+                                                            </Grid.ColumnDefinitions>
+                                                            <Border Grid.Column="0"
+                                                                    Width="32" Height="32"
+                                                                    CornerRadius="8"
+                                                                    Background="{StaticResource BrushAccentLight}"
+                                                                    VerticalAlignment="Top"
+                                                                    Margin="0,2,0,0">
+                                                                <TextBlock Text="📋" FontSize="14"
+                                                                           HorizontalAlignment="Center"
+                                                                           VerticalAlignment="Center" />
+                                                            </Border>
+                                                            <StackPanel Grid.Column="1" Margin="12,0,0,0">
+                                                                <TextBlock Text="Invoice Summary"
+                                                                           Style="{StaticResource TextCardTitle}"
+                                                                           Margin="0,0,0,12" />
+                                                                <Grid>
+                                                                    <Grid.ColumnDefinitions>
+                                                                        <ColumnDefinition Width="Auto" />
+                                                                        <ColumnDefinition Width="*" />
+                                                                    </Grid.ColumnDefinitions>
+                                                                    <StackPanel Grid.Column="0">
+                                                                        <TextBlock Style="{StaticResource TextMetadata}" Margin="0,0,0,6">
+                                                                            <Run Text="Invoice No." /><Run Text="  " />
+                                                                            <Run Text="{Binding NumeroFacture, Converter={StaticResource NullToPlaceholderConverter}}" FontWeight="Medium" />
+                                                                        </TextBlock>
+                                                                        <TextBlock Style="{StaticResource TextMetadata}" Margin="0,0,0,6">
+                                                                            <Run Text="Date" /><Run Text="  " />
+                                                                            <Run Text="{Binding Date, Converter={StaticResource NullToPlaceholderConverter}}" FontWeight="Medium" />
+                                                                        </TextBlock>
+                                                                        <TextBlock Style="{StaticResource TextMetadata}" Margin="0,0,0,6">
+                                                                            <Run Text="Supplier" /><Run Text="  " />
+                                                                            <Run Text="{Binding Fournisseur, Converter={StaticResource NullToPlaceholderConverter}}" FontWeight="Medium" />
+                                                                        </TextBlock>
+                                                                        <TextBlock Style="{StaticResource TextMetadata}" Margin="0,0,0,6">
+                                                                            <Run Text="Client" /><Run Text="  " />
+                                                                            <Run Text="{Binding Client, Converter={StaticResource NullToPlaceholderConverter}}" FontWeight="Medium" />
+                                                                        </TextBlock>
+                                                                    </StackPanel>
+                                                                    <StackPanel Grid.Column="1" Margin="32,0,0,0">
+                                                                        <TextBlock Style="{StaticResource TextMetadata}" Margin="0,0,0,6">
+                                                                            <Run Text="HT" /><Run Text="  " />
+                                                                            <Run Text="{Binding MontantHt, Converter={StaticResource NullToPlaceholderConverter}}" FontWeight="Medium" />
+                                                                        </TextBlock>
+                                                                        <TextBlock Style="{StaticResource TextMetadata}" Margin="0,0,0,6">
+                                                                            <Run Text="TVA" /><Run Text="  " />
+                                                                            <Run Text="{Binding MontantTva, Converter={StaticResource NullToPlaceholderConverter}}" FontWeight="Medium" />
+                                                                        </TextBlock>
+                                                                        <TextBlock Style="{StaticResource TextMetadata}" Margin="0,0,0,6">
+                                                                            <Run Text="Tax" /><Run Text="  " />
+                                                                            <Run Text="{Binding MontantTaxe, Converter={StaticResource NullToPlaceholderConverter}}" FontWeight="Medium" />
+                                                                        </TextBlock>
+                                                                        <TextBlock Style="{StaticResource TextMetadata}" Margin="0,0,0,6">
+                                                                            <Run Text="TTC" /><Run Text="  " />
+                                                                            <Run Text="{Binding MontantTtc, Converter={StaticResource NullToPlaceholderConverter}}" FontWeight="Medium" />
+                                                                        </TextBlock>
+                                                                        <TextBlock Style="{StaticResource TextMetadata}" Margin="0,0,0,6">
+                                                                            <Run Text="Confidence" /><Run Text="  " />
+                                                                            <Run Text="{Binding ConfidenceDisplay}" FontWeight="Medium" />
+                                                                        </TextBlock>
+                                                                        <TextBlock Style="{StaticResource TextMetadata}">
+                                                                            <Run Text="Engine" /><Run Text="  " />
+                                                                            <Run Text="{Binding EngineUsed}" FontWeight="Medium" />
+                                                                        </TextBlock>
+                                                                    </StackPanel>
+                                                                </Grid>
+                                                            </StackPanel>
+                                                        </Grid>
+
+                                                        <!-- Divider -->
+                                                        <Border Height="1" Background="{StaticResource BrushBorder}" Margin="0,0,0,16" />
+
+                                                        <!-- Items Table -->
+                                                        <StackPanel>
+                                                            <TextBlock Text="{Binding ItemsHeaderText}"
+                                                                       Style="{StaticResource TextCardTitle}"
+                                                                       Margin="0,0,0,12" />
+
+                                                            <!-- Items present: show table -->
+                                                            <Border BorderBrush="{StaticResource BrushBorder}"
+                                                                    BorderThickness="1"
+                                                                    CornerRadius="{StaticResource RadiusMedium}"
+                                                                    Background="{StaticResource BrushSurface}"
+                                                                    Visibility="{Binding HasItems, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                                <StackPanel>
+                                                                    <!-- Column headers -->
+                                                                    <Grid Background="{StaticResource BrushAltBackground}">
+                                                                        <Grid.ColumnDefinitions>
+                                                                            <ColumnDefinition Width="*" MinWidth="140" />
+                                                                            <ColumnDefinition Width="64" />
+                                                                            <ColumnDefinition Width="80" />
+                                                                            <ColumnDefinition Width="60" />
+                                                                            <ColumnDefinition Width="90" />
+                                                                        </Grid.ColumnDefinitions>
+                                                                        <TextBlock Grid.Column="0" Text="Description"
+                                                                                   Style="{StaticResource TextMetadata}"
+                                                                                   FontWeight="{StaticResource FontWeightMedium}"
+                                                                                   Padding="14,10" />
+                                                                        <TextBlock Grid.Column="1" Text="Qty"
+                                                                                   Style="{StaticResource TextMetadata}"
+                                                                                   FontWeight="{StaticResource FontWeightMedium}"
+                                                                                   Padding="14,10" />
+                                                                        <TextBlock Grid.Column="2" Text="Unit Price"
+                                                                                   Style="{StaticResource TextMetadata}"
+                                                                                   FontWeight="{StaticResource FontWeightMedium}"
+                                                                                   Padding="14,10" />
+                                                                        <TextBlock Grid.Column="3" Text="VAT%"
+                                                                                   Style="{StaticResource TextMetadata}"
+                                                                                   FontWeight="{StaticResource FontWeightMedium}"
+                                                                                   Padding="14,10" />
+                                                                        <TextBlock Grid.Column="4" Text="Total"
+                                                                                   Style="{StaticResource TextMetadata}"
+                                                                                   FontWeight="{StaticResource FontWeightMedium}"
+                                                                                   Padding="14,10" />
+                                                                    </Grid>
+                                                                    <ItemsControl ItemsSource="{Binding Items}">
+                                                                        <ItemsControl.ItemTemplate>
+                                                                            <DataTemplate>
+                                                                                <Border BorderThickness="0,1,0,0"
+                                                                                        BorderBrush="{StaticResource BrushBorder}"
+                                                                                        Padding="0">
+                                                                                    <Grid>
+                                                                                        <Grid.ColumnDefinitions>
+                                                                                            <ColumnDefinition Width="*" MinWidth="140" />
+                                                                                            <ColumnDefinition Width="64" />
+                                                                                            <ColumnDefinition Width="80" />
+                                                                                            <ColumnDefinition Width="60" />
+                                                                                            <ColumnDefinition Width="90" />
+                                                                                        </Grid.ColumnDefinitions>
+                                                                                        <TextBlock Grid.Column="0"
+                                                                                                   Text="{Binding DisplayLine}"
+                                                                                                   Style="{StaticResource TextBody}"
+                                                                                                   Padding="14,8"
+                                                                                                   TextTrimming="CharacterEllipsis" />
+                                                                                        <TextBlock Grid.Column="1"
+                                                                                                   Text="{Binding QuantiteDisplay}"
+                                                                                                   Style="{StaticResource TextBody}"
+                                                                                                   Padding="14,8" />
+                                                                                        <TextBlock Grid.Column="2"
+                                                                                                   Text="{Binding PriceDisplay}"
+                                                                                                   Style="{StaticResource TextBody}"
+                                                                                                   Padding="14,8" />
+                                                                                        <TextBlock Grid.Column="3"
+                                                                                                   Text="{Binding TvaDisplay}"
+                                                                                                   Style="{StaticResource TextBody}"
+                                                                                                   Padding="14,8" />
+                                                                                        <TextBlock Grid.Column="4"
+                                                                                                   Text="{Binding MontantDisplay}"
+                                                                                                   Style="{StaticResource TextBody}"
+                                                                                                   FontWeight="{StaticResource FontWeightMedium}"
+                                                                                                   Padding="14,8" />
+                                                                                    </Grid>
+                                                                                </Border>
+                                                                            </DataTemplate>
+                                                                        </ItemsControl.ItemTemplate>
+                                                                    </ItemsControl>
+                                                                </StackPanel>
+                                                            </Border>
+
+                                                            <!-- No items placeholder -->
+                                                            <Border Padding="24,16"
+                                                                    CornerRadius="{StaticResource RadiusMedium}"
+                                                                    BorderBrush="{StaticResource BrushBorder}"
+                                                                    BorderThickness="1"
+                                                                    Visibility="{Binding HasItems, Converter={StaticResource InverseBooleanToVisibilityConverter}}">
+                                                                <TextBlock Text="No extracted items available."
+                                                                           Style="{StaticResource TextCaption}"
+                                                                           Foreground="{StaticResource BrushTextMuted}"
+                                                                           HorizontalAlignment="Center" />
+                                                            </Border>
+                                                        </StackPanel>
+                                                    </StackPanel>
+                                                </Border>
+                                            </DataTemplate>
+                                        </DataGrid.RowDetailsTemplate>
                                     </DataGrid>
 
                                                     <!-- Empty State -->

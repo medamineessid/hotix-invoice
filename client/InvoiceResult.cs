@@ -23,10 +23,16 @@ public sealed class InvoiceItem
     public string DisplayLine => Designation ?? "—";
 
     [JsonIgnore]
+    public string QuantiteDisplay => Quantite.HasValue ? $"{Quantite.Value:0.##}" : "—";
+
+    [JsonIgnore]
     public string PriceDisplay => PrixUnitaire.HasValue ? $"{PrixUnitaire.Value:F2}" : "—";
 
     [JsonIgnore]
     public string TvaDisplay => TvaRate.HasValue ? $"{(TvaRate.Value * 100):F1}%" : "—";
+
+    [JsonIgnore]
+    public string MontantDisplay => Montant.HasValue ? $"{Montant.Value:F2}" : "—";
 }
 
 public sealed class InvoiceResult

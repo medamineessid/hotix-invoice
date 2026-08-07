@@ -2,13 +2,18 @@
 
 from __future__ import annotations
 
+from decimal import Decimal
+
 import pytest
 
 from server.utils import (
     BoundingBox,
     OCRLine,
+    _parse_decimal,
+    extract_amount,
     looks_like_latin_text,
 )
+from server.field_extractor import cross_validate_fields
 
 
 # ── looks_like_latin_text ─────────────────────────────────────────────────────
@@ -139,3 +144,94 @@ class TestBoundingBoxEdgeCases:
         bb1 = BoundingBox(0, 0, 10, 10)
         bb2 = BoundingBox(20, 0, 30, 10)
         assert bb1.horizontal_gap(bb2) == 10.0  # noqa: PLR2004
+
+
+# ── French-format amount parsing ─────────────────────────────────────────────
+
+
+class TestFrenchAmountParsing:
+    """Amounts on French/Tunisian invoices use ',' as the decimal separator and
+    space / NBSP (U+00A0) / thin-space (U+202F) as the thousands separator.
+
+    Regression tests for the normalization used by _parse_decimal (arithmetic
+    validation / VAT-rate checks) and extract_amount (field extraction).  The
+    two parsers must agree — before the U+202F fix, _parse_decimal returned
+    None for thin-space amounts while extract_amount succeeded, silently
+    dropping the amount from cross-validation.
+    """
+
+    def test_thin_space_thousands_french_decimal(self):
+        """'1\u202f234,56' — thin space thousands, comma decimal. Was None before the fix."""
+        assert _parse_decimal("1\u202f234,56") == Decimal("1234.56")
+
+    def test_nbsp_thousands_french_decimal(self):
+        """NBSP thousands separator (\u00a0), comma decimal."""
+        assert _parse_decimal("1\u00a0234,56") == Decimal("1234.56")
+
+    def test_ascii_space_thousands_french_decimal(self):
+        """Plain ASCII space thousands separator."""
+        assert _parse_decimal("1 234,56") == Decimal("1234.56")
+
+    def test_period_thousands_comma_decimal(self):
+        """European style: '1.234,56'."""
+        assert _parse_decimal("1.234,56") == Decimal("1234.56")
+
+    def test_us_thousands_dot_decimal(self):
+        """US style: '1,234.56'."""
+        assert _parse_decimal("1,234.56") == Decimal("1234.56")
+
+    def test_tnd_three_decimal_millimes(self):
+        """Tunisian invoices quote to 3 decimals: '850,000' = 850.000 TND."""
+        assert _parse_decimal("850,000") == Decimal("850.000")
+
+    def test_thin_space_three_decimal_millimes(self):
+        """Thin-space thousands with 3-decimal TND amount."""
+        assert _parse_decimal("1\u202f000,000") == Decimal("1000.000")
+
+    def test_extract_amount_thin_space(self):
+        """extract_amount must normalize thin-space amounts too."""
+        assert extract_amount("1\u202f234,56") == "1234.560"
+
+    def test_extract_amount_nbsp(self):
+        """extract_amount must normalize NBSP amounts too."""
+        assert extract_amount("1\u00a0234,56") == "1234.560"
+
+    def test_cross_validate_french_consistent_no_spurious_issues(self):
+        """A consistent French-formatted invoice must NOT raise
+        'Unlikely VAT rate' or 'Arithmetic mismatch' issues.
+
+        Before the U+202F fix, thin-space amounts parsed to None / wrong
+        magnitudes and triggered exactly these spurious validation issues
+        across real invoices (reported as VAT rates of 1.0%, 526.3%, 1428.6%).
+        """
+        fields = {
+            "numero_facture": "FAC-2025-001",
+            "date": "2025-03-15",
+            "fournisseur": "Fournisseur SARL",
+            "client": "Client SA",
+            "montant_ht": "1\u202f000,000",
+            "montant_tva": "190,000",
+            "montant_taxe": "0,000",
+            "montant_ttc": "1\u202f190,000",
+        }
+        issues = cross_validate_fields(fields)
+        assert not any("Unlikely VAT rate" in i for i in issues), f"Unexpected: {issues}"
+        assert not any("Arithmetic mismatch" in i for i in issues), f"Unexpected: {issues}"
+
+    def test_unlikely_vat_rate_1428_repro(self):
+        """Documents the exact symptom from the production log: HT=7,000 /
+        TVA=100,000 yields VAT rate 1428.6%.
+
+        Validation must still flag it (genuinely inconsistent extraction);
+        the fix guarantees valid French strings can no longer be misparsed
+        into such magnitudes by the amount parser itself.
+        """
+        fields = {
+            "numero_facture": "INV-001",
+            "date": "2025-01-10",
+            "montant_ht": "7,000",
+            "montant_tva": "100,000",
+            "montant_ttc": "107,000",
+        }
+        issues = cross_validate_fields(fields)
+        assert any("Unlikely VAT rate: 1428.6%" in i for i in issues), f"Expected repro, got: {issues}"

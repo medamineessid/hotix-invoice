@@ -55,6 +55,10 @@ class InvoiceExtractionResponse(BaseModel):
         default_factory=list,
         description="Line items extracted from the invoice table (may be empty if no table found).",
     )
+    field_confidences: dict[str, float] = Field(
+        default_factory=dict,
+        description="Per-field confidence scores from the OCR engine (0.0-1.0). Keys match the 8 standard field names.",
+    )
 
 
 class HealthResponse(BaseModel):

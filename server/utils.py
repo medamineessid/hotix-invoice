@@ -146,7 +146,11 @@ def extract_amount(text: str) -> Optional[str]:
     if candidate is None:
         return None
 
-    value = candidate.group(0).replace(" ", "")
+    # Remove ALL Unicode whitespace (ASCII, \u00a0, \u202f thin space, ...)
+    # so French thousands separators of any kind collapse before separator
+    # disambiguation.  Keep this identical to _parse_decimal's normalization
+    # so the extraction and validation paths can never disagree.
+    value = "".join(candidate.group(0).split())
     if "," in value and "." in value:
         if value.rfind(",") > value.rfind("."):
             value = value.replace(".", "").replace(",", ".")
@@ -335,7 +339,15 @@ def _parse_decimal(value: object) -> Optional[Decimal]:
     # the same way extract_amount does (French: 1.234,56 → 1234.56 ;
     # US thousands: 1,234.56 → 1234.56).
     try:
-        cleaned = cleaned.replace(" ", "").replace("\u00a0", "")
+        # Strip ALL Unicode whitespace (ASCII space, NBSP \u00a0, narrow
+        # no-break space \u202f, ...).  French invoices commonly use thin
+        # spaces / NBSP as the thousands separator, and OCR frequently emits
+        # them.  A bare .replace(" ", "") leaves U+202F in place, which makes
+        # Decimal() raise InvalidOperation and silently drops the amount from
+        # arithmetic validation (producing "missing amount" or wrong-magnitude
+        # issues downstream).  str.split() without args splits on every
+        # Unicode whitespace run, so "".join(...) removes all of them.
+        cleaned = "".join(cleaned.split())
         if "," in cleaned and "." in cleaned:
             # Ambiguous mixed separators — the last separator wins: if it's a
             # comma (1.234,56) that comma is the decimal point, otherwise
@@ -379,6 +391,45 @@ def format_amount_value(value: object) -> Optional[str]:
     except InvalidOperation:
         # Extreme magnitudes (e.g. 1E+308) overflow the quantize precision.
         return None
+
+
+_CURRENCY_TOKENS = ("TND", "DT", "EUR", "USD", "FCFA", "DH", "€", "$", "£")
+
+
+def parse_french_amount(raw: str) -> Decimal:
+    """Parse a French-format amount string into a Decimal (canonical public API).
+
+    Handles:
+    - "1 234,56"  — space thousands, comma decimal
+    - "1.234,56"  — period thousands, comma decimal
+    - "1,234.56"  — comma thousands, period decimal (US style)
+    - "1234,56" / "1234.56"
+    - NBSP (\xa0) and thin-space (\u202f) thousands separators (common in
+      French PDF exports and OCR output)
+    - trailing currency tokens (€, TND, DT, $, £, ...)
+    - 3-decimal TND millimes ("850,000")
+
+    Strict by design: raises ValueError on None, empty, or unparseable input,
+    so callers that require a real amount fail loudly instead of silently
+    dropping the value — silent drops previously produced spurious
+    "Unlikely VAT rate" (1.0% / 526.3% / 1428.6%) and "Arithmetic mismatch"
+    issues.  Use _parse_decimal directly when the lenient None-on-failure
+    contract is preferred (e.g. reconciliation logic).
+    """
+    if raw is None:
+        raise ValueError("Amount is None")
+    if not isinstance(raw, str):
+        raise ValueError(f"Amount must be a string, got {type(raw).__name__}")
+    value = raw.strip()
+    if not value:
+        raise ValueError("Amount is empty")
+    for token in _CURRENCY_TOKENS:
+        value = value.replace(token, "")
+    value = value.strip()
+    parsed = _parse_decimal(value)
+    if parsed is None:
+        raise ValueError(f"Unparseable amount: {raw!r}")
+    return parsed
 
 
 def validate_amounts(fields: dict[str, Optional[str]]) -> dict[str, Optional[str]]:

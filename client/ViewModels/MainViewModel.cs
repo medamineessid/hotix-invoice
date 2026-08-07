@@ -60,6 +60,14 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     private string _previewStatusMessage = string.Empty;
     private double _previewZoomLevel = 1.0;
     private bool _previewShowRawText;
+    private bool _isPreviewLoading;
+    private CancellationTokenSource? _previewLoadCts;
+    private string? _lastPreviewFilePath;
+    // Image cache: filePath → frozen BitmapImage (cleared when too large)
+    private readonly Dictionary<string, BitmapImage> _previewImageCache = new();
+    private const int MaxPreviewCacheEntries = 50;
+    private double _previewNaturalWidth;
+    private double _previewNaturalHeight;
     private string _directionFilter = "all";
     private ListCollectionView? _resultsView;
     private ListCollectionView? _incompleteView;
@@ -129,7 +137,6 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         ClearCommand           = new RelayCommand(_ => ClearResults(), _ => CanClear());
         RerunCommand           = new RelayCommand(async p => await RerunRowAsync(p as InvoiceRowViewModel), _ => !IsExtracting);
         RerunAllErrorsCommand  = new RelayCommand(async _ => await RerunAllErrorsAsync(), _ => Results.Any(r => r.HasError) && !IsExtracting);
-        RerunAllErrorsCommand = new RelayCommand(async _ => await RerunAllErrorsAsync(), _ => Results.Any(r => r.HasError) && !IsExtracting);
         ToggleAllFilesCommand  = new RelayCommand(_ => ToggleAllFiles());
         ToggleAllRowsCommand   = new RelayCommand(_ => ToggleAllRows());
         ClearSelectedRowCommand = new RelayCommand(_ => SelectedRow = null);
@@ -163,6 +170,10 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         SaveGrokKeyCommand     = new RelayCommand(async _ => await SaveGrokKeyAsync());
         ClearGrokKeyCommand    = new RelayCommand(async _ => await ClearGrokKeyAsync(), _ => HasGrokKey);
         ClearActiveKeyCommand  = new RelayCommand(async _ => await ClearActiveKeyAsync(), _ => HasActiveKey);
+        PreviewZoomInCommand = new RelayCommand(_ => PreviewZoomLevel *= 1.25);
+        PreviewZoomOutCommand = new RelayCommand(_ => PreviewZoomLevel /= 1.25);
+        PreviewFitWidthCommand = new RelayCommand(_ => FitPreviewToWidth());
+        PreviewFitPageCommand = new RelayCommand(_ => FitPreviewToPage());
 
         LoadSettings();
         LoadProviderKeysFromAppSettings();
@@ -221,6 +232,10 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     public ICommand SaveGrokKeyCommand      { get; }
     public ICommand ClearGrokKeyCommand     { get; }
     public ICommand ClearActiveKeyCommand   { get; }
+    public ICommand PreviewZoomInCommand     { get; }
+    public ICommand PreviewZoomOutCommand    { get; }
+    public ICommand PreviewFitWidthCommand   { get; }
+    public ICommand PreviewFitPageCommand    { get; }
 
     public string SelectedFolder
     {
@@ -612,8 +627,9 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                 OnPropertyChanged(nameof(PreviewFileName));
                 // Reset view to image+fields when selection changes
                 PreviewShowRawText = false;
-                PreviewZoomLevel = 1.0;
-                // Load the source image asynchronously
+                if (_selectedRow != null && _selectedRow.FilePath != _lastPreviewFilePath)
+                    PreviewZoomLevel = 1.0;
+                // Load the source image asynchronously (cache-aware)
                 _ = LoadPreviewImageAsync();
             }
         }
@@ -727,7 +743,16 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     /// <summary>Formatted zoom percentage for display.</summary>
     public string PreviewZoomPercent => $"{(int)(_previewZoomLevel * 100)}%";
 
-    /// <summary>When true, show raw OCR text instead of image+fields.</summary>
+    /// <summary>True while the preview image is being loaded.</summary>
+    public bool IsPreviewLoading
+    {
+        get => _isPreviewLoading;
+        private set => SetField(ref _isPreviewLoading, value);
+    }
+
+    /// <summary>Natural pixel dimensions of the currently loaded preview image.</summary>
+    public double PreviewNaturalWidth => _previewNaturalWidth;
+    public double PreviewNaturalHeight => _previewNaturalHeight;
     public bool PreviewShowRawText
     {
         get => _previewShowRawText;
@@ -738,84 +763,155 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     /// Loads the source document image for the preview panel.
     /// For image files (PNG, JPG, BMP, TIFF): loads directly from disk.
     /// For PDF files: calls the server /preview endpoint to render page 1.
+    /// Uses an image cache and CancellationToken to avoid redundant loads.
     /// </summary>
     private async Task LoadPreviewImageAsync()
     {
+        // Cancel any in-flight preview load
+        _previewLoadCts?.Cancel();
+        _previewLoadCts?.Dispose();
+        _previewLoadCts = new CancellationTokenSource();
+        var ct = _previewLoadCts.Token;
+
         if (_selectedRow == null || string.IsNullOrEmpty(_selectedRow.FilePath))
         {
+            IsPreviewLoading = false;
             PreviewImageSource = null;
             PreviewStatusMessage = string.Empty;
+            _lastPreviewFilePath = null;
             return;
         }
 
         string filePath = _selectedRow.FilePath;
-        if (!File.Exists(filePath))
+
+        // Skip if same file already loaded
+        if (filePath == _lastPreviewFilePath && _previewImageSource != null)
         {
-            PreviewImageSource = null;
-            PreviewStatusMessage = string.Empty;
+            IsPreviewLoading = false;
             return;
         }
 
+        // Check cache first
+        if (_previewImageCache.TryGetValue(filePath, out var cached))
+        {
+            PreviewImageSource = cached;
+            PreviewStatusMessage = string.Empty;
+            IsPreviewLoading = false;
+            _lastPreviewFilePath = filePath;
+            _previewNaturalWidth = cached.Width;
+            _previewNaturalHeight = cached.Height;
+            OnPropertyChanged(nameof(PreviewNaturalWidth));
+            OnPropertyChanged(nameof(PreviewNaturalHeight));
+            return;
+        }
+
+        if (!File.Exists(filePath))
+        {
+            IsPreviewLoading = false;
+            PreviewImageSource = null;
+            PreviewStatusMessage = TranslationSource.Get("PreviewImageMissing");
+            _lastPreviewFilePath = null;
+            return;
+        }
+
+        IsPreviewLoading = true;
+        PreviewStatusMessage = string.Empty;
+
         try
         {
+            ct.ThrowIfCancellationRequested();
             string ext = Path.GetExtension(filePath).ToLowerInvariant();
 
+            BitmapImage bitmap;
             if (ext == ".pdf")
             {
-                // PDF — call server endpoint to render page 1
                 if (!_isServerStarted || !_isServerRunning)
                 {
-                    // Server not ready — show a visible status message instead of a
-                    // silently empty preview. The preview is retried automatically
-                    // once the server becomes ready (see EnsureServerReadyAsync).
+                    IsPreviewLoading = false;
                     PreviewImageSource = null;
                     PreviewStatusMessage = _isServerStarting
                         ? TranslationSource.Get("PreviewServerStarting")
                         : TranslationSource.Get("PreviewServerUnavailable");
+                    _lastPreviewFilePath = null;
                     return;
                 }
 
                 using var response = await _apiHttpClient.GetAsync(
-                    $"/preview?path={Uri.EscapeDataString(filePath)}");
+                    $"/preview?path={Uri.EscapeDataString(filePath)}", ct);
+                ct.ThrowIfCancellationRequested();
+
                 if (!response.IsSuccessStatusCode)
                 {
+                    IsPreviewLoading = false;
                     PreviewImageSource = null;
                     PreviewStatusMessage = string.Empty;
+                    _lastPreviewFilePath = null;
                     return;
                 }
 
-                byte[] imageBytes = await response.Content.ReadAsByteArrayAsync();
-                var bitmap = new BitmapImage();
+                byte[] imageBytes = await response.Content.ReadAsByteArrayAsync(ct);
+                ct.ThrowIfCancellationRequested();
+                bitmap = new BitmapImage();
                 bitmap.BeginInit();
                 bitmap.CacheOption = BitmapCacheOption.OnLoad;
                 bitmap.StreamSource = new MemoryStream(imageBytes);
                 bitmap.EndInit();
-                bitmap.Freeze(); // Make cross-thread safe
-                PreviewStatusMessage = string.Empty;
-                PreviewImageSource = bitmap;
             }
             else
             {
-                // Image file — load directly from disk
-                var bitmap = new BitmapImage();
+                bitmap = new BitmapImage();
                 bitmap.BeginInit();
                 bitmap.CacheOption = BitmapCacheOption.OnLoad;
                 bitmap.UriSource = new Uri(filePath);
                 bitmap.EndInit();
-                bitmap.Freeze(); // Make cross-thread safe
-                PreviewStatusMessage = string.Empty;
-                PreviewImageSource = bitmap;
             }
+
+            ct.ThrowIfCancellationRequested();
+            bitmap.Freeze();
+
+            // Cache the result (with bounded size)
+            if (_previewImageCache.Count >= MaxPreviewCacheEntries)
+            {
+                // Remove oldest entry
+                var firstKey = _previewImageCache.Keys.First();
+                _previewImageCache.Remove(firstKey);
+            }
+            _previewImageCache[filePath] = bitmap;
+
+            _previewNaturalWidth = bitmap.Width;
+            _previewNaturalHeight = bitmap.Height;
+            PreviewImageSource = bitmap;
+            PreviewStatusMessage = string.Empty;
+            IsPreviewLoading = false;
+            _lastPreviewFilePath = filePath;
+            OnPropertyChanged(nameof(PreviewNaturalWidth));
+            OnPropertyChanged(nameof(PreviewNaturalHeight));
+        }
+        catch (OperationCanceledException)
+        {
+            // Cancelled by a new preview request — do nothing
         }
         catch (Exception ex)
         {
-            // Preview is best-effort, but never fail silently — log the exact
-            // failure so locked files / bad paths / non-200 responses are visible.
+            IsPreviewLoading = false;
             PreviewImageSource = null;
             PreviewStatusMessage = string.Empty;
+            _lastPreviewFilePath = null;
             Debug.WriteLine($"[LoadPreviewImageAsync] failed for {filePath}: {ex}");
             SentrySdk.CaptureException(ex);
         }
+    }
+
+    private void FitPreviewToWidth()
+    {
+        // This is a hint — the actual fit is calculated in XAML via the ScrollViewer.
+        // We set zoom to 1.0 and let the user adjust.
+        PreviewZoomLevel = 1.0;
+    }
+
+    private void FitPreviewToPage()
+    {
+        PreviewZoomLevel = 1.0;
     }
 
     public bool HasErrors => Results.Any(r => r.HasError);
@@ -1321,13 +1417,14 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         if (_isServerStarting)
         {
             // Already starting — wait for completion. The wait must be LONGER than
-            // App.StartServerAsync's own startup timeout (90s) so concurrent callers
-            // (batch concurrency can reach EnsureServerReadyAsync from multiple
-            // ExtractViaServerAsync tasks) do NOT time out early and re-enter
-            // App.StartServerAsync, which would kill the in-progress server process.
+            // App.StartServerAsync's own startup timeout (ServerStartTimeout,
+            // default 90s) so concurrent callers (batch concurrency can reach
+            // EnsureServerReadyAsync from multiple ExtractViaServerAsync tasks) do
+            // NOT time out early and re-enter App.StartServerAsync, which would
+            // kill the in-progress server process.
             Debug.WriteLine("[Hotix] EnsureServerReadyAsync: waiting for already-starting server...");
             var waitStart = Stopwatch.StartNew();
-            while (waitStart.Elapsed < TimeSpan.FromSeconds(95))
+            while (waitStart.Elapsed < App.ServerStartTimeout + TimeSpan.FromSeconds(5))
             {
                 await Task.Delay(500);
                 if (_isServerStarted && _isServerRunning)
@@ -3223,6 +3320,10 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         // that may still be reading _extractionCts.Token.
         _extractionCts?.Cancel();
         _apiHttpClient.Dispose();
+        _previewLoadCts?.Cancel();
+        _previewLoadCts?.Dispose();
+        _previewLoadCts = null;
+        _previewImageCache.Clear();
         _httpQuickClient.Dispose();
         _httpShortClient.Dispose();
         _httpCloudClient.Dispose();

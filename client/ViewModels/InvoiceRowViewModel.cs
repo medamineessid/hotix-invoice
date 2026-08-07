@@ -383,7 +383,9 @@ public sealed class InvoiceRowViewModel : INotifyPropertyChanged
         {
             if (item.TvaRate.HasValue && item.Montant.HasValue)
             {
-                sumItemVat += item.Montant.Value * (item.TvaRate.Value / 100.0);
+                // tva_rate from the server API is already in decimal form
+                // (e.g. 0.20 = 20%), so do NOT divide by 100 again.
+                sumItemVat += item.Montant.Value * item.TvaRate.Value;
                 hasItemVat = true;
             }
         }
