@@ -529,67 +529,20 @@ public partial class MainWindow : Window
 
     // ── Staggered Row Animation ──────────────────────────────────────
 
-    private bool _isPreviewFullscreen;
-
     private void ResultsGrid_MouseDoubleClick(object sender, MouseButtonEventArgs e)
     {
-        // Double-click toggles fullscreen preview:
-        // first click selects the row (updates preview panel),
-        // double-click expands/collapses the preview panel to full width.
-        if (sender is not DataGrid grid || grid.SelectedItem is not InvoiceRowViewModel row)
-            return;
-
-        if (!_isPreviewFullscreen)
+        // Double-click: ensure the row is selected (first click of the
+        // double-click triggers selection).  RowDetailsVisibilityMode is
+        // "VisibleWhenSelected" so the invoice details expand automatically.
+        // We do NOT hide the results grid — the old fullscreen-preview
+        // behaviour was destructive and confusing when the user just wanted
+        // to see the expanded invoice details.
+        if (sender is DataGrid grid)
         {
-            // Enter fullscreen: hide result grid, expand preview panel
-            ToggleFullscreenPreview(true);
-        }
-        else
-        {
-            // Exit fullscreen
-            ToggleFullscreenPreview(false);
+            // The first click already selected the row, but make sure
+            // we mark the event as handled so WPF doesn't do anything else.
         }
         e.Handled = true;
-    }
-
-    private void ToggleFullscreenPreview(bool fullscreen)
-    {
-        _isPreviewFullscreen = fullscreen;
-        // The preview panel is in ResultsSection column 2.
-        // In fullscreen: collapse columns 0 and 1, make column 2 fill all space.
-        // In normal: restore original column widths.
-        var resultsSection = ResultsSection;
-        if (resultsSection == null) return;
-
-        if (fullscreen)
-        {
-            // Save original widths for restoration
-            resultsSection.Tag = new double[]
-            {
-                resultsSection.ColumnDefinitions[0].Width.Value,
-                resultsSection.ColumnDefinitions[2].Width.Value
-            };
-            resultsSection.ColumnDefinitions[0].Width = new GridLength(0);
-            resultsSection.ColumnDefinitions[2].Width = new GridLength(1, GridUnitType.Star);
-            resultsSection.ColumnDefinitions[2].MinWidth = 0;
-            resultsSection.ColumnDefinitions[2].MaxWidth = double.PositiveInfinity;
-        }
-        else
-        {
-            // Restore original widths
-            if (resultsSection.Tag is double[] saved)
-            {
-                resultsSection.ColumnDefinitions[0].Width = new GridLength(saved[0], GridUnitType.Star);
-                resultsSection.ColumnDefinitions[2].Width = new GridLength(saved[1]);
-            }
-            else
-            {
-                resultsSection.ColumnDefinitions[0].Width = new GridLength(1, GridUnitType.Star);
-                resultsSection.ColumnDefinitions[2].Width = new GridLength(380);
-            }
-            resultsSection.ColumnDefinitions[2].MinWidth = 280;
-            resultsSection.ColumnDefinitions[2].MaxWidth = 600;
-        }
     }
 
     private void ResultsGrid_LoadingRow(object sender, DataGridRowEventArgs e)

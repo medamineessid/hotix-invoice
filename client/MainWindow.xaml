@@ -1157,24 +1157,24 @@
                                                                                         <ColumnDefinition Width="90" />
                                                                                     </Grid.ColumnDefinitions>
                                                                                     <TextBlock Grid.Column="0"
-                                                                                               Text="{Binding DisplayLine}"
+                                                                                               Text="{Binding DisplayLine, Mode=OneWay}"
                                                                                                Style="{StaticResource TextBody}"
                                                                                                Padding="14,8"
                                                                                                TextTrimming="CharacterEllipsis" />
                                                                                     <TextBlock Grid.Column="1"
-                                                                                               Text="{Binding QuantiteDisplay}"
+                                                                                               Text="{Binding QuantiteDisplay, Mode=OneWay}"
                                                                                                Style="{StaticResource TextBody}"
                                                                                                Padding="14,8" />
                                                                                     <TextBlock Grid.Column="2"
-                                                                                               Text="{Binding PriceDisplay}"
+                                                                                               Text="{Binding PriceDisplay, Mode=OneWay}"
                                                                                                Style="{StaticResource TextBody}"
                                                                                                Padding="14,8" />
                                                                                     <TextBlock Grid.Column="3"
-                                                                                               Text="{Binding TvaDisplay}"
+                                                                                               Text="{Binding TvaDisplay, Mode=OneWay}"
                                                                                                Style="{StaticResource TextBody}"
                                                                                                Padding="14,8" />
                                                                                     <TextBlock Grid.Column="4"
-                                                                                               Text="{Binding MontantDisplay}"
+                                                                                               Text="{Binding MontantDisplay, Mode=OneWay}"
                                                                                                Style="{StaticResource TextBody}"
                                                                                                FontWeight="{StaticResource FontWeightMedium}"
                                                                                                Padding="14,8" />
@@ -1530,24 +1530,24 @@
                                                                                             <ColumnDefinition Width="90" />
                                                                                         </Grid.ColumnDefinitions>
                                                                                         <TextBlock Grid.Column="0"
-                                                                                                   Text="{Binding DisplayLine}"
+                                                                                                   Text="{Binding DisplayLine, Mode=OneWay}"
                                                                                                    Style="{StaticResource TextBody}"
                                                                                                    Padding="14,8"
                                                                                                    TextTrimming="CharacterEllipsis" />
                                                                                         <TextBlock Grid.Column="1"
-                                                                                                   Text="{Binding QuantiteDisplay}"
+                                                                                                   Text="{Binding QuantiteDisplay, Mode=OneWay}"
                                                                                                    Style="{StaticResource TextBody}"
                                                                                                    Padding="14,8" />
                                                                                         <TextBlock Grid.Column="2"
-                                                                                                   Text="{Binding PriceDisplay}"
+                                                                                                   Text="{Binding PriceDisplay, Mode=OneWay}"
                                                                                                    Style="{StaticResource TextBody}"
                                                                                                    Padding="14,8" />
                                                                                         <TextBlock Grid.Column="3"
-                                                                                                   Text="{Binding TvaDisplay}"
+                                                                                                   Text="{Binding TvaDisplay, Mode=OneWay}"
                                                                                                    Style="{StaticResource TextBody}"
                                                                                                    Padding="14,8" />
                                                                                         <TextBlock Grid.Column="4"
-                                                                                                   Text="{Binding MontantDisplay}"
+                                                                                                   Text="{Binding MontantDisplay, Mode=OneWay}"
                                                                                                    Style="{StaticResource TextBody}"
                                                                                                    FontWeight="{StaticResource FontWeightMedium}"
                                                                                                    Padding="14,8" />
@@ -1952,12 +1952,12 @@
                                                                                 <ColumnDefinition Width="Auto" />
                                                                             </Grid.ColumnDefinitions>
                                                                             <TextBlock Grid.Column="0"
-                                                                                       Text="{Binding DisplayLine}"
+                                                                                       Text="{Binding DisplayLine, Mode=OneWay}"
                                                                                        Style="{StaticResource TextTiny}"
                                                                                        TextTrimming="CharacterEllipsis"
                                                                                        VerticalAlignment="Center" />
                                                                             <TextBlock Grid.Column="1"
-                                                                                       Text="{Binding PriceDisplay}"
+                                                                                       Text="{Binding PriceDisplay, Mode=OneWay}"
                                                                                        Style="{StaticResource TextTiny}"
                                                                                        Foreground="{StaticResource BrushTextMuted}"
                                                                                        Margin="0,0,12,0"
@@ -1966,7 +1966,7 @@
                                                                                     CornerRadius="{StaticResource RadiusPill}"
                                                                                     Padding="6,2"
                                                                                     Background="{StaticResource BrushInfoLight}">
-                                                                                <TextBlock Text="{Binding TvaDisplay}"
+                                                                                <TextBlock Text="{Binding TvaDisplay, Mode=OneWay}"
                                                                                            Style="{StaticResource TextTiny}"
                                                                                            Foreground="{StaticResource BrushInfo}" />
                                                                             </Border>
