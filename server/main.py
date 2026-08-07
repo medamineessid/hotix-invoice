@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import io
-from io import BytesIO
 import json
 import logging
 import os
@@ -548,7 +547,7 @@ async def _prepare_pages_for_gemini(pages: list) -> bytes:
     from PIL import Image
 
     if len(pages) == 1:
-        buf = BytesIO()
+        buf = io.BytesIO()
         pages[0].save(buf, format="PNG")
         return buf.getvalue()
 
