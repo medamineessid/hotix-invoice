@@ -18,4 +18,4 @@ jobs:
           python-version: '3.12'
       - name: Translation-key integrity check
         run: python scripts/check_translations.py
-      - run: dotnet build client
+      - run: dotnet build client/Hotix.InvoiceClient.csproj

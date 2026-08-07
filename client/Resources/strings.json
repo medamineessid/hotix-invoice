@@ -99,6 +99,7 @@
   "PreviewFileName": "{0}",
   "PreviewFileNameDefault": "Preview",
   "PreviewBtnRawText": "Raw Text",
+  "PreviewImageMissing": "Image not found",
   "PreviewServerStarting": "Server is starting…",
   "PreviewServerUnavailable": "Server is not running — PDF preview unavailable.",
   "SaveConfirmationText": "File saved: {0}",

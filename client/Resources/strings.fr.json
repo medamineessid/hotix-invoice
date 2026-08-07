@@ -99,6 +99,7 @@
   "PreviewFileName": "{0}",
   "PreviewFileNameDefault": "Aperçu",
   "PreviewBtnRawText": "Texte brut",
+  "PreviewImageMissing": "Image introuvable",
   "PreviewServerStarting": "Serveur en cours de démarrage…",
   "PreviewServerUnavailable": "Serveur non démarré — aperçu PDF indisponible.",
   "SaveConfirmationText": "Fichier enregistré : {0}",

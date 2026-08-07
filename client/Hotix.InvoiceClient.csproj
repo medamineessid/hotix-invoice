@@ -9,6 +9,8 @@
     <ApplicationIcon>hotix_icon.ico</ApplicationIcon>
     <SelfContained>false</SelfContained>
     <PublishSingleFile>false</PublishSingleFile>
+    <!-- Prevent SDK-style globbing from discovering HotixDiagnostics XAML/CS files -->
+    <DefaultItemExcludes>$(DefaultItemExcludes);HotixDiagnostics\**</DefaultItemExcludes>
   </PropertyGroup>
 
   <!-- ── Pre-build: embed git commit hash (or fallback timestamp) ── -->
