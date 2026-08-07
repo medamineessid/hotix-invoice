@@ -988,7 +988,7 @@
                                                             <Border CornerRadius="{StaticResource RadiusPill}" Padding="10,4"
                                                                     ToolTip="{Binding ConfidenceTooltip}"
                                                                     Background="{Binding Confidence, Converter={StaticResource ConfidenceToColorConverter}}">
-                                                                <TextBlock Text="{Binding ConfidenceDisplay}"
+                                                                <TextBlock Text="{Binding ConfidenceDisplay, Mode=OneWay}"
                                                                            FontWeight="{StaticResource FontWeightMedium}"
                                                                            FontSize="{StaticResource FontSizeCaption}" />
                                                             </Border>
@@ -1085,7 +1085,7 @@
                                                                         </TextBlock>
                                                                         <TextBlock Style="{StaticResource TextMetadata}" Margin="0,0,0,6">
                                                                             <Run Text="Confidence" /><Run Text="  " />
-                                                                            <Run Text="{Binding ConfidenceDisplay}" FontWeight="Medium" />
+                                                                            <Run Text="{Binding ConfidenceDisplay, Mode=OneWay}" FontWeight="Medium" />
                                                                         </TextBlock>
                                                                         <TextBlock Style="{StaticResource TextMetadata}">
                                                                             <Run Text="Engine" /><Run Text="  " />
@@ -1361,7 +1361,7 @@
                                                             <Border CornerRadius="{StaticResource RadiusPill}" Padding="10,4"
                                                                     ToolTip="{Binding ConfidenceTooltip}"
                                                                     Background="{Binding Confidence, Converter={StaticResource ConfidenceToColorConverter}}">
-                                                                <TextBlock Text="{Binding ConfidenceDisplay}"
+                                                                <TextBlock Text="{Binding ConfidenceDisplay, Mode=OneWay}"
                                                                            FontWeight="{StaticResource FontWeightMedium}"
                                                                            FontSize="{StaticResource FontSizeCaption}" />
                                                             </Border>
@@ -1458,7 +1458,7 @@
                                                                         </TextBlock>
                                                                         <TextBlock Style="{StaticResource TextMetadata}" Margin="0,0,0,6">
                                                                             <Run Text="Confidence" /><Run Text="  " />
-                                                                            <Run Text="{Binding ConfidenceDisplay}" FontWeight="Medium" />
+                                                                            <Run Text="{Binding ConfidenceDisplay, Mode=OneWay}" FontWeight="Medium" />
                                                                         </TextBlock>
                                                                         <TextBlock Style="{StaticResource TextMetadata}">
                                                                             <Run Text="Engine" /><Run Text="  " />
