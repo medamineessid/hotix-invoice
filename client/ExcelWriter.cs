@@ -202,10 +202,16 @@ public sealed class ExcelWriter
                 ? row.Items[0].Unit : "—";
             SetCell(ws, rowIndex, 12, firstUnit, rowBg, false);
 
-            // Tax summary per-rate breakdown (first row, or "—")
-            string taxRate = row.TaxSummary.Count > 0 ? row.TaxSummary[0].RateDisplay : "—";
-            string taxBaseHt = row.TaxSummary.Count > 0 ? row.TaxSummary[0].BaseHtDisplay : "—";
-            string taxAmount = row.TaxSummary.Count > 0 ? row.TaxSummary[0].TaxAmountDisplay : "—";
+            // Tax summary per-rate breakdown (all rows, joined per-column)
+            string taxRate = row.TaxSummary.Count > 0
+                ? string.Join(", ", row.TaxSummary.Select(r => r.RateDisplay))
+                : "—";
+            string taxBaseHt = row.TaxSummary.Count > 0
+                ? string.Join(", ", row.TaxSummary.Select(r => r.BaseHtDisplay))
+                : "—";
+            string taxAmount = row.TaxSummary.Count > 0
+                ? string.Join(", ", row.TaxSummary.Select(r => r.TaxAmountDisplay))
+                : "—";
             SetCell(ws, rowIndex, 13, taxRate, rowBg, false);
             SetCell(ws, rowIndex, 14, taxBaseHt, rowBg, false);
             SetCell(ws, rowIndex, 15, taxAmount, rowBg, false);
