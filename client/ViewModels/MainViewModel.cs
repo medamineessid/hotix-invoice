@@ -1227,6 +1227,29 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
 
 
 
+    /// <summary>Safely reads a string field from a JsonElement dictionary, handling
+    /// all value kinds without throwing. Gemini/Grok occasionally return numeric
+    /// values for fields like montant_ht instead of quoted strings — the bare
+    /// <c>el.GetString()</c> call used previously threw InvalidOperationException
+    /// for non-String kinds, crashing extraction entirely for that invoice.</summary>
+    private static string? GetStringField(Dictionary<string, JsonElement> dict, string key)
+    {
+        if (!dict.TryGetValue(key, out var el))
+            return null;
+
+        return el.ValueKind switch
+        {
+            JsonValueKind.String => el.GetString(),
+            // Number → raw JSON text (e.g. "3800.00", "3800", "3.8e3").
+            // Compatible with downstream decimal.TryParse(…, NumberStyles.Any, InvariantCulture)
+            // which handles all these formats after comma→dot and space-stripping.
+            JsonValueKind.Number => el.GetRawText(),
+            JsonValueKind.True => "true",
+            JsonValueKind.False => "false",
+            _ => null, // Object, Array, Undefined, Null
+        };
+    }
+
     private async Task<InvoiceResult> CallGeminiDirectlyAsync(string filePath, string apiKey)
     {
         byte[] fileBytes = await File.ReadAllBytesAsync(filePath);
@@ -1284,13 +1307,6 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         var fields = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(text);
         if (fields == null)
             throw new CloudApiException(TranslationSource.Get("GeminiParseError"));
-
-        static string? GetStringField(Dictionary<string, JsonElement> dict, string key)
-        {
-            return dict.TryGetValue(key, out var el) && el.ValueKind != JsonValueKind.Null
-                ? el.GetString()
-                : null;
-        }
 
         // Parse items array (BUG 1 fix)
         List<InvoiceItem> items = new();
@@ -1410,13 +1426,6 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         var fields = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(text);
         if (fields == null)
             throw new CloudApiException(TranslationSource.Get("GrokParseError"));
-
-        static string? GetStringField(Dictionary<string, JsonElement> dict, string key)
-        {
-            return dict.TryGetValue(key, out var el) && el.ValueKind != JsonValueKind.Null
-                ? el.GetString()
-                : null;
-        }
 
         // Parse items array (BUG 1 fix)
         List<InvoiceItem> itemsGrok = new();
