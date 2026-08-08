@@ -137,6 +137,8 @@
   "GeminiApiError": "Erreur API Gemini: {0} — {1}",
   "GeminiEmptyResponse": "Réponse vide de Gemini",
   "GeminiParseError": "Échec de l'analyse du JSON renvoyé par Gemini",
+  "GeminiParseErrorWithDetail": "JSON invalide de Gemini après nouvelle tentative : {0}",
+  "GrokParseErrorWithDetail": "JSON invalide de Grok après nouvelle tentative : {0}",
   "GeminiExtractionText": "Extrais les informations de cette facture sous forme de JSON uniquement.\nLes clés doivent être exactement : numero_facture, date, fournisseur, client, montant_ht, montant_tva, montant_taxe, montant_ttc.\nExtrais également les lignes d'articles si présentes dans un tableau nommé \"items\". Chaque article a les clés : designation (string), quantite (float), unit (string, l'unité de mesure comme 'h.', 'pce.', 'kg', 'stère' — null si pas de colonne unité), prix_unitaire (float), tva_rate (float, ex: 0.20 pour 20%), montant (float).\nExtrais également une décomposition TVA par taux si présente dans un tableau nommé \"tax_summary\". Chaque entrée a les clés : rate (float, ex: 0.20 pour 20%), base_ht (float), tax_amount (float). Mets tax_summary à [] si aucune décomposition n'est présente.\nSi la facture n'a pas de tableau d'articles, mets items à [].\nUtilise null si une information est absente. Ne devine jamais.\nRéponds uniquement avec le JSON.",
   "GeminiDirectExtraction": "Extraction via Gemini Vision (client direct)",
   "GrokDirectExtraction": "Extraction via Grok (xAI, client direct)",

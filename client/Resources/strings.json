@@ -137,6 +137,8 @@
   "GeminiApiError": "Gemini API error: {0} — {1}",
   "GeminiEmptyResponse": "Empty response from Gemini",
   "GeminiParseError": "Failed to parse JSON returned by Gemini",
+  "GeminiParseErrorWithDetail": "Gemini returned invalid JSON after retry: {0}",
+  "GrokParseErrorWithDetail": "Grok returned invalid JSON after retry: {0}",
   "GeminiExtractionText": "Extract invoice information as JSON only.\nKeys must be exactly: numero_facture, date, fournisseur, client, montant_ht, montant_tva, montant_taxe, montant_ttc.\nAlso extract line items if present in an array named \"items\". Each item has keys: designation (string), quantite (float), unit (string, the unit of measure like 'h.', 'pce.', 'kg', 'stère' — null if no unit column), prix_unitaire (float), tva_rate (float, e.g. 0.20 for 20%), montant (float).\nAlso extract a per-rate tax breakdown if present in an array named \"tax_summary\". Each entry has keys: rate (float, e.g. 0.20 for 20%), base_ht (float), tax_amount (float). Set tax_summary to [] if no breakdown is present.\nIf the invoice has no item table, set items to [].\nUse null if information is missing. Never guess.\nReply with JSON only.",
   "GeminiDirectExtraction": "Extraction via Gemini Vision (client direct)",
   "GrokDirectExtraction": "Extraction via Grok (xAI, client direct)",

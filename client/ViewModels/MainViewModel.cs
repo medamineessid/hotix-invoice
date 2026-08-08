@@ -105,6 +105,58 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     private const string GrokApiBase = "https://api.x.ai/v1/chat/completions";
     private const string GrokDefaultModel = "grok-4.3";
 
+    // ── Gemini structured output schema (matches InvoiceItem + tax_summary) ──
+    // Uses the v1beta OpenAPI 3.0 Schema subset: uppercase types, camelCase field names.
+    // Confirmed supported on gemini-2.5-flash and later 1.5+ models.
+    private static readonly object GeminiResponseSchema = new
+    {
+        type = "OBJECT",
+        properties = new
+        {
+            numero_facture = new { type = "STRING", nullable = true },
+            date = new { type = "STRING", nullable = true },
+            fournisseur = new { type = "STRING", nullable = true },
+            client = new { type = "STRING", nullable = true },
+            montant_ht = new { type = "NUMBER", nullable = true },
+            montant_tva = new { type = "NUMBER", nullable = true },
+            montant_taxe = new { type = "NUMBER", nullable = true },
+            montant_ttc = new { type = "NUMBER", nullable = true },
+            items = new
+            {
+                type = "ARRAY",
+                nullable = true,
+                items = new
+                {
+                    type = "OBJECT",
+                    properties = new
+                    {
+                        designation = new { type = "STRING", nullable = true },
+                        quantite = new { type = "NUMBER", nullable = true },
+                        unit = new { type = "STRING", nullable = true },
+                        prix_unitaire = new { type = "NUMBER", nullable = true },
+                        tva_rate = new { type = "NUMBER", nullable = true },
+                        montant = new { type = "NUMBER", nullable = true }
+                    }
+                }
+            },
+            tax_summary = new
+            {
+                type = "ARRAY",
+                nullable = true,
+                items = new
+                {
+                    type = "OBJECT",
+                    properties = new
+                    {
+                        rate = new { type = "NUMBER", nullable = true },
+                        base_ht = new { type = "NUMBER", nullable = true },
+                        tax_amount = new { type = "NUMBER", nullable = true }
+                    }
+                }
+            }
+        }
+    };
+
     public MainViewModel()
     {
         string apiBaseUrl = Environment.GetEnvironmentVariable("HOTIX_API_BASE_URL")
@@ -1242,6 +1294,39 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
 
 
 
+    /// <summary>Logs malformed JSON returned by a cloud provider for post-mortem
+    /// diagnostics. Writes truncated raw text to Debug output and a Sentry
+    /// breadcrumb so future failures are diagnosable without reproducing blind.</summary>
+    private static void LogMalformedJsonText(string provider, string rawText, JsonException jex, string filePath)
+    {
+        string truncated = rawText.Length > 2000 ? rawText[..2000] + "…" : rawText;
+        Debug.WriteLine($"[Hotix] {provider} JSON parse failed for {Path.GetFileName(filePath)}: {jex.Message}");
+        Debug.WriteLine($"[Hotix] {provider} raw text (first 2000 chars): {truncated}");
+        SentrySdk.AddBreadcrumb(
+            message: $"{provider} returned malformed JSON",
+            category: provider.ToLowerInvariant(),
+            level: Sentry.BreadcrumbLevel.Warning,
+            data: new Dictionary<string, string>
+            {
+                { "file", Path.GetFileName(filePath) },
+                { "error", jex.Message },
+                { "raw_text_preview", rawText.Length > 500 ? rawText[..500] + "…" : rawText }
+            });
+    }
+
+    /// <summary>Returns true if the Gemini model supports responseSchema in
+    /// generationConfig. Schema support was added in gemini-1.5 and is present
+    /// in all later models (2.x, 3.x, etc.). We default to including schema and
+    /// only exclude known-incompatible pre-1.5 models (gemini-1.0-pro, etc.).</summary>
+    private static bool SupportsResponseSchema(string model)
+    {
+        // Known incompatible: gemini-1.0-pro and other pre-1.5 models.
+        if (model.StartsWith("gemini-1.0", StringComparison.OrdinalIgnoreCase))
+            return false;
+        // All other models (gemini-1.5+, gemini-2.x, gemini-3.x, etc.) support it.
+        return true;
+    }
+
     /// <summary>Safely reads a string field from a JsonElement dictionary, handling
     /// all value kinds without throwing. Gemini/Grok occasionally return numeric
     /// values for fields like montant_ht instead of quoted strings — the bare
@@ -1271,6 +1356,16 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         string base64Data = Convert.ToBase64String(fileBytes);
         string mimeType = GetMimeType(filePath);
 
+        // Determine whether to include responseSchema (supported on 1.5+ models).
+        // gemini-1.0-pro and earlier models will get response_mime_type only.
+        bool includeSchema = SupportsResponseSchema(ResolvedGeminiModel);
+        if (!includeSchema)
+            Debug.WriteLine($"[Hotix] Gemini model '{ResolvedGeminiModel}' does not support responseSchema — omitting from generationConfig");
+
+        var generationConfigObj = includeSchema
+            ? new { responseMimeType = "application/json", responseSchema = GeminiResponseSchema }
+            : (object)new { responseMimeType = "application/json" };
+
         var requestBody = new
         {
             contents = new[]
@@ -1284,114 +1379,145 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                     }
                 }
             },
-            generationConfig = new { response_mime_type = "application/json" }
+            generationConfig = generationConfigObj
         };
 
         string geminiApiUrl = string.Format(GeminiApiBaseTemplate, ResolvedGeminiModel);
-        var geminiClient = _httpCloudClient; // reuse shared instance
-        var response = await geminiClient.PostAsJsonAsync(
-            $"{geminiApiUrl}?key={apiKey}", requestBody);
 
-        string responseBody = await response.Content.ReadAsStringAsync();
-
-        if (!response.IsSuccessStatusCode)
+        // ── Retry loop: malformed JSON from an LLM is often non-deterministic,
+        //     so a single retry (fresh API call) frequently recovers. We do NOT
+        //     retry on auth/quota/network errors — those should fail immediately. ──
+        for (int attempt = 0; attempt < 2; attempt++)
         {
-            if ((int)response.StatusCode == 429)
-                throw new CloudQuotaExceededException(TranslationSource.Fmt("GeminiApiError", 429, ResponseBodySummary(responseBody)), response.StatusCode, responseBody);
-            throw new CloudApiException(TranslationSource.Fmt("GeminiApiError", (int)response.StatusCode, responseBody), response.StatusCode, responseBody);
-        }
+            var geminiClient = _httpCloudClient; // reuse shared instance
+            var response = await geminiClient.PostAsJsonAsync(
+                $"{geminiApiUrl}?key={apiKey}", requestBody);
 
-        // Parse Gemini response JSON
-        using var doc = JsonDocument.Parse(responseBody);
-        var text = doc.RootElement
-            .GetProperty("candidates")[0]
-            .GetProperty("content")
-            .GetProperty("parts")[0]
-            .GetProperty("text")
-            .GetString();
+            string responseBody = await response.Content.ReadAsStringAsync();
 
-        if (string.IsNullOrEmpty(text))
-            throw new CloudApiException(TranslationSource.Get("GeminiEmptyResponse"));
-
-        // Strip markdown fences if present
-        text = text.Trim();
-        if (text.StartsWith("```json")) text = text[7..];
-        if (text.EndsWith("```")) text = text[..^3];
-        text = text.Trim();
-
-        var fields = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(text);
-        if (fields == null)
-            throw new CloudApiException(TranslationSource.Get("GeminiParseError"));
-
-        // Parse items array (BUG 1 fix)
-        List<InvoiceItem> items = new();
-        if (fields.TryGetValue("items", out var itemsEl) && itemsEl.ValueKind == JsonValueKind.Array)
-        {
-            foreach (var itemEl in itemsEl.EnumerateArray())
+            if (!response.IsSuccessStatusCode)
             {
-                if (itemEl.ValueKind != JsonValueKind.Object) continue;
-                items.Add(new InvoiceItem
-                {
-                    Designation = itemEl.TryGetProperty("designation", out var d) && d.ValueKind == JsonValueKind.String ? d.GetString() : null,
-                    Quantite = itemEl.TryGetProperty("quantite", out var q) && q.ValueKind == JsonValueKind.Number ? q.GetDouble() : null,
-                    Unit = itemEl.TryGetProperty("unit", out var u) && u.ValueKind == JsonValueKind.String ? u.GetString() : null,
-                    PrixUnitaire = itemEl.TryGetProperty("prix_unitaire", out var p) && p.ValueKind == JsonValueKind.Number ? p.GetDouble() : null,
-                    TvaRate = itemEl.TryGetProperty("tva_rate", out var t) && t.ValueKind == JsonValueKind.Number ? t.GetDouble() : null,
-                    Montant = itemEl.TryGetProperty("montant", out var m) && m.ValueKind == JsonValueKind.Number ? m.GetDouble() : null,
-                });
+                if ((int)response.StatusCode == 429)
+                    throw new CloudQuotaExceededException(TranslationSource.Fmt("GeminiApiError", 429, ResponseBodySummary(responseBody)), response.StatusCode, responseBody);
+                throw new CloudApiException(TranslationSource.Fmt("GeminiApiError", (int)response.StatusCode, responseBody), response.StatusCode, responseBody);
             }
-        }
 
-        // Parse tax_summary array (per-rate TVA breakdown)
-        List<TaxSummaryRow> taxSummary = new();
-        if (fields.TryGetValue("tax_summary", out var taxEl) && taxEl.ValueKind == JsonValueKind.Array)
-        {
-            foreach (var rowEl in taxEl.EnumerateArray())
+            // Parse the whole response inside the retry scope so malformed
+            // top-level JSON (JsonDocument.Parse of the API envelope) also gets
+            // the single retry — LLM malformed output is non-deterministic, so
+            // a fresh API call frequently recovers.
+            Dictionary<string, JsonElement>? fields;
+            try
             {
-                if (rowEl.ValueKind != JsonValueKind.Object) continue;
-                taxSummary.Add(new TaxSummaryRow
-                {
-                    Rate = rowEl.TryGetProperty("rate", out var r) && r.ValueKind == JsonValueKind.Number ? r.GetDouble() : null,
-                    BaseHt = rowEl.TryGetProperty("base_ht", out var bh) && bh.ValueKind == JsonValueKind.Number ? bh.GetDouble() : null,
-                    TaxAmount = rowEl.TryGetProperty("tax_amount", out var ta) && ta.ValueKind == JsonValueKind.Number ? ta.GetDouble() : null,
-                });
+                using var doc = JsonDocument.Parse(responseBody);
+                var text = doc.RootElement
+                    .GetProperty("candidates")[0]
+                    .GetProperty("content")
+                    .GetProperty("parts")[0]
+                    .GetProperty("text")
+                    .GetString();
+
+                if (string.IsNullOrEmpty(text))
+                    throw new CloudApiException(TranslationSource.Get("GeminiEmptyResponse"));
+
+                // Strip markdown fences if present
+                text = text.Trim();
+                if (text.StartsWith("```json")) text = text[7..];
+                if (text.EndsWith("```")) text = text[..^3];
+                text = text.Trim();
+
+                fields = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(text);
+                if (fields == null)
+                    throw new CloudApiException(TranslationSource.Get("GeminiParseError"));
             }
+            catch (JsonException jex)
+            {
+                LogMalformedJsonText("Gemini", responseBody, jex, filePath);
+                if (attempt == 0)
+                {
+                    Debug.WriteLine($"[Hotix] Gemini malformed JSON — retrying (attempt 2/2)...");
+                    continue;
+                }
+                // Both attempts failed — surface a clear error with the raw text for diagnostics
+                throw new CloudApiException(
+                    TranslationSource.Fmt("GeminiParseErrorWithDetail", jex.Message),
+                    statusCode: null,
+                    responseBody: responseBody);
+            }
+
+            // Parse items array (BUG 1 fix)
+            List<InvoiceItem> items = new();
+            if (fields.TryGetValue("items", out var itemsEl) && itemsEl.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var itemEl in itemsEl.EnumerateArray())
+                {
+                    if (itemEl.ValueKind != JsonValueKind.Object) continue;
+                    items.Add(new InvoiceItem
+                    {
+                        Designation = itemEl.TryGetProperty("designation", out var d) && d.ValueKind == JsonValueKind.String ? d.GetString() : null,
+                        Quantite = itemEl.TryGetProperty("quantite", out var q) && q.ValueKind == JsonValueKind.Number ? q.GetDouble() : null,
+                        Unit = itemEl.TryGetProperty("unit", out var u) && u.ValueKind == JsonValueKind.String ? u.GetString() : null,
+                        PrixUnitaire = itemEl.TryGetProperty("prix_unitaire", out var p) && p.ValueKind == JsonValueKind.Number ? p.GetDouble() : null,
+                        TvaRate = itemEl.TryGetProperty("tva_rate", out var t) && t.ValueKind == JsonValueKind.Number ? t.GetDouble() : null,
+                        Montant = itemEl.TryGetProperty("montant", out var m) && m.ValueKind == JsonValueKind.Number ? m.GetDouble() : null,
+                    });
+                }
+            }
+
+            // Parse tax_summary array (per-rate TVA breakdown)
+            List<TaxSummaryRow> taxSummary = new();
+            if (fields.TryGetValue("tax_summary", out var taxEl) && taxEl.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var rowEl in taxEl.EnumerateArray())
+                {
+                    if (rowEl.ValueKind != JsonValueKind.Object) continue;
+                    taxSummary.Add(new TaxSummaryRow
+                    {
+                        Rate = rowEl.TryGetProperty("rate", out var r) && r.ValueKind == JsonValueKind.Number ? r.GetDouble() : null,
+                        BaseHt = rowEl.TryGetProperty("base_ht", out var bh) && bh.ValueKind == JsonValueKind.Number ? bh.GetDouble() : null,
+                        TaxAmount = rowEl.TryGetProperty("tax_amount", out var ta) && ta.ValueKind == JsonValueKind.Number ? ta.GetDouble() : null,
+                    });
+                }
+            }
+
+            // Reconcile amounts — derive montant_taxe when HT+TVA+TTC are consistent (BUG 2 fix)
+            string? htGemini = GetStringField(fields, "montant_ht");
+            string? tvaGemini = GetStringField(fields, "montant_tva");
+            string? ttcGemini = GetStringField(fields, "montant_ttc");
+            string? taxeGemini = GetStringField(fields, "montant_taxe");
+            if (!string.IsNullOrEmpty(htGemini) && !string.IsNullOrEmpty(tvaGemini)
+                && !string.IsNullOrEmpty(ttcGemini) && string.IsNullOrEmpty(taxeGemini)
+                && decimal.TryParse(htGemini.Replace(",", ".").Replace(" ", ""),
+                    System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var htDec)
+                && decimal.TryParse(tvaGemini.Replace(",", ".").Replace(" ", ""),
+                    System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var tvaDec)
+                && decimal.TryParse(ttcGemini.Replace(",", ".").Replace(" ", ""),
+                    System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var ttcDec))
+            {
+                decimal computedTaxe = ttcDec - htDec - tvaDec;
+                taxeGemini = computedTaxe.ToString("F3", System.Globalization.CultureInfo.InvariantCulture);
+            }
+
+            return new InvoiceResult
+            {
+                NumeroFacture = GetStringField(fields, "numero_facture"),
+                Date = GetStringField(fields, "date"),
+                Fournisseur = GetStringField(fields, "fournisseur"),
+                Client = GetStringField(fields, "client"),
+                MontantHt = htGemini,
+                MontantTva = tvaGemini,
+                MontantTaxe = taxeGemini,
+                MontantTtc = ttcGemini,
+                Confidence = items.Count > 0 ? 0.90 : 0.95,
+                RawText = TranslationSource.Get("GeminiDirectExtraction"),
+                EngineUsed = "gemini",
+                Items = items.Count > 0 ? items : null,
+                TaxSummary = taxSummary.Count > 0 ? taxSummary : null,
+            };
         }
 
-        // Reconcile amounts — derive montant_taxe when HT+TVA+TTC are consistent (BUG 2 fix)
-        string? htGemini = GetStringField(fields, "montant_ht");
-        string? tvaGemini = GetStringField(fields, "montant_tva");
-        string? ttcGemini = GetStringField(fields, "montant_ttc");
-        string? taxeGemini = GetStringField(fields, "montant_taxe");
-        if (!string.IsNullOrEmpty(htGemini) && !string.IsNullOrEmpty(tvaGemini)
-            && !string.IsNullOrEmpty(ttcGemini) && string.IsNullOrEmpty(taxeGemini)
-            && decimal.TryParse(htGemini.Replace(",", ".").Replace(" ", ""),
-                System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var htDec)
-            && decimal.TryParse(tvaGemini.Replace(",", ".").Replace(" ", ""),
-                System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var tvaDec)
-            && decimal.TryParse(ttcGemini.Replace(",", ".").Replace(" ", ""),
-                System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var ttcDec))
-        {
-            decimal computedTaxe = ttcDec - htDec - tvaDec;
-            taxeGemini = computedTaxe.ToString("F3", System.Globalization.CultureInfo.InvariantCulture);
-        }
-
-        return new InvoiceResult
-        {
-            NumeroFacture = GetStringField(fields, "numero_facture"),
-            Date = GetStringField(fields, "date"),
-            Fournisseur = GetStringField(fields, "fournisseur"),
-            Client = GetStringField(fields, "client"),
-            MontantHt = htGemini,
-            MontantTva = tvaGemini,
-            MontantTaxe = taxeGemini,
-            MontantTtc = ttcGemini,
-            Confidence = items.Count > 0 ? 0.90 : 0.95,
-            RawText = TranslationSource.Get("GeminiDirectExtraction"),
-            EngineUsed = "gemini",
-            Items = items.Count > 0 ? items : null,
-            TaxSummary = taxSummary.Count > 0 ? taxSummary : null,
-        };
+        // Unreachable — retained to satisfy compiler definite-assignment rules
+        throw new InvalidOperationException("Unreachable: Gemini retry loop exhausted");
     }
 
     /// <summary>
@@ -1424,111 +1550,142 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
 
         // Grok API calls set per-call Authorization header, so use a fresh client
         // to avoid polluting the shared _httpCloudClient's DefaultRequestHeaders.
-        using var grokClient = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
-        grokClient.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", apiKey);
 
-        var response = await grokClient.PostAsJsonAsync(GrokApiBase, requestBody);
-        string responseBody = await response.Content.ReadAsStringAsync();
-
-        if (!response.IsSuccessStatusCode)
+        // ── Retry loop: malformed JSON from an LLM is often non-deterministic,
+        //     so a single retry (fresh API call) frequently recovers. We do NOT
+        //     retry on auth/quota/network errors — those should fail immediately. ──
+        for (int grokAttempt = 0; grokAttempt < 2; grokAttempt++)
         {
-            // Log the exact response body for all non-2xx responses to avoid misclassifying real errors as quota
-            string errorDetail = responseBody.Length > 500 ? responseBody[..500] + "..." : responseBody;
-            if ((int)response.StatusCode == 429)
-                throw new CloudQuotaExceededException(TranslationSource.Fmt("GrokApiError", 429, errorDetail), response.StatusCode, responseBody);
-            throw new CloudApiException(TranslationSource.Fmt("GrokApiError", (int)response.StatusCode, errorDetail), response.StatusCode, responseBody);
-        }
+            using var grokClient = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
+            grokClient.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", apiKey);
 
-        // Parse OpenAI-compatible response
-        using var doc = JsonDocument.Parse(responseBody);
-        var text = doc.RootElement
-            .GetProperty("choices")[0]
-            .GetProperty("message")
-            .GetProperty("content")
-            .GetString();
+            var response = await grokClient.PostAsJsonAsync(GrokApiBase, requestBody);
+            string responseBody = await response.Content.ReadAsStringAsync();
 
-        if (string.IsNullOrEmpty(text))
-            throw new CloudApiException(TranslationSource.Get("GrokEmptyResponse"));
-
-        // Strip markdown fences if present
-        text = text.Trim();
-        if (text.StartsWith("```json")) text = text[7..];
-        if (text.EndsWith("```")) text = text[..^3];
-        text = text.Trim();
-
-        var fields = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(text);
-        if (fields == null)
-            throw new CloudApiException(TranslationSource.Get("GrokParseError"));
-
-        // Parse items array (BUG 1 fix)
-        List<InvoiceItem> itemsGrok = new();
-        if (fields.TryGetValue("items", out var itemsElGrok) && itemsElGrok.ValueKind == JsonValueKind.Array)
-        {
-            foreach (var itemEl in itemsElGrok.EnumerateArray())
+            if (!response.IsSuccessStatusCode)
             {
-                if (itemEl.ValueKind != JsonValueKind.Object) continue;
-                itemsGrok.Add(new InvoiceItem
-                {
-                    Designation = itemEl.TryGetProperty("designation", out var d) && d.ValueKind == JsonValueKind.String ? d.GetString() : null,
-                    Quantite = itemEl.TryGetProperty("quantite", out var q) && q.ValueKind == JsonValueKind.Number ? q.GetDouble() : null,
-                    Unit = itemEl.TryGetProperty("unit", out var u) && u.ValueKind == JsonValueKind.String ? u.GetString() : null,
-                    PrixUnitaire = itemEl.TryGetProperty("prix_unitaire", out var p) && p.ValueKind == JsonValueKind.Number ? p.GetDouble() : null,
-                    TvaRate = itemEl.TryGetProperty("tva_rate", out var t) && t.ValueKind == JsonValueKind.Number ? t.GetDouble() : null,
-                    Montant = itemEl.TryGetProperty("montant", out var m) && m.ValueKind == JsonValueKind.Number ? m.GetDouble() : null,
-                });
+                // Log the exact response body for all non-2xx responses to avoid misclassifying real errors as quota
+                string errorDetail = responseBody.Length > 500 ? responseBody[..500] + "..." : responseBody;
+                if ((int)response.StatusCode == 429)
+                    throw new CloudQuotaExceededException(TranslationSource.Fmt("GrokApiError", 429, errorDetail), response.StatusCode, responseBody);
+                throw new CloudApiException(TranslationSource.Fmt("GrokApiError", (int)response.StatusCode, errorDetail), response.StatusCode, responseBody);
             }
-        }
 
-        // Parse tax_summary array (per-rate TVA breakdown)
-        List<TaxSummaryRow> taxSummaryGrok = new();
-        if (fields.TryGetValue("tax_summary", out var taxElGrok) && taxElGrok.ValueKind == JsonValueKind.Array)
-        {
-            foreach (var rowEl in taxElGrok.EnumerateArray())
+            // Parse the whole response inside the retry scope so malformed
+            // top-level JSON (JsonDocument.Parse of the API envelope) also gets
+            // the single retry — LLM malformed output is non-deterministic, so
+            // a fresh API call frequently recovers.
+            Dictionary<string, JsonElement>? fields;
+            try
             {
-                if (rowEl.ValueKind != JsonValueKind.Object) continue;
-                taxSummaryGrok.Add(new TaxSummaryRow
-                {
-                    Rate = rowEl.TryGetProperty("rate", out var r) && r.ValueKind == JsonValueKind.Number ? r.GetDouble() : null,
-                    BaseHt = rowEl.TryGetProperty("base_ht", out var bh) && bh.ValueKind == JsonValueKind.Number ? bh.GetDouble() : null,
-                    TaxAmount = rowEl.TryGetProperty("tax_amount", out var ta) && ta.ValueKind == JsonValueKind.Number ? ta.GetDouble() : null,
-                });
+                using var doc = JsonDocument.Parse(responseBody);
+                var text = doc.RootElement
+                    .GetProperty("choices")[0]
+                    .GetProperty("message")
+                    .GetProperty("content")
+                    .GetString();
+
+                if (string.IsNullOrEmpty(text))
+                    throw new CloudApiException(TranslationSource.Get("GrokEmptyResponse"));
+
+                // Strip markdown fences if present
+                text = text.Trim();
+                if (text.StartsWith("```json")) text = text[7..];
+                if (text.EndsWith("```")) text = text[..^3];
+                text = text.Trim();
+
+                fields = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(text);
+                if (fields == null)
+                    throw new CloudApiException(TranslationSource.Get("GrokParseError"));
             }
+            catch (JsonException jex)
+            {
+                LogMalformedJsonText("Grok", responseBody, jex, filePath);
+                if (grokAttempt == 0)
+                {
+                    Debug.WriteLine($"[Hotix] Grok malformed JSON — retrying (attempt 2/2)...");
+                    continue;
+                }
+                // Both attempts failed — surface a clear error with the raw text for diagnostics
+                throw new CloudApiException(
+                    TranslationSource.Fmt("GrokParseErrorWithDetail", jex.Message),
+                    statusCode: null,
+                    responseBody: responseBody);
+            }
+
+            // Parse items array (BUG 1 fix)
+            List<InvoiceItem> itemsGrok = new();
+            if (fields.TryGetValue("items", out var itemsElGrok) && itemsElGrok.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var itemEl in itemsElGrok.EnumerateArray())
+                {
+                    if (itemEl.ValueKind != JsonValueKind.Object) continue;
+                    itemsGrok.Add(new InvoiceItem
+                    {
+                        Designation = itemEl.TryGetProperty("designation", out var d) && d.ValueKind == JsonValueKind.String ? d.GetString() : null,
+                        Quantite = itemEl.TryGetProperty("quantite", out var q) && q.ValueKind == JsonValueKind.Number ? q.GetDouble() : null,
+                        Unit = itemEl.TryGetProperty("unit", out var u) && u.ValueKind == JsonValueKind.String ? u.GetString() : null,
+                        PrixUnitaire = itemEl.TryGetProperty("prix_unitaire", out var p) && p.ValueKind == JsonValueKind.Number ? p.GetDouble() : null,
+                        TvaRate = itemEl.TryGetProperty("tva_rate", out var t) && t.ValueKind == JsonValueKind.Number ? t.GetDouble() : null,
+                        Montant = itemEl.TryGetProperty("montant", out var m) && m.ValueKind == JsonValueKind.Number ? m.GetDouble() : null,
+                    });
+                }
+            }
+
+            // Parse tax_summary array (per-rate TVA breakdown)
+            List<TaxSummaryRow> taxSummaryGrok = new();
+            if (fields.TryGetValue("tax_summary", out var taxElGrok) && taxElGrok.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var rowEl in taxElGrok.EnumerateArray())
+                {
+                    if (rowEl.ValueKind != JsonValueKind.Object) continue;
+                    taxSummaryGrok.Add(new TaxSummaryRow
+                    {
+                        Rate = rowEl.TryGetProperty("rate", out var r) && r.ValueKind == JsonValueKind.Number ? r.GetDouble() : null,
+                        BaseHt = rowEl.TryGetProperty("base_ht", out var bh) && bh.ValueKind == JsonValueKind.Number ? bh.GetDouble() : null,
+                        TaxAmount = rowEl.TryGetProperty("tax_amount", out var ta) && ta.ValueKind == JsonValueKind.Number ? ta.GetDouble() : null,
+                    });
+                }
+            }
+
+            // Reconcile amounts — derive montant_taxe when HT+TVA+TTC are consistent (BUG 2 fix)
+            string? htGrok = GetStringField(fields, "montant_ht");
+            string? tvaGrok = GetStringField(fields, "montant_tva");
+            string? ttcGrok = GetStringField(fields, "montant_ttc");
+            string? taxeGrok = GetStringField(fields, "montant_taxe");
+            if (!string.IsNullOrEmpty(htGrok) && !string.IsNullOrEmpty(tvaGrok)
+                && !string.IsNullOrEmpty(ttcGrok) && string.IsNullOrEmpty(taxeGrok)
+                && decimal.TryParse(htGrok.Replace(",", ".").Replace(" ", ""),
+                    System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var htDec)
+                && decimal.TryParse(tvaGrok.Replace(",", ".").Replace(" ", ""),
+                    System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var tvaDec)
+                && decimal.TryParse(ttcGrok.Replace(",", ".").Replace(" ", ""),
+                    System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var ttcDec))
+            {
+                decimal computedTaxe = ttcDec - htDec - tvaDec;
+                taxeGrok = computedTaxe.ToString("F3", System.Globalization.CultureInfo.InvariantCulture);
+            }
+
+            return new InvoiceResult
+            {
+                NumeroFacture = GetStringField(fields, "numero_facture"),
+                Date = GetStringField(fields, "date"),
+                Fournisseur = GetStringField(fields, "fournisseur"),
+                Client = GetStringField(fields, "client"),
+                MontantHt = htGrok,
+                MontantTva = tvaGrok,
+                MontantTaxe = taxeGrok,
+                MontantTtc = ttcGrok,
+                Confidence = itemsGrok.Count > 0 ? 0.90 : 0.95,
+                RawText = TranslationSource.Get("GrokDirectExtraction"),
+                EngineUsed = "grok",
+                Items = itemsGrok.Count > 0 ? itemsGrok : null,
+                TaxSummary = taxSummaryGrok.Count > 0 ? taxSummaryGrok : null,
+            };
         }
 
-        // Reconcile amounts — derive montant_taxe when HT+TVA+TTC are consistent (BUG 2 fix)
-        string? htGrok = GetStringField(fields, "montant_ht");
-        string? tvaGrok = GetStringField(fields, "montant_tva");
-        string? ttcGrok = GetStringField(fields, "montant_ttc");
-        string? taxeGrok = GetStringField(fields, "montant_taxe");
-        if (!string.IsNullOrEmpty(htGrok) && !string.IsNullOrEmpty(tvaGrok)
-            && !string.IsNullOrEmpty(ttcGrok) && string.IsNullOrEmpty(taxeGrok)
-            && decimal.TryParse(htGrok.Replace(",", ".").Replace(" ", ""),
-                System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var htDec)
-            && decimal.TryParse(tvaGrok.Replace(",", ".").Replace(" ", ""),
-                System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var tvaDec)
-            && decimal.TryParse(ttcGrok.Replace(",", ".").Replace(" ", ""),
-                System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var ttcDec))
-        {
-            decimal computedTaxe = ttcDec - htDec - tvaDec;
-            taxeGrok = computedTaxe.ToString("F3", System.Globalization.CultureInfo.InvariantCulture);
-        }
-
-        return new InvoiceResult
-        {
-            NumeroFacture = GetStringField(fields, "numero_facture"),
-            Date = GetStringField(fields, "date"),
-            Fournisseur = GetStringField(fields, "fournisseur"),
-            Client = GetStringField(fields, "client"),
-            MontantHt = htGrok,
-            MontantTva = tvaGrok,
-            MontantTaxe = taxeGrok,
-            MontantTtc = ttcGrok,
-            Confidence = itemsGrok.Count > 0 ? 0.90 : 0.95,
-            RawText = TranslationSource.Get("GrokDirectExtraction"),
-            EngineUsed = "grok",
-            Items = itemsGrok.Count > 0 ? itemsGrok : null,
-            TaxSummary = taxSummaryGrok.Count > 0 ? taxSummaryGrok : null,
-        };
+        // Unreachable — retained to satisfy compiler definite-assignment rules
+        throw new InvalidOperationException("Unreachable: Grok retry loop exhausted");
     }
 
     /// <summary>
