@@ -177,6 +177,12 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
 
         LoadSettings();
         LoadProviderKeysFromAppSettings();
+        // Ensure in-memory key fields are populated from disk BEFORE any UI
+        // binding or engine-status check reads them. LoadProviderKeysFromAppSettings
+        // reads from appsettings.json, and LoadGeminiApiKey/LoadGrokApiKey serve
+        // as a second-chance fallback that also caches into the same fields.
+        LoadGeminiApiKey();
+        LoadGrokApiKey();
         LoadBatchConcurrencyFromAppSettings();
 
         // Poll engine + internet status every 45 seconds on the UI thread
@@ -926,7 +932,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         {
             IsPreviewLoading = false;
             PreviewImageSource = null;
-            PreviewStatusMessage = string.Empty;
+            PreviewStatusMessage = TranslationSource.Get("PreviewLoadError");
             _lastPreviewFilePath = null;
             Debug.WriteLine($"[LoadPreviewImageAsync] failed for {filePath}: {ex}");
             SentrySdk.CaptureException(ex);
@@ -1286,19 +1292,56 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                 : null;
         }
 
+        // Parse items array (BUG 1 fix)
+        List<InvoiceItem> items = new();
+        if (fields.TryGetValue("items", out var itemsEl) && itemsEl.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var itemEl in itemsEl.EnumerateArray())
+            {
+                if (itemEl.ValueKind != JsonValueKind.Object) continue;
+                items.Add(new InvoiceItem
+                {
+                    Designation = itemEl.TryGetProperty("designation", out var d) && d.ValueKind == JsonValueKind.String ? d.GetString() : null,
+                    Quantite = itemEl.TryGetProperty("quantite", out var q) && q.ValueKind == JsonValueKind.Number ? q.GetDouble() : null,
+                    PrixUnitaire = itemEl.TryGetProperty("prix_unitaire", out var p) && p.ValueKind == JsonValueKind.Number ? p.GetDouble() : null,
+                    TvaRate = itemEl.TryGetProperty("tva_rate", out var t) && t.ValueKind == JsonValueKind.Number ? t.GetDouble() : null,
+                    Montant = itemEl.TryGetProperty("montant", out var m) && m.ValueKind == JsonValueKind.Number ? m.GetDouble() : null,
+                });
+            }
+        }
+
+        // Reconcile amounts — derive montant_taxe when HT+TVA+TTC are consistent (BUG 2 fix)
+        string? htGemini = GetStringField(fields, "montant_ht");
+        string? tvaGemini = GetStringField(fields, "montant_tva");
+        string? ttcGemini = GetStringField(fields, "montant_ttc");
+        string? taxeGemini = GetStringField(fields, "montant_taxe");
+        if (!string.IsNullOrEmpty(htGemini) && !string.IsNullOrEmpty(tvaGemini)
+            && !string.IsNullOrEmpty(ttcGemini) && string.IsNullOrEmpty(taxeGemini)
+            && decimal.TryParse(htGemini.Replace(",", ".").Replace(" ", ""),
+                System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var htDec)
+            && decimal.TryParse(tvaGemini.Replace(",", ".").Replace(" ", ""),
+                System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var tvaDec)
+            && decimal.TryParse(ttcGemini.Replace(",", ".").Replace(" ", ""),
+                System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var ttcDec))
+        {
+            decimal computedTaxe = ttcDec - htDec - tvaDec;
+            taxeGemini = computedTaxe.ToString("F3", System.Globalization.CultureInfo.InvariantCulture);
+        }
+
         return new InvoiceResult
         {
             NumeroFacture = GetStringField(fields, "numero_facture"),
             Date = GetStringField(fields, "date"),
             Fournisseur = GetStringField(fields, "fournisseur"),
             Client = GetStringField(fields, "client"),
-            MontantHt = GetStringField(fields, "montant_ht"),
-            MontantTva = GetStringField(fields, "montant_tva"),
-            MontantTaxe = GetStringField(fields, "montant_taxe"),
-            MontantTtc = GetStringField(fields, "montant_ttc"),
-            Confidence = 0.95,
+            MontantHt = htGemini,
+            MontantTva = tvaGemini,
+            MontantTaxe = taxeGemini,
+            MontantTtc = ttcGemini,
+            Confidence = items.Count > 0 ? 0.90 : 0.95,
             RawText = TranslationSource.Get("GeminiDirectExtraction"),
             EngineUsed = "gemini",
+            Items = items.Count > 0 ? items : null,
         };
     }
 
@@ -1375,19 +1418,56 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                 : null;
         }
 
+        // Parse items array (BUG 1 fix)
+        List<InvoiceItem> itemsGrok = new();
+        if (fields.TryGetValue("items", out var itemsElGrok) && itemsElGrok.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var itemEl in itemsElGrok.EnumerateArray())
+            {
+                if (itemEl.ValueKind != JsonValueKind.Object) continue;
+                itemsGrok.Add(new InvoiceItem
+                {
+                    Designation = itemEl.TryGetProperty("designation", out var d) && d.ValueKind == JsonValueKind.String ? d.GetString() : null,
+                    Quantite = itemEl.TryGetProperty("quantite", out var q) && q.ValueKind == JsonValueKind.Number ? q.GetDouble() : null,
+                    PrixUnitaire = itemEl.TryGetProperty("prix_unitaire", out var p) && p.ValueKind == JsonValueKind.Number ? p.GetDouble() : null,
+                    TvaRate = itemEl.TryGetProperty("tva_rate", out var t) && t.ValueKind == JsonValueKind.Number ? t.GetDouble() : null,
+                    Montant = itemEl.TryGetProperty("montant", out var m) && m.ValueKind == JsonValueKind.Number ? m.GetDouble() : null,
+                });
+            }
+        }
+
+        // Reconcile amounts — derive montant_taxe when HT+TVA+TTC are consistent (BUG 2 fix)
+        string? htGrok = GetStringField(fields, "montant_ht");
+        string? tvaGrok = GetStringField(fields, "montant_tva");
+        string? ttcGrok = GetStringField(fields, "montant_ttc");
+        string? taxeGrok = GetStringField(fields, "montant_taxe");
+        if (!string.IsNullOrEmpty(htGrok) && !string.IsNullOrEmpty(tvaGrok)
+            && !string.IsNullOrEmpty(ttcGrok) && string.IsNullOrEmpty(taxeGrok)
+            && decimal.TryParse(htGrok.Replace(",", ".").Replace(" ", ""),
+                System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var htDec)
+            && decimal.TryParse(tvaGrok.Replace(",", ".").Replace(" ", ""),
+                System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var tvaDec)
+            && decimal.TryParse(ttcGrok.Replace(",", ".").Replace(" ", ""),
+                System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var ttcDec))
+        {
+            decimal computedTaxe = ttcDec - htDec - tvaDec;
+            taxeGrok = computedTaxe.ToString("F3", System.Globalization.CultureInfo.InvariantCulture);
+        }
+
         return new InvoiceResult
         {
             NumeroFacture = GetStringField(fields, "numero_facture"),
             Date = GetStringField(fields, "date"),
             Fournisseur = GetStringField(fields, "fournisseur"),
             Client = GetStringField(fields, "client"),
-            MontantHt = GetStringField(fields, "montant_ht"),
-            MontantTva = GetStringField(fields, "montant_tva"),
-            MontantTaxe = GetStringField(fields, "montant_taxe"),
-            MontantTtc = GetStringField(fields, "montant_ttc"),
-            Confidence = 0.95,
+            MontantHt = htGrok,
+            MontantTva = tvaGrok,
+            MontantTaxe = taxeGrok,
+            MontantTtc = ttcGrok,
+            Confidence = itemsGrok.Count > 0 ? 0.90 : 0.95,
             RawText = TranslationSource.Get("GrokDirectExtraction"),
             EngineUsed = "grok",
+            Items = itemsGrok.Count > 0 ? itemsGrok : null,
         };
     }
 

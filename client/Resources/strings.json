@@ -4,14 +4,12 @@
   "SplashTitle": "HOTIX",
   "SplashSubtitle": "Invoice Extraction",
   "SplashStatus": "HOTIX — Invoice Extraction",
-
   "SidebarNavigation": "Navigation",
   "SidebarExtraction": "Extraction",
   "PageTitleExtraction": "Invoice Extraction",
   "SidebarSettings": "Settings",
   "SidebarAbout": "About",
   "SidebarVersion": "v1.0.0",
-
   "ServerStatusInactive": "Server inactive",
   "ServerStatusStarting": "Starting...",
   "ServerStatusActive": "Server active",
@@ -36,7 +34,6 @@
   "ServerDiedRestartBtn": "Restart server",
   "ServerDiedRestartTooltip": "Attempt to restart the local OCR server",
   "ServerDiedCloseBtn": "Close application",
-
   "ControlSourceFolder": "Source folder",
   "ControlDropTooltip": "You can also drag and drop a folder here",
   "ControlAddBtn": "Add",
@@ -55,7 +52,6 @@
   "ControlCancelBtn": "Cancel",
   "ControlCancelTooltip": "Cancel current extraction (Esc)",
   "ControlSelectAll": "Select all",
-
   "TabResults": "Results",
   "TabIncomplete": "Incomplete Extractions",
   "DirectionReceived": "Received",
@@ -68,12 +64,10 @@
   "DirectionFilterReceived": "Received only",
   "DirectionFilterIssued": "Issued only",
   "DirectionColumn": "Dir.",
-
   "LegendConfidence": "Confidence",
   "LegendHigh": "High (≥75%)",
   "LegendMedium": "Medium (40-75%)",
   "LegendLow": "Low (<40%)",
-
   "ColumnInvoiceNo": "Invoice No.",
   "ColumnDate": "Date",
   "ColumnSupplier": "Supplier",
@@ -86,12 +80,10 @@
   "ColumnFile": "File",
   "BadgeLocalOcr": "Local (offline)",
   "ContextMenuRerun": "Re-run extraction",
-
   "EmptyResultsTitle": "No invoices processed",
   "EmptyResultsDesc": "Select a folder and start extraction",
   "EmptyIncompleteTitle": "No incomplete extractions",
   "IncompleteDescription": "These invoices require manual review",
-
   "SummaryBannerComplete": "Extraction complete — {0} succeeded, {1} incomplete, {2} errors. Review results before exporting.",
   "StatusBarSummary": "{0} invoices processed — {1} incomplete",
   "ProgressText": "{0} / {1} files processed",
@@ -100,11 +92,11 @@
   "PreviewFileNameDefault": "Preview",
   "PreviewBtnRawText": "Raw Text",
   "PreviewImageMissing": "Image not found",
+  "PreviewLoadError": "Failed to load preview. The file may be corrupted or in an unsupported format.",
   "PreviewServerStarting": "Server is starting…",
   "PreviewServerUnavailable": "Server is not running — PDF preview unavailable.",
   "SaveConfirmationText": "File saved: {0}",
   "OpenFolderLink": "Open folder",
-
   "BtnExportExcel": "Export to Excel",
   "BtnExportTooltip": "Export results to Excel (Ctrl+E)",
   "BtnClear": "Clear",
@@ -113,7 +105,6 @@
   "ClearConfirmTitle": "Confirm Clear",
   "BtnRerunErrors": "Re-run errors",
   "BtnRerunErrorsTooltip": "Re-run extraction only for errored files",
-
   "GeminiTitle": "Gemini Configuration",
   "GeminiHeader": "Optional Configuration",
   "GeminiSubheader": "Gemini API Key",
@@ -146,10 +137,9 @@
   "GeminiApiError": "Gemini API error: {0} — {1}",
   "GeminiEmptyResponse": "Empty response from Gemini",
   "GeminiParseError": "Failed to parse JSON returned by Gemini",
-  "GeminiExtractionText": "Extract invoice information as JSON only.\\nKeys must be exactly: numero_facture, date, fournisseur, client, montant_ht, montant_tva, montant_taxe, montant_ttc.\\nUse null if information is missing. Never guess.\\nReply with JSON only.",
+  "GeminiExtractionText": "Extract invoice information as JSON only.\nKeys must be exactly: numero_facture, date, fournisseur, client, montant_ht, montant_tva, montant_taxe, montant_ttc.\nAlso extract line items if present in an array named \"items\". Each item has keys: designation (string), quantite (float), prix_unitaire (float), tva_rate (float, e.g. 0.20 for 20%), montant (float).\nIf the invoice has no item table, set items to [].\nUse null if information is missing. Never guess.\nReply with JSON only.",
   "GeminiDirectExtraction": "Extraction via Gemini Vision (client direct)",
   "GrokDirectExtraction": "Extraction via Grok (xAI, client direct)",
-
   "GrokTitle": "Grok (xAI) Configuration",
   "GrokHeader": "Optional Configuration",
   "GrokDescription": "Configure a Grok (xAI) API key for cloud-based extraction. Grok offers an alternative to Gemini with competitive accuracy.",
@@ -175,8 +165,7 @@
   "GrokApiError": "xAI API error: {0} — {1}",
   "GrokEmptyResponse": "Empty response from xAI",
   "GrokParseError": "Failed to parse JSON returned by xAI",
-  "GrokExtractionText": "Extract invoice information from this image as JSON only.\nKeys must be exactly: numero_facture, date, fournisseur, client, montant_ht, montant_tva, montant_taxe, montant_ttc.\nUse null if information is missing. Never guess.\nReply with JSON only.",
-
+  "GrokExtractionText": "Extract invoice information from this image as JSON only.\nKeys must be exactly: numero_facture, date, fournisseur, client, montant_ht, montant_tva, montant_taxe, montant_ttc.\nAlso extract line items if present in an array named \"items\". Each item has keys: designation (string), quantite (float), prix_unitaire (float), tva_rate (float, e.g. 0.20 for 20%), montant (float).\nIf the invoice has no item table, set items to [].\nUse null if information is missing. Never guess.\nReply with JSON only.",
   "ErrorFatalTitle": "Fatal Error",
   "ErrorPythonNotFound": "Python environment not found. Please re-run the installer.",
   "ErrorServerNotFound": "OCR server not found. Please re-run the installer.",
@@ -192,14 +181,12 @@
   "ErrorOcrInternal": "Internal OCR server error",
   "ErrorOcrHttp": "OCR server error (HTTP {0})",
   "ErrorServerRefused": "The local OCR server is not responding (connection refused at 127.0.0.1:8000). The server may have failed to start or stopped unexpectedly. Check the logs at {0}.",
-
   "BrowseFolderTitle": "Select invoices folder",
   "BrowseFilesTitle": "Select invoice files",
   "BrowseFilesFilter": "Invoice files|*.pdf;*.jpg;*.jpeg;*.png;*.bmp;*.tif;*.tiff|All files|*.*",
   "ExportDialogTitle": "Export results to Excel",
   "ExportExcelFilter": "Excel Workbook (*.xlsx)|*.xlsx",
   "ExportFileName": "Hotix_Export_{0}.xlsx",
-
   "AboutTitle": "About",
   "AboutMessage": "HOTIX — Invoice Extraction\n\nVersion {0}\n\nEngines: PaddleOCR (local), Gemini Vision (cloud)",
   "AboutVersionLabel": "Version {0}",
@@ -207,11 +194,9 @@
   "NavPageExtraction": "Extraction",
   "NavPageSettings": "Settings",
   "NavPageAbout": "About",
-
   "LangLabel": "Language",
   "LangFrench": "Français",
   "LangEnglish": "English",
-
   "ExportTitle": "Export Results",
   "ExportDescription": "How would you like to export the extracted invoice data?",
   "ExportNewOption": "Create New Workbook",
@@ -232,7 +217,6 @@
   "ExportSheetPickerLabel": "Choose a worksheet to append to:",
   "ExportOpenWorkbook": "Open workbook",
   "ExportErrorFileOpen": "Cannot write to the file. It may be open in another application (e.g. Excel).\n\n{0}",
-
   "ExportSheetResults": "Results",
   "ExportSheetIncomplete": "Incomplete Extractions",
   "ExportHeaderNumero": "Invoice No.",
@@ -253,14 +237,14 @@
   "ExportEngineGrok": "Grok (xAI)",
   "ExportEngineOcr": "Local OCR",
   "ExportMissingMarker": "[MISSING]",
-
   "ExtractionPreparing": "Preparing extraction...",
   "ExtractionProcessing": "Processing: {0}",
-  "ExtractionProcessingElapsed": "Processing: {0} — {1}m {2}s elapsed",    "ExtractionNoFiles": "No files selected for extraction.",
-    "ExportNoRows": "No rows match the selected filter.",
-    "DropNotSupported": "Only files can be dropped here. Please drag a file or folder.",
-    "DropUnsupportedFiles": "File type not supported: {0}",
-    "DropNoRecognizedFiles": "No recognizable files in the drop. Supported formats: PDF, JPG, PNG, BMP, TIFF.",
+  "ExtractionProcessingElapsed": "Processing: {0} — {1}m {2}s elapsed",
+  "ExtractionNoFiles": "No files selected for extraction.",
+  "ExportNoRows": "No rows match the selected filter.",
+  "DropNotSupported": "Only files can be dropped here. Please drag a file or folder.",
+  "DropUnsupportedFiles": "File type not supported: {0}",
+  "DropNoRecognizedFiles": "No recognizable files in the drop. Supported formats: PDF, JPG, PNG, BMP, TIFF.",
   "ExtractionQuotaFallback": "Gemini quota exceeded — switching to local OCR for remaining files",
   "QuotaFallbackBanner": "Gemini API quota reached. Remaining files will be processed with local OCR. Consider using the Grok engine or try again later.",
   "QuotaExceededGeminiBanner": "Gemini API quota reached (429). Switch to Automatic or Local OCR, or try again later.",
@@ -275,7 +259,6 @@
   "ProviderGrok": "Grok",
   "FileReady": "✓ Ready",
   "ErrorTimeout": "File processing timed out after {0}s. Check your connection and API status.",
-
   "EngineBadgeAuto": "Auto",
   "EngineBadgeGeminiReady": "Gemini (cloud)",
   "EngineBadgeGeminiNoKey": "Gemini (no key)",
@@ -286,11 +269,9 @@
   "EngineBadgeOcr": "OCR local (PaddleOCR)",
   "EngineLabel": "Engine:",
   "RerunErrorsProgress": "Re-running errored files...",
-
   "GeminiValidationTitle": "Key Validation",
   "GeminiServerValidationFailed": "The server could not validate this key: {0}\n\nThe key will still be saved, but the server may not use it correctly. Try restarting the application after saving.",
   "GeminiServerUnreachable": "Could not reach the server to validate the key. The key will still be saved. Make sure the server is running before extracting.",
-
   "ModelLabel": "Model",
   "GeminiModelLabel": "Gemini Model",
   "GrokModelLabel": "Grok Model",
@@ -300,7 +281,6 @@
   "ModelTooltipGemini15Pro": "Most capable. Highest cost. Best for complex documents.",
   "ModelTooltipGrok43": "Alternative provider. Similar quality to Gemini. Good fallback.",
   "ModelTooltipGrok30": "Previous Grok version. Still works.",
-
   "OnboardingStep1Title": "1 / 5 — Choose your files",
   "OnboardingStep1Desc": "Start here: select a folder or add invoice files.",
   "OnboardingStep2Title": "2 / 5 — Choose an engine",
@@ -313,24 +293,20 @@
   "OnboardingStep5Desc": "Export your verified results to Excel.",
   "OnboardingNext": "Next",
   "OnboardingSkip": "Skip",
-
   "InfoEngine": "Automatic: tries Gemini/Grok first, falls back to local OCR. Forcing a specific engine skips fallback. OCR local is fully offline with lower accuracy.",
   "InfoConfidence": "Confidence thresholds: High (≥75%) — likely accurate. Medium (40-75%) — verify before export. Low (<40%) — review carefully.",
   "InfoIncomplete": "Incomplete extractions are files where extraction failed or partially failed. These require manual review before export.",
   "InfoGeminiKey": "A Gemini API key enables cloud-based AI extraction with higher accuracy. The key is stored locally and never sent to any third party. You can get a free key at aistudio.google.com.",
-
   "UpdateCheckTitle": "Update Available",
   "UpdateCheckNewVersion": "A new version of HOTIX is available: {0}. You are using {1}.",
   "UpdateCheckReleaseLink": "Download update",
   "UpdateCheckDismiss": "Dismiss",
-
   "FieldValueComputed": "Calculated",
-
   "KeySecuredNotification": "Your API keys have been secured with encryption.",
-
   "ItemsLabel": "Items: ",
   "ArticlesLabel": "Articles",
   "ArticlesHeader": "Articles ({0})",
-  "ArticlesEmpty": "No item details available for this invoice.",    "ArticlesDetected": "Item-level data has been extracted. (Future: detail view)",
-    "VatMismatchTooltip": "VAT amount does not match item lines"
+  "ArticlesEmpty": "No item details available for this invoice.",
+  "ArticlesDetected": "Item-level data has been extracted. (Future: detail view)",
+  "VatMismatchTooltip": "VAT amount does not match item lines"
 }

@@ -4,14 +4,12 @@
   "SplashTitle": "HOTIX",
   "SplashSubtitle": "Extraction de Factures",
   "SplashStatus": "HOTIX — Extraction de Factures",
-
   "SidebarNavigation": "Navigation",
   "SidebarExtraction": "Extraction",
   "PageTitleExtraction": "Extraction de factures",
   "SidebarSettings": "Configuration",
   "SidebarAbout": "À propos",
   "SidebarVersion": "v1.0.0",
-
   "ServerStatusInactive": "Serveur inactif",
   "ServerStatusStarting": "Démarrage...",
   "ServerStatusActive": "Serveur actif",
@@ -36,7 +34,6 @@
   "ServerDiedRestartBtn": "Relancer le serveur",
   "ServerDiedRestartTooltip": "Tenter de redémarrer le serveur OCR local",
   "ServerDiedCloseBtn": "Fermer l'application",
-
   "ControlSourceFolder": "Dossier source",
   "ControlDropTooltip": "Vous pouvez aussi glisser-déposer un dossier ici",
   "ControlAddBtn": "Ajouter",
@@ -55,7 +52,6 @@
   "ControlCancelBtn": "Annuler",
   "ControlCancelTooltip": "Annuler l'extraction en cours (Échap)",
   "ControlSelectAll": "Tout sélectionner",
-
   "TabResults": "Résultats",
   "TabIncomplete": "Extractions Incomplètes",
   "DirectionReceived": "Reçue",
@@ -68,12 +64,10 @@
   "DirectionFilterReceived": "Reçues uniquement",
   "DirectionFilterIssued": "Émises uniquement",
   "DirectionColumn": "Dir.",
-
   "LegendConfidence": "Confiance",
   "LegendHigh": "Élevée (≥75%)",
   "LegendMedium": "Moyenne (40-75%)",
   "LegendLow": "Basse (<40%)",
-
   "ColumnInvoiceNo": "N° Facture",
   "ColumnDate": "Date",
   "ColumnSupplier": "Fournisseur",
@@ -86,12 +80,10 @@
   "ColumnFile": "Fichier",
   "BadgeLocalOcr": "Local (hors ligne)",
   "ContextMenuRerun": "Relancer l'extraction",
-
   "EmptyResultsTitle": "Aucune facture traitée",
   "EmptyResultsDesc": "Sélectionnez un dossier et lancez l'extraction",
   "EmptyIncompleteTitle": "Aucune extraction incomplète",
   "IncompleteDescription": "Ces factures nécessitent une vérification manuelle",
-
   "SummaryBannerComplete": "Extraction terminée — {0} réussies, {1} incomplètes, {2} erreurs. Vérifiez les résultats avant d'exporter.",
   "StatusBarSummary": "{0} factures traitées — {1} incomplètes",
   "ProgressText": "{0} / {1} fichiers traités",
@@ -100,11 +92,11 @@
   "PreviewFileNameDefault": "Aperçu",
   "PreviewBtnRawText": "Texte brut",
   "PreviewImageMissing": "Image introuvable",
+  "PreviewLoadError": "Echec du chargement de lapreu00e7u. Le fichier est peut-u00eatre corrompu ou dans un format non pris en charge.",
   "PreviewServerStarting": "Serveur en cours de démarrage…",
   "PreviewServerUnavailable": "Serveur non démarré — aperçu PDF indisponible.",
   "SaveConfirmationText": "Fichier enregistré : {0}",
   "OpenFolderLink": "Ouvrir le dossier",
-
   "BtnExportExcel": "Exporter en Excel",
   "BtnExportTooltip": "Exporter les résultats vers Excel (Ctrl+E)",
   "BtnClear": "Effacer",
@@ -113,7 +105,6 @@
   "ClearConfirmTitle": "Confirmation d'effacement",
   "BtnRerunErrors": "Relancer les erreurs",
   "BtnRerunErrorsTooltip": "Relancer l'extraction uniquement pour les fichiers en erreur",
-
   "GeminiTitle": "Configuration Gemini",
   "GeminiHeader": "Configuration optionnelle",
   "GeminiSubheader": "Clé API Gemini",
@@ -146,10 +137,9 @@
   "GeminiApiError": "Erreur API Gemini: {0} — {1}",
   "GeminiEmptyResponse": "Réponse vide de Gemini",
   "GeminiParseError": "Échec de l'analyse du JSON renvoyé par Gemini",
-  "GeminiExtractionText": "Extrais les informations de cette facture sous forme de JSON uniquement.\nLes clés doivent être exactement : numero_facture, date, fournisseur, client, montant_ht, montant_tva, montant_taxe, montant_ttc.\nUtilise null si une information est absente. Ne devine jamais.\nRéponds uniquement avec le JSON.",
+  "GeminiExtractionText": "Extrais les informations de cette facture sous forme de JSON uniquement.\nLes clés doivent être exactement : numero_facture, date, fournisseur, client, montant_ht, montant_tva, montant_taxe, montant_ttc.\nExtrais également les lignes d'articles si présentes dans un tableau nommé \"items\". Chaque article a les clés : designation (string), quantite (float), prix_unitaire (float), tva_rate (float, ex: 0.20 pour 20%), montant (float).\nSi la facture n'a pas de tableau d'articles, mets items à [].\nUtilise null si une information est absente. Ne devine jamais.\nRéponds uniquement avec le JSON.",
   "GeminiDirectExtraction": "Extraction via Gemini Vision (client direct)",
   "GrokDirectExtraction": "Extraction via Grok (xAI, client direct)",
-
   "GrokTitle": "Configuration Grok (xAI)",
   "GrokHeader": "Configuration optionnelle",
   "GrokDescription": "Configurez une clé API Grok (xAI) pour l'extraction cloud. Grok offre une alternative à Gemini avec une précision compétitive.",
@@ -175,8 +165,7 @@
   "GrokApiError": "Erreur API xAI : {0} — {1}",
   "GrokEmptyResponse": "Réponse vide de xAI",
   "GrokParseError": "Échec de l'analyse du JSON renvoyé par xAI",
-  "GrokExtractionText": "Extrais les informations de cette facture sous forme de JSON uniquement.\nLes clés doivent être exactement : numero_facture, date, fournisseur, client, montant_ht, montant_tva, montant_taxe, montant_ttc.\nUtilise null si une information est absente. Ne devine jamais.\nRéponds uniquement avec le JSON.",
-
+  "GrokExtractionText": "Extrais les informations de cette facture sous forme de JSON uniquement.\nLes clés doivent être exactement : numero_facture, date, fournisseur, client, montant_ht, montant_tva, montant_taxe, montant_ttc.\nExtrais également les lignes d'articles si présentes dans un tableau nommé \"items\". Chaque article a les clés : designation (string), quantite (float), prix_unitaire (float), tva_rate (float, ex: 0.20 pour 20%), montant (float).\nSi la facture n'a pas de tableau d'articles, mets items à [].\nUtilise null si une information est absente. Ne devine jamais.\nRéponds uniquement avec le JSON.",
   "ErrorFatalTitle": "Erreur Fatale",
   "ErrorPythonNotFound": "L'environnement Python est introuvable. Veuillez relancer l'installation.",
   "ErrorServerNotFound": "Le serveur OCR est introuvable. Veuillez relancer l'installation.",
@@ -192,14 +181,12 @@
   "ErrorOcrInternal": "Erreur interne serveur OCR",
   "ErrorOcrHttp": "Erreur serveur OCR (HTTP {0})",
   "ErrorServerRefused": "Le serveur OCR local ne répond pas (connexion refusée à 127.0.0.1:8000). Le serveur n'a peut-être pas démarré ou s'est arrêté de façon inattendue. Vérifiez les logs dans {0}.",
-
   "BrowseFolderTitle": "Sélectionner le dossier des factures",
   "BrowseFilesTitle": "Sélectionner les fichiers de factures",
   "BrowseFilesFilter": "Fichiers de factures|*.pdf;*.jpg;*.jpeg;*.png;*.bmp;*.tif;*.tiff|Tous les fichiers|*.*",
   "ExportDialogTitle": "Exporter les résultats en Excel",
   "ExportExcelFilter": "Classeur Excel (*.xlsx)|*.xlsx",
   "ExportFileName": "Hotix_Export_{0}.xlsx",
-
   "AboutTitle": "À propos",
   "AboutMessage": "HOTIX — Extraction de Factures\n\nVersion {0}\n\nMoteurs : PaddleOCR (local), Gemini Vision (cloud)",
   "AboutVersionLabel": "Version {0}",
@@ -207,11 +194,9 @@
   "NavPageExtraction": "Extraction",
   "NavPageSettings": "Configuration",
   "NavPageAbout": "À propos",
-
   "LangLabel": "Langue",
   "LangFrench": "Français",
   "LangEnglish": "English",
-
   "ExportTitle": "Exporter les résultats",
   "ExportDescription": "Comment souhaitez-vous exporter les données de factures extraites ?",
   "ExportNewOption": "Créer un nouveau classeur",
@@ -232,7 +217,6 @@
   "ExportSheetPickerLabel": "Choisissez une feuille de calcul :",
   "ExportOpenWorkbook": "Ouvrir le classeur",
   "ExportErrorFileOpen": "Impossible d'écrire dans le fichier. Il est peut-être ouvert dans une autre application (ex: Excel).\n\n{0}",
-
   "ExportSheetResults": "Résultats",
   "ExportSheetIncomplete": "Extractions Incomplètes",
   "ExportHeaderNumero": "N° Facture",
@@ -253,14 +237,14 @@
   "ExportEngineGrok": "Grok (xAI)",
   "ExportEngineOcr": "OCR local",
   "ExportMissingMarker": "[MANQUANT]",
-
   "ExtractionPreparing": "Préparation de l'extraction...",
   "ExtractionProcessing": "Traitement : {0}",
-  "ExtractionProcessingElapsed": "Traitement : {0} — {1}m {2}s écoulées",    "ExtractionNoFiles": "Aucun fichier sélectionné pour l'extraction.",
-    "ExportNoRows": "Aucune ligne ne correspond au filtre sélectionné.",
-    "DropNotSupported": "Seuls les fichiers peuvent être déposés ici. Veuillez glisser un fichier ou un dossier.",
-    "DropUnsupportedFiles": "Type de fichier non pris en charge : {0}",
-    "DropNoRecognizedFiles": "Aucun fichier reconnu dans le dépôt. Formats supportés : PDF, JPG, PNG, BMP, TIFF.",
+  "ExtractionProcessingElapsed": "Traitement : {0} — {1}m {2}s écoulées",
+  "ExtractionNoFiles": "Aucun fichier sélectionné pour l'extraction.",
+  "ExportNoRows": "Aucune ligne ne correspond au filtre sélectionné.",
+  "DropNotSupported": "Seuls les fichiers peuvent être déposés ici. Veuillez glisser un fichier ou un dossier.",
+  "DropUnsupportedFiles": "Type de fichier non pris en charge : {0}",
+  "DropNoRecognizedFiles": "Aucun fichier reconnu dans le dépôt. Formats supportés : PDF, JPG, PNG, BMP, TIFF.",
   "ExtractionQuotaFallback": "Quota Gemini dépassé — passage en OCR local pour les fichiers restants",
   "QuotaFallbackBanner": "Quota de l'API Gemini atteint. Les fichiers restants seront traités par OCR local. Utilisez le moteur Grok ou réessayez plus tard.",
   "QuotaExceededGeminiBanner": "Quota de l'API Gemini atteint (429). Passez en mode Automatique ou OCR local, ou réessayez plus tard.",
@@ -275,7 +259,6 @@
   "ProviderGrok": "Grok",
   "FileReady": "✓ Prêt",
   "ErrorTimeout": "Le traitement du fichier a expiré après {0}s. Vérifiez votre connexion et l'état de l'API.",
-
   "EngineBadgeAuto": "Auto",
   "EngineBadgeGeminiReady": "Gemini (cloud)",
   "EngineBadgeGeminiNoKey": "Gemini (pas de clé)",
@@ -286,11 +269,9 @@
   "EngineBadgeOcr": "OCR local (PaddleOCR)",
   "EngineLabel": "Moteur :",
   "RerunErrorsProgress": "Re-traitement des fichiers en erreur...",
-
   "GeminiValidationTitle": "Validation de clé",
   "GeminiServerValidationFailed": "Le serveur n'a pas pu valider cette clé : {0}\n\nLa clé sera tout de même sauvegardée, mais le serveur pourrait ne pas l'utiliser correctement. Essayez de redémarrer l'application après la sauvegarde.",
   "GeminiServerUnreachable": "Impossible de joindre le serveur pour valider la clé. La clé sera tout de même sauvegardée. Assurez-vous que le serveur est en cours d'exécution avant d'extraire.",
-
   "ModelLabel": "Modèle",
   "GeminiModelLabel": "Modèle Gemini",
   "GrokModelLabel": "Modèle Grok",
@@ -300,7 +281,6 @@
   "ModelTooltipGemini15Pro": "Le plus performant. Coût le plus élevé. Idéal pour les documents complexes.",
   "ModelTooltipGrok43": "Fournisseur alternatif. Qualité similaire à Gemini. Bon repli.",
   "ModelTooltipGrok30": "Version Grok précédente. Fonctionne toujours.",
-
   "OnboardingStep1Title": "1 / 5 — Choisissez vos fichiers",
   "OnboardingStep1Desc": "Commencez ici : sélectionnez un dossier ou ajoutez des fichiers de factures.",
   "OnboardingStep2Title": "2 / 5 — Choisissez un moteur",
@@ -313,21 +293,16 @@
   "OnboardingStep5Desc": "Exportez vos résultats vérifiés en Excel.",
   "OnboardingNext": "Suivant",
   "OnboardingSkip": "Passer",
-
   "InfoEngine": "Automatique : essaie Gemini/Grok d'abord, puis OCR local en cas d'échec. Forcer un moteur spécifique ignore le repli. OCR local est entièrement hors ligne avec une précision moindre.",
   "InfoConfidence": "Seuils de confiance : Élevée (≥75%) — probablement exact. Moyenne (40-75%) — vérifiez avant export. Basse (<40%) — révisez attentivement.",
   "InfoIncomplete": "Les extractions incomplètes sont des fichiers où l'extraction a échoué ou partiellement échoué. Elles nécessitent une vérification manuelle avant export.",
   "InfoGeminiKey": "Une clé API Gemini permet une extraction cloud avec une meilleure précision. La clé est stockée localement et n'est jamais envoyée à un tiers. Vous pouvez obtenir une clé gratuite sur aistudio.google.com.",
-
   "UpdateCheckTitle": "Mise à jour disponible",
   "UpdateCheckNewVersion": "Une nouvelle version de HOTIX est disponible : {0}. Vous utilisez la version {1}.",
   "UpdateCheckReleaseLink": "Télécharger la mise à jour",
   "UpdateCheckDismiss": "Ignorer",
-
   "FieldValueComputed": "Calculé",
-
   "KeySecuredNotification": "Vos clés API ont été sécurisées par chiffrement.",
-
   "ItemsLabel": "Articles : ",
   "ArticlesLabel": "Articles",
   "ArticlesHeader": "Articles ({0})",

@@ -1022,7 +1022,20 @@
                                                 <Border Background="{StaticResource BrushAltBackground}"
                                                         BorderThickness="0"
                                                         Padding="48,16,24,20">
-                                                    <StackPanel>
+                                                    <Grid>
+                                                        <Grid.RowDefinitions>
+                                                            <RowDefinition Height="Auto" />
+                                                            <RowDefinition Height="*" />
+                                                        </Grid.RowDefinitions>
+                                                        <!-- Close button -->
+                                                        <Button Grid.Row="0" Content="✕"
+                                                                HorizontalAlignment="Right"
+                                                                Style="{StaticResource ButtonGhostStyle}"
+                                                                Width="28" Height="28"
+                                                                FontSize="14"
+                                                                ToolTip="Close"
+                                                                Command="{Binding DataContext.ClearSelectedRowCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}" />
+                                                        <StackPanel Grid.Row="1">
                                                         <!-- Invoice Summary -->
                                                         <Grid Margin="0,0,0,16">
                                                             <Grid.ColumnDefinitions>
@@ -1199,6 +1212,7 @@
                                                             </Border>
                                                         </StackPanel>
                                                     </StackPanel>
+                                                    </Grid>
                                                 </Border>
                                             </DataTemplate>
                                         </DataGrid.RowDetailsTemplate>
@@ -1395,7 +1409,20 @@
                                                 <Border Background="{StaticResource BrushAltBackground}"
                                                         BorderThickness="0"
                                                         Padding="48,16,24,20">
-                                                    <StackPanel>
+                                                    <Grid>
+                                                        <Grid.RowDefinitions>
+                                                            <RowDefinition Height="Auto" />
+                                                            <RowDefinition Height="*" />
+                                                        </Grid.RowDefinitions>
+                                                        <!-- Close button -->
+                                                        <Button Grid.Row="0" Content="✕"
+                                                                HorizontalAlignment="Right"
+                                                                Style="{StaticResource ButtonGhostStyle}"
+                                                                Width="28" Height="28"
+                                                                FontSize="14"
+                                                                ToolTip="Close"
+                                                                Command="{Binding DataContext.ClearSelectedRowCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}" />
+                                                        <StackPanel Grid.Row="1">
                                                         <!-- Invoice Summary -->
                                                         <Grid Margin="0,0,0,16">
                                                             <Grid.ColumnDefinitions>
@@ -1572,6 +1599,7 @@
                                                             </Border>
                                                         </StackPanel>
                                                     </StackPanel>
+                                                    </Grid>
                                                 </Border>
                                             </DataTemplate>
                                         </DataGrid.RowDetailsTemplate>
