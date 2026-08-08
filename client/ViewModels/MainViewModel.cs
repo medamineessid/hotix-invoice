@@ -1232,7 +1232,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     /// values for fields like montant_ht instead of quoted strings — the bare
     /// <c>el.GetString()</c> call used previously threw InvalidOperationException
     /// for non-String kinds, crashing extraction entirely for that invoice.</summary>
-    private static string? GetStringField(Dictionary<string, JsonElement> dict, string key)
+    internal static string? GetStringField(Dictionary<string, JsonElement> dict, string key)
     {
         if (!dict.TryGetValue(key, out var el))
             return null;
