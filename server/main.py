@@ -22,7 +22,7 @@ import sentry_sdk
 from sentry_sdk.integrations.fastapi import FastApiIntegration
 from sentry_sdk.integrations.logging import LoggingIntegration
 
-from .models import HealthResponse, InvoiceExtractionResponse, InvoiceItem, ApiKeyValidationRequest
+from .models import HealthResponse, InvoiceExtractionResponse, InvoiceItem, TvaSummaryRow, ApiKeyValidationRequest
 from .ingestion import IngestionError, load_invoice_images
 from .ocr_engine import PaddleOcrEngine, OcrEngineError
 from .field_extractor import (
@@ -31,6 +31,7 @@ from .field_extractor import (
     extract_field_confidences,
     extract_raw_text,
     extract_item_table,
+    extract_tax_summary,
     cross_validate_fields,
     compute_confidence,
 )
@@ -613,16 +614,21 @@ async def _run_gemini_extraction(
             InvoiceItem(
                 designation=it.get("designation"),
                 quantite=it.get("quantite"),
+                unit=it.get("unit"),
                 prix_unitaire=it.get("prix_unitaire"),
                 tva_rate=it.get("tva_rate"),
                 montant=it.get("montant"),
             )
             for it in gemini_items if isinstance(it, dict)
         ]
-        logger.info(
-            "Extraction via Gemini Vision successful for %s. Issues: %s. Items: %d",
-            Path(filename).name, gemini_issues, len(parsed_gemini_items),
-        )
+        parsed_gemini_tax_summary = [
+            TvaSummaryRow(
+                rate=r.get("rate"),
+                base_ht=r.get("base_ht"),
+                tva_amount=r.get("tva_amount"),
+            )
+            for r in result.get("tax_summary", []) if isinstance(r, dict)
+        ]
         return (
             InvoiceExtractionResponse(
                 **fields,
@@ -632,6 +638,7 @@ async def _run_gemini_extraction(
                 computed_fields=list(computed_fields),
                 amount_mismatch=has_mismatch,
                 items=parsed_gemini_items,
+                tax_summary=parsed_gemini_tax_summary,
                 field_confidences={f: gemini_confidence for f in FIELD_ORDER},
             ),
             None,
@@ -689,21 +696,54 @@ def _run_ocr_extraction(
     field_names = [k for k, v in fields.items() if v is not None]
     # Item-table extraction (Prompt 7)
     items = extract_item_table(all_lines)
+    # Tax-summary extraction (per-rate VAT breakdown, below the item table)
+    rows = cluster_rows(all_lines)
+    tax_summary_rows = extract_tax_summary(all_lines, rows)
     parsed_items = [
         InvoiceItem(
             designation=it.get("designation"),
             quantite=it.get("quantite"),
+            unit=it.get("unite"),
             prix_unitaire=it.get("prix_unitaire"),
             tva_rate=it.get("tva_rate"),
             montant=it.get("montant"),
         )
         for it in items if isinstance(it, dict)
     ]
+    parsed_tax_summary = [
+        TvaSummaryRow(
+            rate=r.get("rate"),
+            base_ht=r.get("base_ht"),
+            tva_amount=r.get("tva_amount"),
+        )
+        for r in tax_summary_rows if isinstance(r, dict)
+    ]
 
     logger.info(
-        "Extraction via OCR successful for %s. Fields: %s. Issues: %s. Items: %d",
-        Path(filename).name, field_names, issues, len(parsed_items),
+        "Extraction via OCR successful for %s. Fields: %s. Issues: %s. Items: %d. Tax summary: %d",
+        Path(filename).name, field_names, issues, len(parsed_items), len(parsed_tax_summary),
     )
+
+    # ── Cross-validate items vs tax_summary (F) ──────────────────────────
+    # If items and tax_summary are both present, check that the per-rate
+    # totals from line items match the tax summary block.  Mismatches are
+    # added as validation warnings (reusing the existing issues mechanism).
+    if parsed_items and parsed_tax_summary:
+        item_totals: dict[float, float] = {}  # rate -> sum of item montants
+        for item in parsed_items:
+            rate = round(item.tva_rate, 3) if item.tva_rate is not None else None
+            if rate is not None and item.montant is not None:
+                item_totals[rate] = item_totals.get(rate, 0.0) + float(item.montant)
+        for ts_row in parsed_tax_summary:
+            ts_rate = round(ts_row.rate, 3) if ts_row.rate is not None else None
+            if ts_rate is not None and ts_rate in item_totals:
+                ts_base = ts_row.base_ht or 0.0
+                item_sum = item_totals[ts_rate]
+                if abs(item_sum - ts_base) > 0.50:
+                    issues.append(
+                        f"Tax summary mismatch for rate {ts_rate*100:.0f}%: "
+                        f"items sum={item_sum:.2f} vs tax_summary base={ts_base:.2f}"
+                    )
 
     # Build per-field confidences from the extractor's FieldSelection results
     field_confidences = {
@@ -718,6 +758,7 @@ def _run_ocr_extraction(
         computed_fields=list(computed_fields),
         amount_mismatch=has_mismatch,
         items=parsed_items,
+        tax_summary=parsed_tax_summary,
         field_confidences=field_confidences,
     )
 

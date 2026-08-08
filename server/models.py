@@ -12,6 +12,7 @@ class InvoiceItem(BaseModel):
     model_config = ConfigDict(extra="forbid")
     designation: Optional[str] = Field(default=None, description="Item description / product name")
     quantite: Optional[float] = Field(default=None, description="Quantity")
+    unit: Optional[str] = Field(default=None, description="Unit of measure (h., pce., stère, kg, etc.)")
     prix_unitaire: Optional[float] = Field(default=None, description="Unit price")
     tva_rate: Optional[float] = Field(default=None, description="VAT rate (e.g. 0.20 for 20%)")
     montant: Optional[float] = Field(default=None, description="Line total (usually qty × unit price)")
@@ -21,6 +22,14 @@ class ApiKeyValidationRequest(BaseModel):
     """Request payload for API key validation endpoints."""
     model_config = ConfigDict(extra="forbid")
     api_key: str = Field(..., min_length=10, max_length=512, description="API key to validate")
+
+
+class TvaSummaryRow(BaseModel):
+    """A single row from the tax summary table (per-rate VAT breakdown)."""
+    model_config = ConfigDict(extra="forbid")
+    rate: Optional[float] = Field(default=None, description="VAT rate as decimal (e.g. 0.20 for 20%)")
+    base_ht: Optional[float] = Field(default=None, description="Taxable base (HT) for this rate")
+    tva_amount: Optional[float] = Field(default=None, description="VAT amount for this rate")
 
 
 class InvoiceExtractionResponse(BaseModel):
@@ -58,6 +67,10 @@ class InvoiceExtractionResponse(BaseModel):
     field_confidences: dict[str, float] = Field(
         default_factory=dict,
         description="Per-field confidence scores from the OCR engine (0.0-1.0). Keys match the 8 standard field names.",
+    )
+    tax_summary: list[TvaSummaryRow] = Field(
+        default_factory=list,
+        description="Per-rate VAT breakdown (tax summary table below line items).",
     )
 
 

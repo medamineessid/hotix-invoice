@@ -1549,6 +1549,9 @@ TABLE_COLUMN_HEADERS: dict[str, tuple[str, ...]] = {
         "tva", "taux tva", "taux", "tva %", "taux de tva", "tva%",
         "ض.ق.م", "نسبة",  # Arabic: VAT abbreviation / rate
     ),
+    "unite": (
+        "unité", "unite", "un.", "u.",
+    ),
     "montant": (
         "montant", "total ht", "total", "montant ht", "montant h.t.",
         "montant ttc",
@@ -1735,8 +1738,14 @@ def extract_item_table(ocr_lines: Sequence[OCRLine]) -> list[dict[str, object]]:
         row = rows[i]
         row_text = " ".join(line.text.strip() for line in row if line.text.strip()).lower()
 
-        # Check for footer anchor: if any footer alias matches, stop
-        if _contains_any_alias(row_text, list(_FOOTER_ALIASES)):
+        # Check for footer anchor: if any footer alias matches, stop.
+        # BUT skip the footer check for rows with 3+ OCR lines — multi-cell
+        # table rows (e.g. 6-column invoices with a "TVA" rate column) contain
+        # bare words like "tva" and "ht" that match _FOOTER_ALIASES via
+        # _contains_any_alias (word-boundary match), which would otherwise
+        # stop extraction on the very first data row (zero items returned).
+        # Footer rows are always 1-2 cells ("Total TTC  4 480,00 €").
+        if len(row) < 3 and _contains_any_alias(row_text, list(_FOOTER_ALIASES)):
             _debug_log(f"extract_item_table: footer hit at row {i} — stopping")
             break
 
@@ -1746,6 +1755,80 @@ def extract_item_table(ocr_lines: Sequence[OCRLine]) -> list[dict[str, object]]:
 
     _debug_log(f"extract_item_table: extracted {len(items)} items")
     return items
+
+
+# ── Tax-summary extraction ──────────────────────────────────────────────────
+
+# Pattern: "TVA 20%" / "TVA 10%" etc.
+_TVA_RATE_LINE_RE = re.compile(
+    r'(?:tva|vat)\s*(?:à|a|au|taux)?\s*(\d{1,2}(?:[.,]\d{1,2})?)\s*%',
+    re.IGNORECASE,
+)
+
+
+def extract_tax_summary(
+    ocr_lines: Sequence[OCRLine],
+    rows: list[list[OCRLine]],
+) -> list[dict[str, Optional[float]]]:
+    """Extract the per-rate VAT summary block from below the item table.
+
+    Scans ALL rows (not just the ones after the item table — the caller
+    already has the full OCR context) for rows containing a VAT-rate label
+    ("TVA 20%", "TVA 10%", etc.) followed by base_ht and tva_amount values.
+
+    Uses the same row-clustering and amount-parsing utilities as the rest
+    of the extraction pipeline — no new framework.
+
+    Returns a list of {rate, base_ht, tva_amount} dicts.
+    """
+    if not rows:
+        return []
+
+    summary: list[dict[str, Optional[float]]] = []
+
+    for row in rows:
+        row_text = " ".join(line.text.strip() for line in row if line.text.strip()).lower()
+        rate_match = _TVA_RATE_LINE_RE.search(row_text)
+        if not rate_match:
+            continue
+
+        # Parse rate
+        rate_str = rate_match.group(1).replace(",", ".")
+        try:
+            rate = float(rate_str) / 100.0
+        except (ValueError, TypeError):
+            continue
+
+        # Find base_ht and tva_amount: scan OCR lines left to right,
+        # pick the two rightmost amount-like values
+        amounts: list[float] = []
+        for line in sorted(row, key=lambda l: l.box.x1):
+            text = line.text.strip()
+            # Skip the label line itself
+            if _TVA_RATE_LINE_RE.search(text):
+                continue
+            try:
+                cleaned = clean_amount(text)
+                if cleaned:
+                    amounts.append(float(cleaned))
+            except (ValueError, TypeError):
+                continue
+
+        base_ht = amounts[0] if len(amounts) >= 2 else (amounts[0] if len(amounts) == 1 else None)
+        tva_amount = amounts[1] if len(amounts) >= 2 else None
+
+        if base_ht is not None or tva_amount is not None:
+            summary.append({
+                "rate": rate,
+                "base_ht": base_ht,
+                "tva_amount": tva_amount,
+            })
+            _debug_log(
+                f"extract_tax_summary: TVA {rate*100:.0f}% → "
+                f"base_ht={base_ht}, tva_amount={tva_amount}"
+            )
+
+    return summary
 
 
 def _find_table_header(rows: list[list[OCRLine]]) -> tuple[int | None, dict[str, tuple[float, float]]]:
@@ -1920,7 +2003,7 @@ def _bounded_directional_search(row: list[OCRLine], all_rows: list[list[OCRLine]
 
 def _parse_cell_value(col_name: str, text: str) -> object:
     """Parse a cell text value into the appropriate type for the column."""
-    if col_name == "designation":
+    if col_name in ("designation", "unite"):
         return text
 
     # TVA rate: normalize to decimal (0.20 for 20%)
