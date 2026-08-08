@@ -23,7 +23,7 @@ import sentry_sdk
 from sentry_sdk.integrations.fastapi import FastApiIntegration
 from sentry_sdk.integrations.logging import LoggingIntegration
 
-from .models import HealthResponse, InvoiceExtractionResponse, InvoiceItem, TvaSummaryRow, ApiKeyValidationRequest
+from .models import HealthResponse, InvoiceExtractionResponse, InvoiceItem, TaxSummaryRow, ApiKeyValidationRequest
 from .ingestion import IngestionError, load_invoice_images
 from .ocr_engine import PaddleOcrEngine, OcrEngineError
 from .field_extractor import (
@@ -36,7 +36,7 @@ from .field_extractor import (
     cross_validate_fields,
     compute_confidence,
 )
-from .utils import reconcile_amounts, detect_amount_collision, format_amount_value
+from .utils import reconcile_amounts, cluster_rows, detect_amount_collision, format_amount_value
 
 from typing import Literal, Optional
 from .gemini_extractor import extract_with_gemini, GeminiExtractionError, load_gemini_api_key, load_gemini_model, _get_settings_path
@@ -666,10 +666,10 @@ async def _run_gemini_extraction(
             for it in gemini_items if isinstance(it, dict)
         ]
         parsed_gemini_tax_summary = [
-            TvaSummaryRow(
+            TaxSummaryRow(
                 rate=r.get("rate"),
                 base_ht=r.get("base_ht"),
-                tva_amount=r.get("tva_amount"),
+                tax_amount=r.get("tax_amount"),
             )
             for r in result.get("tax_summary", []) if isinstance(r, dict)
         ]
@@ -755,10 +755,10 @@ def _run_ocr_extraction(
         for it in items if isinstance(it, dict)
     ]
     parsed_tax_summary = [
-        TvaSummaryRow(
+        TaxSummaryRow(
             rate=r.get("rate"),
             base_ht=r.get("base_ht"),
-            tva_amount=r.get("tva_amount"),
+            tax_amount=r.get("tax_amount"),
         )
         for r in tax_summary_rows if isinstance(r, dict)
     ]

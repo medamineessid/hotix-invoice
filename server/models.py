@@ -24,12 +24,12 @@ class ApiKeyValidationRequest(BaseModel):
     api_key: str = Field(..., min_length=10, max_length=512, description="API key to validate")
 
 
-class TvaSummaryRow(BaseModel):
+class TaxSummaryRow(BaseModel):
     """A single row from the tax summary table (per-rate VAT breakdown)."""
     model_config = ConfigDict(extra="forbid")
     rate: Optional[float] = Field(default=None, description="VAT rate as decimal (e.g. 0.20 for 20%)")
     base_ht: Optional[float] = Field(default=None, description="Taxable base (HT) for this rate")
-    tva_amount: Optional[float] = Field(default=None, description="VAT amount for this rate")
+    tax_amount: Optional[float] = Field(default=None, description="VAT amount for this rate")
 
 
 class InvoiceExtractionResponse(BaseModel):
@@ -68,7 +68,7 @@ class InvoiceExtractionResponse(BaseModel):
         default_factory=dict,
         description="Per-field confidence scores from the OCR engine (0.0-1.0). Keys match the 8 standard field names.",
     )
-    tax_summary: list[TvaSummaryRow] = Field(
+    tax_summary: list[TaxSummaryRow] = Field(
         default_factory=list,
         description="Per-rate VAT breakdown (tax summary table below line items).",
     )

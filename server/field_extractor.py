@@ -1774,12 +1774,16 @@ def extract_tax_summary(
 
     Scans ALL rows (not just the ones after the item table — the caller
     already has the full OCR context) for rows containing a VAT-rate label
-    ("TVA 20%", "TVA 10%", etc.) followed by base_ht and tva_amount values.
+    ("TVA 20%", "TVA 10%", etc.) followed by base_ht and tax_amount values.
 
     Uses the same row-clustering and amount-parsing utilities as the rest
     of the extraction pipeline — no new framework.
 
-    Returns a list of {rate, base_ht, tva_amount} dicts.
+    Returns a list of {rate, base_ht, tax_amount} dicts.
+
+    NOTE: the dict key is "tax_amount" because that is the wire-format name
+    the WPF client's TaxSummaryRow deserializes (JsonPropertyName
+    "tax_amount") — keep both sides in sync.
     """
     if not rows:
         return []
@@ -1799,7 +1803,7 @@ def extract_tax_summary(
         except (ValueError, TypeError):
             continue
 
-        # Find base_ht and tva_amount: scan OCR lines left to right,
+        # Find base_ht and tax_amount: scan OCR lines left to right,
         # pick the two rightmost amount-like values
         amounts: list[float] = []
         for line in sorted(row, key=lambda l: l.box.x1):
@@ -1815,17 +1819,17 @@ def extract_tax_summary(
                 continue
 
         base_ht = amounts[0] if len(amounts) >= 2 else (amounts[0] if len(amounts) == 1 else None)
-        tva_amount = amounts[1] if len(amounts) >= 2 else None
+        tax_amount = amounts[1] if len(amounts) >= 2 else None
 
-        if base_ht is not None or tva_amount is not None:
+        if base_ht is not None or tax_amount is not None:
             summary.append({
                 "rate": rate,
                 "base_ht": base_ht,
-                "tva_amount": tva_amount,
+                "tax_amount": tax_amount,
             })
             _debug_log(
                 f"extract_tax_summary: TVA {rate*100:.0f}% → "
-                f"base_ht={base_ht}, tva_amount={tva_amount}"
+                f"base_ht={base_ht}, tax_amount={tax_amount}"
             )
 
     return summary

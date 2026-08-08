@@ -21,7 +21,7 @@ Chaque article a les clés : designation, quantite, unite, prix_unitaire, tva_ra
 Pour unite, extrais le texte brut de la colonne unité (h., pce., stère, kg, m², etc.) comme string.
 Pour tva_rate, utilise le format décimal (ex: 0.20 pour 20%, 0.10 pour 10%, 0.055 pour 5.5%).
 Extrais aussi le tableau récapitulatif de TVA (souvent en bas de facture, après les lignes d'articles) dans un tableau "tax_summary".
-Chaque ligne de tax_summary a les clés : rate, base_ht, tva_amount (tous en float).
+Chaque ligne de tax_summary a les clés : rate, base_ht, tax_amount (tous en float).
 Utilise null si une information est absente. Ne devine jamais.
 Si la facture n'a pas de tableau d'articles, mets items à []. Si pas de récapitulatif TVA, mets tax_summary à [].
 RÈGLES STRICTES :
@@ -39,7 +39,7 @@ Each item has keys: designation, quantite, unite, prix_unitaire, tva_rate, monta
 For unite, extract the raw text from the unit column (h., pce., stère, kg, m², etc.) as a string.
 For tva_rate use decimal format (e.g. 0.20 for 20%, 0.10 for 10%, 0.055 for 5.5%).
 Also extract the tax summary table (usually at the bottom of the invoice, below the line items) in an array named "tax_summary".
-Each tax_summary row has keys: rate, base_ht, tva_amount (all as floats).
+Each tax_summary row has keys: rate, base_ht, tax_amount (all as floats).
 Use null if information is missing. Never guess.
 If the invoice has no item table, set items to []. If no tax summary, set tax_summary to [].
 STRICT RULES:
@@ -329,7 +329,7 @@ async def extract_with_gemini(image_data: bytes, mime_type: str) -> Dict[str, An
                     parsed_tax.append({
                         "rate": _normalize_amount_field(row.get("rate")),
                         "base_ht": _normalize_amount_field(row.get("base_ht")),
-                        "tva_amount": _normalize_amount_field(row.get("tva_amount")),
+                        "tax_amount": _normalize_amount_field(row.get("tax_amount")),
                     })
         result["tax_summary"] = parsed_tax
 
