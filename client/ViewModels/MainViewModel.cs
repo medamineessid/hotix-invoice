@@ -836,8 +836,39 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                     return;
                 }
 
+                // Register the file path via POST /preview/register to get a
+                // short-lived token, then fetch the preview by token.
+                var registerPayload = new StringContent(
+                    JsonSerializer.Serialize(new { file_path = filePath }),
+                    System.Text.Encoding.UTF8,
+                    "application/json");
+                using var registerResp = await _apiHttpClient.PostAsync(
+                    "/preview/register", registerPayload, ct);
+                ct.ThrowIfCancellationRequested();
+
+                if (!registerResp.IsSuccessStatusCode)
+                {
+                    IsPreviewLoading = false;
+                    PreviewImageSource = null;
+                    PreviewStatusMessage = string.Empty;
+                    _lastPreviewFilePath = null;
+                    return;
+                }
+
+                var registerBody = await registerResp.Content.ReadAsStringAsync(ct);
+                var tokenDoc = JsonSerializer.Deserialize<JsonElement>(registerBody);
+                string token = tokenDoc.GetProperty("token").GetString() ?? "";
+                if (string.IsNullOrEmpty(token))
+                {
+                    IsPreviewLoading = false;
+                    PreviewImageSource = null;
+                    PreviewStatusMessage = string.Empty;
+                    _lastPreviewFilePath = null;
+                    return;
+                }
+
                 using var response = await _apiHttpClient.GetAsync(
-                    $"/preview?path={Uri.EscapeDataString(filePath)}", ct);
+                    $"/preview?token={Uri.EscapeDataString(token)}", ct);
                 ct.ThrowIfCancellationRequested();
 
                 if (!response.IsSuccessStatusCode)

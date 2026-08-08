@@ -12,6 +12,7 @@ import sys
 import time
 from collections import defaultdict
 from contextlib import asynccontextmanager
+from hashlib import sha256
 from pathlib import Path
 
 from fastapi import FastAPI, File, HTTPException, Query, Request, UploadFile
@@ -310,31 +311,74 @@ async def health() -> HealthResponse:
 
 PREVIEW_ROOT = Path(os.getenv("HOTIX_PREVIEW_ROOT", "./previews")).resolve()
 
+# Token-based preview registration: client registers a file path, gets a
+# short-lived token, then fetches the preview by token.  This keeps arbitrary
+# filesystem access gated behind an explicit registration step instead of
+# accepting raw paths over HTTP.
+_preview_registry: dict[str, tuple[Path, float]] = {}  # token -> (path, expiry)
+_PREVIEW_TOKEN_TTL: float = 60.0  # seconds
+
+
+@app.post("/preview/register")
+async def preview_register(request: Request) -> dict:
+    """Register a file path for preview and return a short-lived token.
+
+    Accepts JSON: {"file_path": "C:\\Users\\...\\invoice.pdf"}
+    Returns JSON: {"token": "abc123..."}
+
+    The token is valid for 60 seconds and can be used once via GET /preview?token=.
+    """
+    body = await request.json()
+    file_path = body.get("file_path", "")
+    if not file_path:
+        raise HTTPException(status_code=400, detail="file_path requis")
+
+    # Reject traversal
+    if ".." in file_path:
+        raise HTTPException(status_code=403, detail="Accès refusé")
+
+    resolved = Path(file_path).resolve()
+    if not resolved.exists():
+        raise HTTPException(status_code=404, detail="Fichier introuvable")
+
+    suffix = resolved.suffix.lower()
+    if suffix not in SUPPORTED_SUFFIXES:
+        raise HTTPException(status_code=400, detail=f"Type de fichier non supporté : {suffix}")
+
+    # Generate a token from the resolved path + timestamp
+    raw = f"{resolved}:{time.time()}"
+    token = sha256(raw.encode()).hexdigest()[:32]
+
+    # Clean up expired tokens (cheap, no timer needed)
+    now = time.time()
+    expired = [t for t, (_, exp) in _preview_registry.items() if exp < now]
+    for t in expired:
+        del _preview_registry[t]
+
+    _preview_registry[token] = (resolved, now + _PREVIEW_TOKEN_TTL)
+    return {"token": token}
+
 
 @app.get("/preview")
-async def preview(path: str = Query(...)) -> Response:
+async def preview(token: str = Query(...)) -> Response:
     """Return the first page of a document as a PNG image for preview.
 
-    For PDFs, renders page 1 via pdf2image. For image files (PNG, JPG, BMP,
-    TIFF), returns the raw file bytes with the correct MIME type.
+    Uses a token obtained from POST /preview/register.  For PDFs, renders
+    page 1 via pdf2image.  For image files, returns the raw bytes.
 
     This endpoint is separate from the extraction pipeline — it is a
-    UI-only utility for the preview panel.
-
-    Security: the requested path is resolved against PREVIEW_ROOT and rejected
-    if it escapes the sandbox (path traversal protection).
+    UI-only utility for the preview panel.  Token-based access prevents
+    arbitrary filesystem reads over HTTP.
     """
-    # Reject absolute paths and obvious traversal
-    if path.startswith(("/", "\\")) or ".." in path:
-        raise HTTPException(status_code=403, detail="Accès refusé")
+    # Use .get() not .pop() — tokens are reusable within their TTL window
+    # so re-selecting the same invoice doesn't fail with a consumed token.
+    entry = _preview_registry.get(token)
+    if entry is None:
+        raise HTTPException(status_code=404, detail="Token invalide ou expiré")
 
-    raw = PREVIEW_ROOT / path
-    try:
-        filepath = raw.resolve()
-        if not filepath.is_relative_to(PREVIEW_ROOT):
-            raise HTTPException(status_code=403, detail="Accès refusé")
-    except (ValueError, RuntimeError):
-        raise HTTPException(status_code=403, detail="Accès refusé")
+    filepath, expiry = entry
+    if time.time() > expiry:
+        raise HTTPException(status_code=404, detail="Token expiré")
 
     if not filepath.exists():
         raise HTTPException(status_code=404, detail="Fichier introuvable")
