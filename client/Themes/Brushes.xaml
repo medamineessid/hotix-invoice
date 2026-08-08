@@ -117,6 +117,11 @@
     <SolidColorBrush x:Key="BrushButtonDangerHover"    Color="{StaticResource ColorAccentBg}" />
     <SolidColorBrush x:Key="BrushButtonDangerText"     Color="{StaticResource ColorError}" />
 
+    <!-- Ghost button — Transparent, text/icon only, subtle hover -->
+    <SolidColorBrush x:Key="BrushButtonGhost"         Color="Transparent" />
+    <SolidColorBrush x:Key="BrushButtonGhostHover"    Color="{StaticResource ColorHover}" />
+    <SolidColorBrush x:Key="BrushButtonGhostText"     Color="{StaticResource ColorTextPrimary}" />
+
     <!-- Input -->
     <SolidColorBrush x:Key="BrushInputBackground"     Color="{StaticResource ColorSurface}" />
     <SolidColorBrush x:Key="BrushInputBorder"         Color="{StaticResource ColorBorder}" />
