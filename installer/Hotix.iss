@@ -3,7 +3,7 @@
 ; Python 3.12 bundled installer approach (not venv copy)
 
 #define MyAppName "Hotix Invoice Extractor"
-#define MyAppVersion "1.0.0"
+#define MyAppVersion "1.0.1"
 #define MyAppExeName "Hotix.InvoiceClient.exe"
 #define MyAppPublisher "Hotix"
 #define MyAppURL "https://github.com/medamineessid/hotix-invoice"
@@ -25,7 +25,7 @@ AppSupportURL={#MyAppURL}
 AppUpdatesURL={#MyAppURL}
 DefaultDirName={autopf}\Hotix
 DefaultGroupName={#MyAppName}
-OutputBaseFilename=HotixSetup_1.0.0
+OutputBaseFilename=HotixSetup_1.0.1
 PrivilegesRequired=admin
 Compression=lzma2
 SolidCompression=yes
