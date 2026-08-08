@@ -2520,11 +2520,13 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         // ── Start server in background ONLY if it may actually be needed ──
         // Explicit cloud engines (gemini/grok with a valid key) never fall back
         // to OCR, so the server must NOT be started (or its status shows
-        // "Starting..." even though nothing uses it). Auto mode may still need
-        // the server for OCR fallback, so it is pre-started here. OCR fallback
-        // paths also lazily ensure the server via EnsureServerReadyAsync().
+        // "Starting..." even though nothing uses it). Auto mode with available
+        // cloud engines also skips pre-start — the lazy fallback path in
+        // ProcessInvoiceAsync calls EnsureServerReadyAsync() on demand when
+        // OCR is actually required.  OCR fallback paths also lazily ensure
+        // the server via EnsureServerReadyAsync().
         Task? serverTask = null;
-        bool serverMayBeNeeded = needsServerNow || selectedEngine == "auto";
+        bool serverMayBeNeeded = needsServerNow;
         if (serverMayBeNeeded)
         {
             LogPipeline("PRE-FLIGHT: Starting server in background for potential fallback");
@@ -2598,7 +2600,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         }
         else
         {
-            LogPipeline("PRE-FLIGHT: Cloud API available — server will be ready for fallback");
+            LogPipeline("PRE-FLIGHT: Cloud API available — server not needed, skipping startup");
         }
 
         var batchStopwatch = Stopwatch.StartNew();
