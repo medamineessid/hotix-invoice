@@ -608,7 +608,7 @@ async def _prepare_pages_for_gemini(pages: list) -> bytes:
         combined.paste(p, (0, y))
         y += p.height + margin
 
-    buf = BytesIO()
+    buf = io.BytesIO()
     combined.save(buf, format="PNG")
     return buf.getvalue()
 
