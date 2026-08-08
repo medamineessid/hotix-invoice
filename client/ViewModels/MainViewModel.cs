@@ -2782,7 +2782,24 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         catch (Exception ex)
         {
             LogPipeline($"OCR completed (exception: {ex.GetType().Name})");
-            return InvoiceRowViewModel.FromError(file, $"{ex.GetType().Name}: {ex.Message}");
+            string errorMessage;
+            if (ex is HttpRequestException &&
+                ex.InnerException is System.Net.Sockets.SocketException { SocketErrorCode: System.Net.Sockets.SocketError.ConnectionRefused })
+            {
+                errorMessage = TranslationSource.Fmt("ErrorServerRefused", App.ServerLogPath);
+            }
+            else if (ex is InvalidOperationException &&
+                (ex.Message.Contains(App.ServerLogPath) ||
+                 ex.Message.StartsWith(TranslationSource.Get("ServerStartFailPrefix"), StringComparison.Ordinal)))
+            {
+                // EnsureServerReadyAsync produces translated messages — use directly
+                errorMessage = ex.Message;
+            }
+            else
+            {
+                errorMessage = $"{ex.GetType().Name}: {ex.Message}";
+            }
+            return InvoiceRowViewModel.FromError(file, errorMessage);
         }
         finally
         {
@@ -2809,7 +2826,23 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         }
         catch (Exception ex)
         {
-            return InvoiceRowViewModel.FromError(filePath, $"{ex.GetType().Name}: {ex.Message}");
+            string errorMessage;
+            if (ex is HttpRequestException &&
+                ex.InnerException is System.Net.Sockets.SocketException { SocketErrorCode: System.Net.Sockets.SocketError.ConnectionRefused })
+            {
+                errorMessage = TranslationSource.Fmt("ErrorServerRefused", App.ServerLogPath);
+            }
+            else if (ex is InvalidOperationException &&
+                (ex.Message.Contains(App.ServerLogPath) ||
+                 ex.Message.StartsWith(TranslationSource.Get("ServerStartFailPrefix"), StringComparison.Ordinal)))
+            {
+                errorMessage = ex.Message;
+            }
+            else
+            {
+                errorMessage = $"{ex.GetType().Name}: {ex.Message}";
+            }
+            return InvoiceRowViewModel.FromError(filePath, errorMessage);
         }
     }
 

@@ -191,6 +191,7 @@
   "ErrorOcrEngine": "OCR error — Check installation",
   "ErrorOcrInternal": "Internal OCR server error",
   "ErrorOcrHttp": "OCR server error (HTTP {0})",
+  "ErrorServerRefused": "The local OCR server is not responding (connection refused at 127.0.0.1:8000). The server may have failed to start or stopped unexpectedly. Check the logs at {0}.",
 
   "BrowseFolderTitle": "Select invoices folder",
   "BrowseFilesTitle": "Select invoice files",

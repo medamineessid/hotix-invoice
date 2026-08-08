@@ -191,6 +191,7 @@
   "ErrorOcrEngine": "Erreur OCR — Vérifiez l'installation",
   "ErrorOcrInternal": "Erreur interne serveur OCR",
   "ErrorOcrHttp": "Erreur serveur OCR (HTTP {0})",
+  "ErrorServerRefused": "Le serveur OCR local ne répond pas (connexion refusée à 127.0.0.1:8000). Le serveur n'a peut-être pas démarré ou s'est arrêté de façon inattendue. Vérifiez les logs dans {0}.",
 
   "BrowseFolderTitle": "Sélectionner le dossier des factures",
   "BrowseFilesTitle": "Sélectionner les fichiers de factures",
