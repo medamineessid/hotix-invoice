@@ -2003,6 +2003,67 @@
                                                                 </DataTemplate>
                                                             </ItemsControl.ItemTemplate>
                                                         </ItemsControl>
+
+                                                        <!-- Tax Summary (per-rate TVA breakdown) -->
+                                                        <Border Margin="0,12,0,0">
+                                                            <Border.Style>
+                                                                <Style TargetType="Border">
+                                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding SelectedRow.HasTaxSummary}" Value="True">
+                                                                            <Setter Property="Visibility" Value="Visible" />
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </Border.Style>
+                                                            <StackPanel>
+                                                                <TextBlock Text="{Binding SelectedRow.TaxSummaryTitle}"
+                                                                           Style="{StaticResource TextMetadata}"
+                                                                           FontWeight="{StaticResource FontWeightMedium}"
+                                                                           Foreground="{StaticResource BrushTextMuted}"
+                                                                           Margin="0,0,0,6" />
+                                                                <ItemsControl ItemsSource="{Binding SelectedRow.TaxSummary}">
+                                                                    <ItemsControl.ItemTemplate>
+                                                                        <DataTemplate>
+                                                                            <Border CornerRadius="{StaticResource RadiusSmall}"
+                                                                                    BorderThickness="0,0,0,1"
+                                                                                    BorderBrush="{StaticResource BrushBorderLight}"
+                                                                                    Padding="8,4"
+                                                                                    Margin="0,1,0,0">
+                                                                                <Grid>
+                                                                                    <Grid.ColumnDefinitions>
+                                                                                        <ColumnDefinition Width="Auto" />
+                                                                                        <ColumnDefinition Width="*" />
+                                                                                        <ColumnDefinition Width="Auto" />
+                                                                                    </Grid.ColumnDefinitions>
+                                                                                    <Border Grid.Column="0"
+                                                                                            CornerRadius="{StaticResource RadiusPill}"
+                                                                                            Padding="6,2"
+                                                                                            Background="{StaticResource BrushInfoLight}"
+                                                                                            Margin="0,0,10,0">
+                                                                                        <TextBlock Text="{Binding RateDisplay, Mode=OneWay}"
+                                                                                                   Style="{StaticResource TextTiny}"
+                                                                                                   Foreground="{StaticResource BrushInfo}" />
+                                                                                    </Border>
+                                                                                    <TextBlock Grid.Column="1"
+                                                                                               Style="{StaticResource TextTiny}"
+                                                                                               Foreground="{StaticResource BrushTextMuted}"
+                                                                                               VerticalAlignment="Center">
+                                                                                        <Run Text="Base: " /><Run Text="{Binding BaseHtDisplay, Mode=OneWay}" />
+                                                                                    </TextBlock>
+                                                                                    <TextBlock Grid.Column="2"
+                                                                                               Text="{Binding TaxAmountDisplay, Mode=OneWay}"
+                                                                                               Style="{StaticResource TextTiny}"
+                                                                                               Foreground="{StaticResource BrushTextMuted}"
+                                                                                               Margin="12,0,0,0"
+                                                                                               VerticalAlignment="Center" />
+                                                                                </Grid>
+                                                                            </Border>
+                                                                        </DataTemplate>
+                                                                    </ItemsControl.ItemTemplate>
+                                                                </ItemsControl>
+                                                            </StackPanel>
+                                                        </Border>
                                                     </Grid>
                                                 </Grid>
                                             </Border>

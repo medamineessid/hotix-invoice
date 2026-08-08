@@ -55,6 +55,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     private string _serverStartingStatus = string.Empty;
     private bool _internetAvailable;
     private InvoiceRowViewModel? _selectedRow;
+    private bool _clearingSelection;
     private CancellationTokenSource? _extractionCts;
     private ImageSource? _previewImageSource;
     private string _previewStatusMessage = string.Empty;
@@ -139,7 +140,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         RerunAllErrorsCommand  = new RelayCommand(async _ => await RerunAllErrorsAsync(), _ => Results.Any(r => r.HasError) && !IsExtracting);
         ToggleAllFilesCommand  = new RelayCommand(_ => ToggleAllFiles());
         ToggleAllRowsCommand   = new RelayCommand(_ => ToggleAllRows());
-        ClearSelectedRowCommand = new RelayCommand(_ => SelectedRow = null);
+        ClearSelectedRowCommand = new RelayCommand(_ => { _clearingSelection = true; SelectedRow = null; });
         CycleRowDirectionCommand = new RelayCommand(p =>
         {
             if (p is InvoiceRowViewModel row)
@@ -626,6 +627,15 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         get => _selectedRow;
         set
         {
+            // Guard against spurious null from inactive DataGrid bindings
+            // (e.g. switching tabs empties the other grid, which pushes null
+            // through TwoWay SelectedItem). Only explicit clears via
+            // ClearSelectedRowCommand (which sets _clearingSelection) or
+            // genuinely switching to a new non-null row are allowed.
+            if (value == null && _selectedRow != null && !_clearingSelection)
+                return;
+            _clearingSelection = false;
+
             if (SetField(ref _selectedRow, value))
             {
                 OnPropertyChanged(nameof(HasSelectedRow));
@@ -781,6 +791,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
 
         if (_selectedRow == null || string.IsNullOrEmpty(_selectedRow.FilePath))
         {
+            Debug.WriteLine($"[LoadPreviewImageAsync] SKIP — SelectedRow null or empty file path");
             IsPreviewLoading = false;
             PreviewImageSource = null;
             PreviewStatusMessage = string.Empty;
@@ -789,10 +800,12 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         }
 
         string filePath = _selectedRow.FilePath;
+        Debug.WriteLine($"[LoadPreviewImageAsync] START — {DateTime.Now:HH:mm:ss.fff} — {filePath}");
 
         // Skip if same file already loaded
         if (filePath == _lastPreviewFilePath && _previewImageSource != null)
         {
+            Debug.WriteLine($"[LoadPreviewImageAsync] SKIP — same file already loaded: {filePath}");
             IsPreviewLoading = false;
             return;
         }
@@ -899,7 +912,8 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                 bitmap = new BitmapImage();
                 bitmap.BeginInit();
                 bitmap.CacheOption = BitmapCacheOption.OnLoad;
-                bitmap.UriSource = new Uri(filePath);
+                using var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+                bitmap.StreamSource = stream;
                 bitmap.EndInit();
             }
 
@@ -926,7 +940,8 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         }
         catch (OperationCanceledException)
         {
-            // Cancelled by a new preview request — do nothing
+            // Cancelled by a new preview request — log for diagnostics
+            Debug.WriteLine($"[LoadPreviewImageAsync] CANCELLED — {DateTime.Now:HH:mm:ss.fff} — {filePath}");
         }
         catch (Exception ex)
         {
@@ -1319,9 +1334,26 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                 {
                     Designation = itemEl.TryGetProperty("designation", out var d) && d.ValueKind == JsonValueKind.String ? d.GetString() : null,
                     Quantite = itemEl.TryGetProperty("quantite", out var q) && q.ValueKind == JsonValueKind.Number ? q.GetDouble() : null,
+                    Unit = itemEl.TryGetProperty("unit", out var u) && u.ValueKind == JsonValueKind.String ? u.GetString() : null,
                     PrixUnitaire = itemEl.TryGetProperty("prix_unitaire", out var p) && p.ValueKind == JsonValueKind.Number ? p.GetDouble() : null,
                     TvaRate = itemEl.TryGetProperty("tva_rate", out var t) && t.ValueKind == JsonValueKind.Number ? t.GetDouble() : null,
                     Montant = itemEl.TryGetProperty("montant", out var m) && m.ValueKind == JsonValueKind.Number ? m.GetDouble() : null,
+                });
+            }
+        }
+
+        // Parse tax_summary array (per-rate TVA breakdown)
+        List<TaxSummaryRow> taxSummary = new();
+        if (fields.TryGetValue("tax_summary", out var taxEl) && taxEl.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var rowEl in taxEl.EnumerateArray())
+            {
+                if (rowEl.ValueKind != JsonValueKind.Object) continue;
+                taxSummary.Add(new TaxSummaryRow
+                {
+                    Rate = rowEl.TryGetProperty("rate", out var r) && r.ValueKind == JsonValueKind.Number ? r.GetDouble() : null,
+                    BaseHt = rowEl.TryGetProperty("base_ht", out var bh) && bh.ValueKind == JsonValueKind.Number ? bh.GetDouble() : null,
+                    TaxAmount = rowEl.TryGetProperty("tax_amount", out var ta) && ta.ValueKind == JsonValueKind.Number ? ta.GetDouble() : null,
                 });
             }
         }
@@ -1358,6 +1390,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             RawText = TranslationSource.Get("GeminiDirectExtraction"),
             EngineUsed = "gemini",
             Items = items.Count > 0 ? items : null,
+            TaxSummary = taxSummary.Count > 0 ? taxSummary : null,
         };
     }
 
@@ -1438,9 +1471,26 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                 {
                     Designation = itemEl.TryGetProperty("designation", out var d) && d.ValueKind == JsonValueKind.String ? d.GetString() : null,
                     Quantite = itemEl.TryGetProperty("quantite", out var q) && q.ValueKind == JsonValueKind.Number ? q.GetDouble() : null,
+                    Unit = itemEl.TryGetProperty("unit", out var u) && u.ValueKind == JsonValueKind.String ? u.GetString() : null,
                     PrixUnitaire = itemEl.TryGetProperty("prix_unitaire", out var p) && p.ValueKind == JsonValueKind.Number ? p.GetDouble() : null,
                     TvaRate = itemEl.TryGetProperty("tva_rate", out var t) && t.ValueKind == JsonValueKind.Number ? t.GetDouble() : null,
                     Montant = itemEl.TryGetProperty("montant", out var m) && m.ValueKind == JsonValueKind.Number ? m.GetDouble() : null,
+                });
+            }
+        }
+
+        // Parse tax_summary array (per-rate TVA breakdown)
+        List<TaxSummaryRow> taxSummaryGrok = new();
+        if (fields.TryGetValue("tax_summary", out var taxElGrok) && taxElGrok.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var rowEl in taxElGrok.EnumerateArray())
+            {
+                if (rowEl.ValueKind != JsonValueKind.Object) continue;
+                taxSummaryGrok.Add(new TaxSummaryRow
+                {
+                    Rate = rowEl.TryGetProperty("rate", out var r) && r.ValueKind == JsonValueKind.Number ? r.GetDouble() : null,
+                    BaseHt = rowEl.TryGetProperty("base_ht", out var bh) && bh.ValueKind == JsonValueKind.Number ? bh.GetDouble() : null,
+                    TaxAmount = rowEl.TryGetProperty("tax_amount", out var ta) && ta.ValueKind == JsonValueKind.Number ? ta.GetDouble() : null,
                 });
             }
         }
@@ -1477,6 +1527,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             RawText = TranslationSource.Get("GrokDirectExtraction"),
             EngineUsed = "grok",
             Items = itemsGrok.Count > 0 ? itemsGrok : null,
+            TaxSummary = taxSummaryGrok.Count > 0 ? taxSummaryGrok : null,
         };
     }
 

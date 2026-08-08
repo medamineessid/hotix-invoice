@@ -10,6 +10,9 @@ public sealed class InvoiceItem
     [JsonPropertyName("quantite")]
     public double? Quantite { get; set; }
 
+    [JsonPropertyName("unit")]
+    public string? Unit { get; set; }
+
     [JsonPropertyName("prix_unitaire")]
     public double? PrixUnitaire { get; set; }
 
@@ -20,7 +23,7 @@ public sealed class InvoiceItem
     public double? Montant { get; set; }
 
     [JsonIgnore]
-    public string DisplayLine => Designation ?? "—";
+    public string DisplayLine => Unit != null ? $"{Designation ?? "—"} ({Unit})" : (Designation ?? "—");
 
     [JsonIgnore]
     public string QuantiteDisplay => Quantite.HasValue ? $"{Quantite.Value:0.##}" : "—";
@@ -33,6 +36,29 @@ public sealed class InvoiceItem
 
     [JsonIgnore]
     public string MontantDisplay => Montant.HasValue ? $"{Montant.Value:F2}" : "—";
+}
+
+/// <summary>Per-rate tax breakdown row from the invoice's tax summary block.
+/// Appears separately from line items, usually near the totals.</summary>
+public sealed class TaxSummaryRow
+{
+    [JsonPropertyName("rate")]
+    public double? Rate { get; set; }
+
+    [JsonPropertyName("base_ht")]
+    public double? BaseHt { get; set; }
+
+    [JsonPropertyName("tax_amount")]
+    public double? TaxAmount { get; set; }
+
+    [JsonIgnore]
+    public string RateDisplay => Rate.HasValue ? $"{(Rate.Value * 100):F1}%" : "—";
+
+    [JsonIgnore]
+    public string BaseHtDisplay => BaseHt.HasValue ? $"{BaseHt.Value:F2}" : "—";
+
+    [JsonIgnore]
+    public string TaxAmountDisplay => TaxAmount.HasValue ? $"{TaxAmount.Value:F2}" : "—";
 }
 
 public sealed class InvoiceResult
@@ -81,6 +107,9 @@ public sealed class InvoiceResult
 
     [JsonPropertyName("items")]
     public List<InvoiceItem>? Items { get; set; }
+
+    [JsonPropertyName("tax_summary")]
+    public List<TaxSummaryRow>? TaxSummary { get; set; }
 
     [JsonIgnore]
     public bool HasMissingFields =>

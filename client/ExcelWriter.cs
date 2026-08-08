@@ -37,6 +37,10 @@ public sealed class ExcelWriter
         TranslationSource.Get("ExportHeaderTtc"),
         TranslationSource.Get("ExportHeaderItemsCount"),
         TranslationSource.Get("ExportHeaderTvaPerItem"),
+        TranslationSource.Get("ExportHeaderItemUnit"),
+        TranslationSource.Get("ExportHeaderTaxRate"),
+        TranslationSource.Get("ExportHeaderTaxBaseHt"),
+        TranslationSource.Get("ExportHeaderTaxAmount"),
         TranslationSource.Get("ExportHeaderConfidence"),
         TranslationSource.Get("ExportHeaderFile"),
         TranslationSource.Get("ExportHeaderEngine"),
@@ -193,19 +197,32 @@ public sealed class ExcelWriter
                 : "—";
             SetCell(ws, rowIndex, 11, vatRatesSummary, rowBg, false);
 
+            // Unit of first item (or "—" if no items/unit)
+            string firstUnit = row.Items.Count > 0 && !string.IsNullOrEmpty(row.Items[0].Unit)
+                ? row.Items[0].Unit : "—";
+            SetCell(ws, rowIndex, 12, firstUnit, rowBg, false);
+
+            // Tax summary per-rate breakdown (first row, or "—")
+            string taxRate = row.TaxSummary.Count > 0 ? row.TaxSummary[0].RateDisplay : "—";
+            string taxBaseHt = row.TaxSummary.Count > 0 ? row.TaxSummary[0].BaseHtDisplay : "—";
+            string taxAmount = row.TaxSummary.Count > 0 ? row.TaxSummary[0].TaxAmountDisplay : "—";
+            SetCell(ws, rowIndex, 13, taxRate, rowBg, false);
+            SetCell(ws, rowIndex, 14, taxBaseHt, rowBg, false);
+            SetCell(ws, rowIndex, 15, taxAmount, rowBg, false);
+
             // Confidence as integer %
-            var confCell = ws.Cell(rowIndex, 12);
+            var confCell = ws.Cell(rowIndex, 16);
             confCell.Value = row.HasError ? "—" : $"{(int)Math.Round(row.Confidence * 100)}%";
             confCell.Style.Fill.BackgroundColor = rowBg;
             confCell.Style.Font.FontColor = White;
 
-            SetCell(ws, rowIndex, 13, row.FileName, rowBg, false);
+            SetCell(ws, rowIndex, 17, row.FileName, rowBg, false);
 
             // Engine used
             string engineLabel = row.EngineUsed == "gemini" ? TranslationSource.Get("ExportEngineGemini")
                 : row.EngineUsed == "grok" ? TranslationSource.Get("ExportEngineGrok")
                 : TranslationSource.Get("ExportEngineOcr");
-            SetCell(ws, rowIndex, 14, engineLabel, rowBg, false);
+            SetCell(ws, rowIndex, 18, engineLabel, rowBg, false);
 
             rowIndex++;
         }

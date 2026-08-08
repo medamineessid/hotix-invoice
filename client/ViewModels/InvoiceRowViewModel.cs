@@ -30,6 +30,7 @@ public sealed class InvoiceRowViewModel : INotifyPropertyChanged
     private int _itemsCount;
     private bool _areItemsExpanded;
     private List<InvoiceItem> _items = new();
+    private List<TaxSummaryRow> _taxSummary = new();
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -354,6 +355,26 @@ public sealed class InvoiceRowViewModel : INotifyPropertyChanged
         }
     }
 
+    /// <summary>Per-rate tax breakdown from extraction.</summary>
+    public List<TaxSummaryRow> TaxSummary
+    {
+        get => _taxSummary;
+        set
+        {
+            if (SetField(ref _taxSummary, value ?? new List<TaxSummaryRow>()))
+            {
+                OnPropertyChanged(nameof(HasTaxSummary));
+                OnPropertyChanged(nameof(TaxSummaryTitle));
+            }
+        }
+    }
+
+    /// <summary>True when tax summary data exists.</summary>
+    public bool HasTaxSummary => _taxSummary.Count > 0;
+
+    /// <summary>Localized title for the tax breakdown section.</summary>
+    public string TaxSummaryTitle => TranslationSource.Get("TaxSummaryTitle");
+
     /// <summary>Expand/collapse state for the articles sub-panel.</summary>
     public bool AreItemsExpanded
     {
@@ -471,6 +492,7 @@ public sealed class InvoiceRowViewModel : INotifyPropertyChanged
         AmountMismatch = result.AmountMismatch,
         ItemsCount = result.Items?.Count ?? 0,
         Items = result.Items ?? new List<InvoiceItem>(),
+        TaxSummary = result.TaxSummary ?? new List<TaxSummaryRow>(),
     };
 
     public static InvoiceRowViewModel FromError(string filePath, string message) => new()
