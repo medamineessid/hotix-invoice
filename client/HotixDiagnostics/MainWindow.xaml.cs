@@ -27,7 +27,7 @@ public partial class MainWindow : Window
     {
         try
         {
-            StatusSummary.Text = $"Erreur : {ex.Message}";
+            StatusSummary.Text = $"Erreur : {ex.GetType().Name}";
         }
         catch { /* best-effort */ }
     }
@@ -117,7 +117,7 @@ public partial class MainWindow : Window
         catch (Exception ex)
         {
             result.Status = CheckStatus.Failed;
-            result.Message = $"Erreur inattendue : {ex.Message}";
+            result.Message = $"Erreur inattendue : {ex.GetType().Name}";
             result.Details = ex.ToString();
         }
 
@@ -198,8 +198,7 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            result.Status = CheckStatus.Failed;
-            result.Message = $"Erreur : {ex.Message}";
+            result.Status = CheckStatus.Failed;                result.Message = $"Erreur : {ex.GetType().Name}";
             result.Details = ex.ToString();
         }
 
@@ -245,8 +244,7 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            result.Status = CheckStatus.Failed;
-            result.Message = $"Erreur : {ex.Message}";
+            result.Status = CheckStatus.Failed;                result.Message = $"Erreur : {ex.GetType().Name}";
             result.Details = ex.ToString();
         }
 

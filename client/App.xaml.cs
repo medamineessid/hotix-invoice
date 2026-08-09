@@ -606,7 +606,7 @@ public partial class App : Application
     {
         SentrySdk.CaptureException(ex);
         CleanupServer();
-        MessageBox.Show(TranslationSource.Fmt("ErrorUnexpected", ex.Message), TranslationSource.Get("ErrorSystemTitle"), MessageBoxButton.OK, MessageBoxImage.Error);
+        MessageBox.Show(ErrorMessageTranslator.ToUserMessage(ex), TranslationSource.Get("ErrorSystemTitle"), MessageBoxButton.OK, MessageBoxImage.Error);
         Current.Shutdown();
     }
 }

@@ -499,7 +499,7 @@ public partial class GeminiSetupWindow : Window
         catch (Exception ex)
         {
             string errorKey2 = _isGeminiProvider ? "GeminiSaveError" : "GrokSaveError";
-            MessageLabel.Text = TranslationSource.Fmt(errorKey2, $"{ex.GetType().Name}: {ex.Message}");
+            MessageLabel.Text = TranslationSource.Fmt(errorKey2, ErrorMessageTranslator.ToUserMessage(ex));
             MessageLabel.Foreground = System.Windows.Media.Brushes.Red;
         }
         finally

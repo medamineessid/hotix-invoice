@@ -1229,11 +1229,11 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         }
         catch (HttpRequestException ex)
         {
-            return (false, TranslationSource.Fmt("GeminiNetworkError", $"{ex.GetType().Name}: {ex.Message}"));
+            return (false, TranslationSource.Fmt("GeminiNetworkError", ex.GetType().Name));
         }
         catch (Exception ex)
         {
-            return (false, TranslationSource.Fmt("GeminiUnexpectedError", $"{ex.GetType().Name}: {ex.Message}"));
+            return (false, TranslationSource.Fmt("GeminiUnexpectedError", ex.GetType().Name));
         }
     }
 
@@ -1284,11 +1284,11 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         }
         catch (HttpRequestException ex)
         {
-            return (false, TranslationSource.Fmt("GeminiNetworkError", $"{ex.GetType().Name}: {ex.Message}"));
+            return (false, TranslationSource.Fmt("GeminiNetworkError", ex.GetType().Name));
         }
         catch (Exception ex)
         {
-            return (false, TranslationSource.Fmt("GeminiUnexpectedError", $"{ex.GetType().Name}: {ex.Message}"));
+            return (false, TranslationSource.Fmt("GeminiUnexpectedError", ex.GetType().Name));
         }
     }
 
@@ -1830,7 +1830,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             IsServerStarting = false;
             ServerStartingStatus = string.Empty;
             (RetryServerCommand as RelayCommand)?.RaiseCanExecuteChanged();
-            throw new InvalidOperationException(TranslationSource.Fmt("ServerStartFailPrefix", $"{ex.GetType().Name}: {ex.Message}"));
+            throw new InvalidOperationException(TranslationSource.Fmt("ServerStartFailPrefix", ex.GetType().Name));
         }
     }
 
@@ -1855,7 +1855,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         }
         catch (Exception ex)
         {
-            MessageBox.Show(ex.Message, TranslationSource.Get("ErrorRetryTitle"), MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show(ErrorMessageTranslator.ToUserMessage(ex), TranslationSource.Get("ErrorRetryTitle"), MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 
@@ -1880,7 +1880,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         }
         catch (Exception ex)
         {
-            MessageBox.Show(TranslationSource.Fmt("ErrorClearKey", $"{ex.GetType().Name}: {ex.Message}"), TranslationSource.Get("ErrorFatalTitle"), MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show(TranslationSource.Fmt("ErrorClearKey", ErrorMessageTranslator.ToUserMessage(ex)), TranslationSource.Get("ErrorFatalTitle"), MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 
@@ -1948,7 +1948,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         }
         catch (Exception ex)
         {
-            MessageBox.Show(TranslationSource.Fmt("ErrorSaveKey", $"{ex.GetType().Name}: {ex.Message}"), TranslationSource.Get("ErrorFatalTitle"), MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show(TranslationSource.Fmt("ErrorSaveKey", ErrorMessageTranslator.ToUserMessage(ex)), TranslationSource.Get("ErrorFatalTitle"), MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 
@@ -1971,7 +1971,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         }
         catch (Exception ex)
         {
-            MessageBox.Show(TranslationSource.Fmt("ErrorClearKey", $"{ex.GetType().Name}: {ex.Message}"), TranslationSource.Get("ErrorFatalTitle"), MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show(TranslationSource.Fmt("ErrorClearKey", ErrorMessageTranslator.ToUserMessage(ex)), TranslationSource.Get("ErrorFatalTitle"), MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 
@@ -2043,7 +2043,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         }
         catch (Exception ex)
         {
-            MessageBox.Show(TranslationSource.Fmt("ErrorSaveKey", $"{ex.GetType().Name}: {ex.Message}"), TranslationSource.Get("ErrorFatalTitle"), MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show(TranslationSource.Fmt("ErrorSaveKey", ErrorMessageTranslator.ToUserMessage(ex)), TranslationSource.Get("ErrorFatalTitle"), MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 
@@ -2558,30 +2558,30 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                     }
                     catch (CloudQuotaExceededException ex)
                     {
-                        bool firstGrokQuota = TryMarkGrokDisabled(ex.Message);
+                        bool firstGrokQuota = TryMarkGrokDisabled(ErrorMessageTranslator.ToUserMessage(ex));
                         LogPipeline($"Grok skipped (cached failure) for {fileName}");
 
                         // Interactive quota dialog — shown once per batch per provider.
                         if (firstGrokQuota && !_grokOcrChosenForSession)
                             await HandleQuotaExceededAsync(isGemini: false, "grok");
 
-                        row = InvoiceRowViewModel.FromError(file, ex.Message);
+                        row = InvoiceRowViewModel.FromError(file, ErrorMessageTranslator.ToUserMessage(ex));
                     }
                     catch (CloudApiException ex) when (ex.StatusCode.HasValue && IsPermanentCloudFailure(ex.StatusCode.Value))
                     {
-                        TryMarkGrokDisabled(ex.Message);
+                        TryMarkGrokDisabled(ErrorMessageTranslator.ToUserMessage(ex));
                         LogPipeline($"Grok skipped (cached failure) for {fileName}");
-                        row = InvoiceRowViewModel.FromError(file, ex.Message);
+                        row = InvoiceRowViewModel.FromError(file, ErrorMessageTranslator.ToUserMessage(ex));
                     }
                     catch (CloudApiException ex)
                     {
                         LogPipeline($"HTTP response error: {ex.Message}");
-                        row = InvoiceRowViewModel.FromError(file, ex.Message);
+                        row = InvoiceRowViewModel.FromError(file, ErrorMessageTranslator.ToUserMessage(ex));
                     }
                     catch (Exception ex2)
                     {
                         LogPipeline($"Grok exception: {ex2.GetType().Name}: {ex2.Message}");
-                        row = InvoiceRowViewModel.FromError(file, TranslationSource.Fmt("ErrorGemini", $"{ex2.GetType().Name}: {ex2.Message}"));
+                        row = InvoiceRowViewModel.FromError(file, ErrorMessageTranslator.ToUserMessage(ex2, ocrServerContext: false));
                     }
                 }
             }
@@ -2597,7 +2597,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                 }
                 catch (CloudQuotaExceededException ex)
                 {
-                    bool firstGeminiQuota = TryMarkGeminiDisabled(ex.Message);
+                    bool firstGeminiQuota = TryMarkGeminiDisabled(ErrorMessageTranslator.ToUserMessage(ex));
                     LogPipeline("Gemini quota exceeded");
 
                     // Interactive quota dialog — shown once per batch per provider.
@@ -2615,7 +2615,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                         }
                         catch (CloudQuotaExceededException grokEx)
                         {
-                            bool firstGrokQuota = TryMarkGrokDisabled(grokEx.Message);
+                            bool firstGrokQuota = TryMarkGrokDisabled(ErrorMessageTranslator.ToUserMessage(grokEx));
                             LogPipeline("Grok also failed after Gemini quota — falling back to OCR");
 
                             if (firstGrokQuota && !_grokOcrChosenForSession)
@@ -2626,7 +2626,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                         }
                         catch (CloudApiException grokEx) when (grokEx.StatusCode.HasValue && IsPermanentCloudFailure(grokEx.StatusCode.Value))
                         {
-                            TryMarkGrokDisabled(grokEx.Message);
+                            TryMarkGrokDisabled(ErrorMessageTranslator.ToUserMessage(grokEx));
                             LogPipeline("Grok also failed after Gemini quota — falling back to OCR");
                             await ShowQuotaFallbackBannerAsync();
                             row = await ExtractViaServerAsync(file, ct);
@@ -2643,7 +2643,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                         // Explicit engine — no automatic fallback. Show a clear
                         // quota message instead of a bare error row.
                         await ShowQuotaExceededBannerAsync(isGemini: true);
-                        row = InvoiceRowViewModel.FromError(file, ex.Message);
+                        row = InvoiceRowViewModel.FromError(file, ErrorMessageTranslator.ToUserMessage(ex));
                     }
                     else
                     {
@@ -2653,7 +2653,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                 }
                 catch (CloudApiException ex) when (ex.StatusCode.HasValue && IsPermanentCloudFailure(ex.StatusCode.Value))
                 {
-                    TryMarkGeminiDisabled(ex.Message);
+                    TryMarkGeminiDisabled(ErrorMessageTranslator.ToUserMessage(ex));
                     LogPipeline($"Gemini skipped (cached failure) for {fileName}");
 
                     if (selectedEngine == "auto")
@@ -2669,7 +2669,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                             }
                             catch (CloudQuotaExceededException grokEx)
                             {
-                                bool firstGrokQuota = TryMarkGrokDisabled(grokEx.Message);
+                                bool firstGrokQuota = TryMarkGrokDisabled(ErrorMessageTranslator.ToUserMessage(grokEx));
                                 LogPipeline("Grok fallback also failed — trying OCR server");
 
                                 if (firstGrokQuota && !_grokOcrChosenForSession)
@@ -2679,7 +2679,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                             }
                             catch (CloudApiException grokEx) when (grokEx.StatusCode.HasValue && IsPermanentCloudFailure(grokEx.StatusCode.Value))
                             {
-                                TryMarkGrokDisabled(grokEx.Message);
+                                TryMarkGrokDisabled(ErrorMessageTranslator.ToUserMessage(grokEx));
                                 LogPipeline("Grok fallback also failed — trying OCR server");
                                 row = await ExtractViaServerAsync(file, ct);
                             }
@@ -2697,18 +2697,18 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                     }
                     else
                     {
-                        row = InvoiceRowViewModel.FromError(file, ex.Message);
+                        row = InvoiceRowViewModel.FromError(file, ErrorMessageTranslator.ToUserMessage(ex));
                     }
                 }
                 catch (CloudApiException ex)
                 {
                     LogPipeline($"Cloud API error: {ex.Message}");
-                    row = InvoiceRowViewModel.FromError(file, ex.Message);
+                    row = InvoiceRowViewModel.FromError(file, ErrorMessageTranslator.ToUserMessage(ex));
                 }
                 catch (Exception ex2)
                 {
                     LogPipeline($"Gemini exception: {ex2.GetType().Name}: {ex2.Message}");
-                    row = InvoiceRowViewModel.FromError(file, TranslationSource.Fmt("ErrorGemini", $"{ex2.GetType().Name}: {ex2.Message}"));
+                    row = InvoiceRowViewModel.FromError(file, ErrorMessageTranslator.ToUserMessage(ex2, ocrServerContext: false));
                 }
             }
             else if (hasGrok && (selectedEngine == "auto" || selectedEngine == "grok") && !GrokDisabled)
@@ -2728,7 +2728,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                 }
                 catch (CloudQuotaExceededException ex)
                 {
-                    bool firstGrokQuota = TryMarkGrokDisabled(ex.Message);
+                    bool firstGrokQuota = TryMarkGrokDisabled(ErrorMessageTranslator.ToUserMessage(ex));
                     LogPipeline("Grok quota exceeded");
 
                     // Interactive quota dialog — shown once per batch per provider.
@@ -2744,26 +2744,26 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                         // Explicit engine — no automatic fallback. Show a clear
                         // quota message instead of a bare error row.
                         await ShowQuotaExceededBannerAsync(isGemini: false);
-                        row = InvoiceRowViewModel.FromError(file, ex.Message);
+                        row = InvoiceRowViewModel.FromError(file, ErrorMessageTranslator.ToUserMessage(ex));
                     }
                 }
                 catch (CloudApiException ex) when (ex.StatusCode.HasValue && IsPermanentCloudFailure(ex.StatusCode.Value))
                 {
-                    TryMarkGrokDisabled(ex.Message);
+                    TryMarkGrokDisabled(ErrorMessageTranslator.ToUserMessage(ex));
                     LogPipeline($"Grok skipped (cached failure) for {fileName}");
                     row = selectedEngine == "auto"
                         ? await ExtractViaServerAsync(file, ct)
-                        : InvoiceRowViewModel.FromError(file, ex.Message);
+                        : InvoiceRowViewModel.FromError(file, ErrorMessageTranslator.ToUserMessage(ex));
                 }
                 catch (CloudApiException ex)
                 {
                     LogPipeline($"Grok API error: {ex.Message}");
-                    row = InvoiceRowViewModel.FromError(file, ex.Message);
+                    row = InvoiceRowViewModel.FromError(file, ErrorMessageTranslator.ToUserMessage(ex));
                 }
                 catch (Exception ex2)
                 {
                     LogPipeline($"Grok exception: {ex2.GetType().Name}: {ex2.Message}");
-                    row = InvoiceRowViewModel.FromError(file, TranslationSource.Fmt("ErrorGemini", $"{ex2.GetType().Name}: {ex2.Message}"));
+                    row = InvoiceRowViewModel.FromError(file, ErrorMessageTranslator.ToUserMessage(ex2, ocrServerContext: false));
                 }
             }
             else
@@ -2920,7 +2920,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                 _extractionStatusText = string.Empty;
                 OnPropertyChanged(nameof(ExtractionStatusText));
                 OnPropertyChanged(nameof(HasErrors));
-                SummaryBannerText = ex.Message;
+                SummaryBannerText = ErrorMessageTranslator.ToUserMessage(ex);
                 SummaryBannerColor = "#C0392B";
                 ShowSummaryBanner = true;
                 return;
@@ -2972,7 +2972,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                     catch (Exception ex)
                     {
                         LogPipeline($"Invoice task failed: {ex.GetType().Name}: {ex.Message}");
-                        InvoiceRowViewModel errorRow = InvoiceRowViewModel.FromError(file, $"{ex.GetType().Name}: {ex.Message}");
+                        InvoiceRowViewModel errorRow = InvoiceRowViewModel.FromError(file, ErrorMessageTranslator.ToUserMessage(ex));
                         await AddExtractionResultAsync(errorRow);
                         LogPipeline("UI update triggered — ObservableCollection updated");
                     }
@@ -3074,29 +3074,12 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         catch (InvoiceExtractionException ex)
         {
             LogPipeline("OCR completed (error)");
-            return InvoiceRowViewModel.FromError(file, MapErrorMessage(ex));
+            return InvoiceRowViewModel.FromError(file, ErrorMessageTranslator.ToUserMessage(ex));
         }
         catch (Exception ex)
         {
             LogPipeline($"OCR completed (exception: {ex.GetType().Name})");
-            string errorMessage;
-            if (ex is HttpRequestException &&
-                ex.InnerException is System.Net.Sockets.SocketException { SocketErrorCode: System.Net.Sockets.SocketError.ConnectionRefused })
-            {
-                errorMessage = TranslationSource.Fmt("ErrorServerRefused", App.ServerLogPath);
-            }
-            else if (ex is InvalidOperationException &&
-                (ex.Message.Contains(App.ServerLogPath) ||
-                 ex.Message.StartsWith(TranslationSource.Get("ServerStartFailPrefix"), StringComparison.Ordinal)))
-            {
-                // EnsureServerReadyAsync produces translated messages — use directly
-                errorMessage = ex.Message;
-            }
-            else
-            {
-                errorMessage = $"{ex.GetType().Name}: {ex.Message}";
-            }
-            return InvoiceRowViewModel.FromError(file, errorMessage);
+            return InvoiceRowViewModel.FromError(file, ErrorMessageTranslator.ToUserMessage(ex));
         }
         finally
         {
@@ -3119,27 +3102,11 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         }
         catch (InvoiceExtractionException ex)
         {
-            return InvoiceRowViewModel.FromError(filePath, MapErrorMessage(ex));
+            return InvoiceRowViewModel.FromError(filePath, ErrorMessageTranslator.ToUserMessage(ex));
         }
         catch (Exception ex)
         {
-            string errorMessage;
-            if (ex is HttpRequestException &&
-                ex.InnerException is System.Net.Sockets.SocketException { SocketErrorCode: System.Net.Sockets.SocketError.ConnectionRefused })
-            {
-                errorMessage = TranslationSource.Fmt("ErrorServerRefused", App.ServerLogPath);
-            }
-            else if (ex is InvalidOperationException &&
-                (ex.Message.Contains(App.ServerLogPath) ||
-                 ex.Message.StartsWith(TranslationSource.Get("ServerStartFailPrefix"), StringComparison.Ordinal)))
-            {
-                errorMessage = ex.Message;
-            }
-            else
-            {
-                errorMessage = $"{ex.GetType().Name}: {ex.Message}";
-            }
-            return InvoiceRowViewModel.FromError(filePath, errorMessage);
+            return InvoiceRowViewModel.FromError(filePath, ErrorMessageTranslator.ToUserMessage(ex));
         }
     }
 
@@ -3239,28 +3206,6 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             (RerunAllErrorsCommand as RelayCommand)?.RaiseCanExecuteChanged();
             ShowExtractionSummary();
         }
-    }
-
-    private static string MapErrorMessage(InvoiceExtractionException ex)
-    {
-        if (ex.StatusCode == System.Net.HttpStatusCode.UnprocessableEntity)
-            return TranslationSource.Get("ErrorOcrFormat");
-
-        if (ex.StatusCode == System.Net.HttpStatusCode.InternalServerError)
-        {
-            if (ex.ResponseBody.Contains("poppler", StringComparison.OrdinalIgnoreCase)
-                || ex.ResponseBody.Contains("pdfinfo", StringComparison.OrdinalIgnoreCase)
-                || ex.ResponseBody.Contains("pdftoppm", StringComparison.OrdinalIgnoreCase))
-                return TranslationSource.Get("ErrorOcrPoppler");
-
-            if (ex.ResponseBody.Contains("OcrEngineError", StringComparison.OrdinalIgnoreCase)
-                || ex.ResponseBody.Contains("PaddleOCR", StringComparison.OrdinalIgnoreCase))
-                return TranslationSource.Get("ErrorOcrEngine");
-
-            return TranslationSource.Get("ErrorOcrInternal");
-        }
-
-        return TranslationSource.Fmt("ErrorOcrHttp", (int)ex.StatusCode);
     }
 
     private void ShowExtractionSummary()

@@ -25,4 +25,11 @@
     <ProjectReference Include="../client/Hotix.InvoiceClient.csproj" />
   </ItemGroup>
 
+  <!-- Ship the real resource files to the test output so TranslationSource
+       resolves actual localized strings in unit tests. -->
+  <ItemGroup>
+    <None Include="../client/Resources/strings.json" Link="Resources/strings.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../client/Resources/strings.fr.json" Link="Resources/strings.fr.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>
