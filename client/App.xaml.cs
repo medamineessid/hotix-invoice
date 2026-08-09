@@ -57,7 +57,7 @@ public partial class App : Application
         base.OnStartup(e);
 
         // Global exception handling
-        AppDomain.CurrentDomain.UnhandledException += (s, args) => HandleGlobalException((Exception)args.ExceptionObject);
+        AppDomain.CurrentDomain.UnhandledException += (s, args) => HandleGlobalException((Exception)args.ExceptionObject, isFatal: true);
         DispatcherUnhandledException += (s, args) => { HandleGlobalException(args.Exception); args.Handled = true; };
 
         try
@@ -602,11 +602,46 @@ public partial class App : Application
         catch { return null; }
     }
 
-    private void HandleGlobalException(Exception ex)
+    private int _consecutiveDispatcherFailures;
+
+    private void HandleGlobalException(Exception ex, bool isFatal = false)
     {
-        SentrySdk.CaptureException(ex);
-        CleanupServer();
-        MessageBox.Show(ErrorMessageTranslator.ToUserMessage(ex), TranslationSource.Get("ErrorSystemTitle"), MessageBoxButton.OK, MessageBoxImage.Error);
-        Current.Shutdown();
+        // 1. Crash log FIRST — a paper trail even if Sentry or the message box
+        //    themselves fail (copies the StartupAsync pattern).
+        try
+        {
+            File.WriteAllText(@"C:\hotix-invoice\crash.log",
+                $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {ex.GetType().FullName}: {ex.Message}\n{ex.StackTrace}");
+        }
+        catch { /* best-effort */ }
+
+        // 2. Sentry — isolated so a Sentry failure can't suppress the dialog.
+        try { SentrySdk.CaptureException(ex); } catch { /* best-effort */ }
+
+        // 3. Always surface a translated message (never the raw .NET text).
+        //    Guarded too: if the dialog itself throws, the Dispatcher handler
+        //    would never reach args.Handled = true and the app would still die.
+        try
+        {
+            MessageBox.Show(ErrorMessageTranslator.ToUserMessage(ex), TranslationSource.Get("ErrorSystemTitle"), MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+        catch { /* best-effort */ }
+
+        // 4. Only truly fatal paths shut the app down. Dispatcher exceptions
+        //    (args.Handled = true) keep the app running: a failed export or
+        //    preview must not kill the whole application. But a genuinely
+        //    wedged app (5+ consecutive dispatcher failures) escalates to
+        //    fatal so it exits instead of spinning forever.
+        if (isFatal)
+        {
+            CleanupServer();
+            Current.Shutdown();
+        }
+        else if (++_consecutiveDispatcherFailures >= 5)
+        {
+            _consecutiveDispatcherFailures = 0;
+            CleanupServer();
+            Current.Shutdown();
+        }
     }
 }

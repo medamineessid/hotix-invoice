@@ -183,6 +183,43 @@
                         </Grid>
                     </Border>
 
+                    <!-- Include item details (top-level: controls whether the
+                         Articles sheet is created at all for this export) -->
+                    <Border x:Name="IncludeItemsCard"
+                            CornerRadius="{StaticResource RadiusMedium}"
+                            BorderBrush="{StaticResource BrushBorder}"
+                            BorderThickness="1"
+                            Padding="16,14"
+                            Margin="0,0,0,16"
+                            Cursor="Hand"
+                            MouseLeftButtonDown="IncludeItemsCard_Click"
+                            Background="Transparent">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <CheckBox Grid.Column="0"
+                                      x:Name="IncludeItemsCheckBox"
+                                      IsChecked="True"
+                                      VerticalAlignment="Top"
+                                      Margin="0,2,14,0"
+                                      Style="{StaticResource CheckBoxStyle}"
+                                      Checked="IncludeItemsCheckBox_Changed"
+                                      Unchecked="IncludeItemsCheckBox_Changed" />
+                            <StackPanel Grid.Column="1">
+                                <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ExportIncludeItemsOption]}"
+                                           Style="{StaticResource TextBody}"
+                                           FontWeight="{StaticResource FontWeightMedium}" />
+                                <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ExportIncludeItemsDesc]}"
+                                           Style="{StaticResource TextCaption}"
+                                           Foreground="{StaticResource BrushTextSecondary}"
+                                           TextWrapping="Wrap"
+                                           Margin="0,4,0,0" />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+
                     <!-- Destination section -->
                     <Border x:Name="DestinationSeparator"
                             Height="1"

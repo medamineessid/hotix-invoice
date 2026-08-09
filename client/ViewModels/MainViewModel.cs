@@ -70,6 +70,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     private double _previewNaturalWidth;
     private double _previewNaturalHeight;
     private string _directionFilter = "all";
+    private bool _confidenceFilterLowOnly;
     private ListCollectionView? _resultsView;
     private ListCollectionView? _incompleteView;
 
@@ -209,6 +210,17 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             if (p is string filter)
                 DirectionFilter = filter;
         });
+        SetConfidenceFilterCommand = new RelayCommand(p =>
+        {
+            // Binary toggle: "low" (or "true") selects the "To check" bucket,
+            // anything else shows all invoices. Old 3-value enum simplified to
+            // a single low-confidence switch — no per-bucket logic remains.
+            if (p is string filter)
+                ConfidenceFilterLowOnly = string.Equals(filter, "low", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(filter, "true", StringComparison.OrdinalIgnoreCase);
+            else if (p is bool b)
+                ConfidenceFilterLowOnly = b;
+        });
         ToggleItemsExpandedCommand = new RelayCommand(p =>
         {
             if (p is InvoiceRowViewModel row)
@@ -281,6 +293,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     public ICommand ClearSelectedRowCommand { get; }
     public ICommand CycleRowDirectionCommand { get; }
     public ICommand SetDirectionFilterCommand { get; }
+    public ICommand SetConfidenceFilterCommand { get; }
     public ICommand ToggleItemsExpandedCommand { get; }
     public ICommand OpenSavedFolderCommand  { get; }
     public ICommand OpenSavedFileCommand    { get; }
@@ -744,12 +757,52 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         _          => TranslationSource.Get("DirectionFilterAll"),
     };
 
-    /// <summary>Filter predicate used by ResultsView and IncompleteView.</summary>
+    /// <summary>Confidence threshold for the "To check" filter bucket. This is
+    /// the SAME threshold the old "low" bucket used (&lt;40%) — reused verbatim,
+    /// not a new value. It mirrors ConfidenceToColorConverter's low bucket and
+    /// the InfoConfidence popup text.</summary>
+    private const double LowConfidenceThreshold = 0.40;
+
+    /// <summary>Binary confidence filter: false = show all invoices, true =
+    /// show only low-confidence ones ("À vérifier" / "To check", &lt;40%). The
+    /// fine-grained percentage stays visible and sortable in the grid's
+    /// Confidence column — the toolbar only needs the coarse toggle.</summary>
+    public bool ConfidenceFilterLowOnly
+    {
+        get => _confidenceFilterLowOnly;
+        set
+        {
+            if (SetField(ref _confidenceFilterLowOnly, value))
+            {
+                OnPropertyChanged(nameof(ConfidenceFilterLowOnly));
+                RefreshFilteredViews();
+            }
+        }
+    }
+
+    /// <summary>Core confidence-filter predicate — kept static and internal so
+    /// it is unit-testable without instantiating the heavy ViewModel (same
+    /// pattern as GetStringField). Returns true when the row stays visible.</summary>
+    internal static bool MatchesConfidenceFilter(bool lowOnly, double confidence)
+        => !lowOnly || confidence < LowConfidenceThreshold;
+
+    /// <summary>Filter predicate used by ResultsView and IncompleteView.
+    /// Direction and confidence are independent dimensions — both apply.</summary>
     private bool FilterByDirection(object obj)
     {
         if (obj is not InvoiceRowViewModel row) return false;
-        if (_directionFilter == "all") return true;
-        return string.Equals(row.InvoiceDirection, _directionFilter, StringComparison.OrdinalIgnoreCase);
+
+        if (_directionFilter != "all"
+            && !string.Equals(row.InvoiceDirection, _directionFilter, StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        // All mode: short-circuit before touching Confidence (matches old
+        // behavior where the string filter "all" returned immediately).
+        if (!_confidenceFilterLowOnly)
+            return true;
+
+        double conf = row.HasError ? 0.0 : row.Confidence;
+        return MatchesConfidenceFilter(_confidenceFilterLowOnly, conf);
     }
 
     /// <summary>Refresh both filtered views when collections change.</summary>
@@ -900,9 +953,18 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                 {
                     IsPreviewLoading = false;
                     PreviewImageSource = null;
-                    PreviewStatusMessage = _isServerStarting
-                        ? TranslationSource.Get("PreviewServerStarting")
-                        : TranslationSource.Get("PreviewServerUnavailable");
+                    if (_isServerStarting)
+                    {
+                        PreviewStatusMessage = TranslationSource.Get("PreviewServerStarting");
+                    }
+                    else
+                    {
+                        PreviewStatusMessage = TranslationSource.Get("PreviewServerUnavailable");
+                        // Lazy-start the server so the PDF preview can succeed;
+                        // the readiness hook inside EnsureServerReadyAsync
+                        // reloads the preview automatically once it is up.
+                        _ = StartServerForPreviewAsync();
+                    }
                     _lastPreviewFilePath = null;
                     return;
                 }
@@ -921,8 +983,9 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                 {
                     IsPreviewLoading = false;
                     PreviewImageSource = null;
-                    PreviewStatusMessage = string.Empty;
+                    PreviewStatusMessage = TranslationSource.Fmt("PreviewServerError", (int)registerResp.StatusCode);
                     _lastPreviewFilePath = null;
+                    Debug.WriteLine($"[LoadPreviewImageAsync] /preview/register failed: {(int)registerResp.StatusCode}");
                     return;
                 }
 
@@ -933,7 +996,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                 {
                     IsPreviewLoading = false;
                     PreviewImageSource = null;
-                    PreviewStatusMessage = string.Empty;
+                    PreviewStatusMessage = TranslationSource.Get("PreviewLoadError");
                     _lastPreviewFilePath = null;
                     return;
                 }
@@ -946,8 +1009,9 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                 {
                     IsPreviewLoading = false;
                     PreviewImageSource = null;
-                    PreviewStatusMessage = string.Empty;
+                    PreviewStatusMessage = TranslationSource.Fmt("PreviewServerError", (int)response.StatusCode);
                     _lastPreviewFilePath = null;
+                    Debug.WriteLine($"[LoadPreviewImageAsync] /preview failed: {(int)response.StatusCode}");
                     return;
                 }
 
@@ -1003,6 +1067,21 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             _lastPreviewFilePath = null;
             Debug.WriteLine($"[LoadPreviewImageAsync] failed for {filePath}: {ex}");
             SentrySdk.CaptureException(ex);
+        }
+    }
+
+    /// <summary>Starts the local OCR server on demand for a PDF preview without
+    /// letting a startup failure crash the preview pipeline. On success the
+    /// readiness hook inside EnsureServerReadyAsync reloads the preview.</summary>
+    private async Task StartServerForPreviewAsync()
+    {
+        try
+        {
+            await EnsureServerReadyAsync();
+        }
+        catch
+        {
+            // Preview status stays on "PreviewServerUnavailable".
         }
     }
 
@@ -1314,6 +1393,77 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             });
     }
 
+    /// <summary>Core Gemini retry loop, factored out of the HTTP path so it is
+    /// unit-testable without network. fetchBody returns the raw response body
+    /// for ONE attempt (HTTP status already checked by the caller). Malformed
+    /// JSON (JsonException — including a truncated items array) triggers ONE
+    /// retry with a fresh fetch, then throws a clear error carrying the raw
+    /// text for diagnostics. Empty text and null-fields are NOT retried (they
+    /// are API-level errors, not malformed output).</summary>
+    internal static async Task<Dictionary<string, JsonElement>?> FetchGeminiFieldsWithRetryAsync(
+        Func<Task<string>> fetchBody, string filePath)
+    {
+        JsonException? lastJsonError = null;
+        string? lastRawText = null;
+
+        for (int attempt = 0; attempt < 2; attempt++)
+        {
+            string responseBody = await fetchBody().ConfigureAwait(false);
+            string? text = null;
+            try
+            {
+                using var doc = JsonDocument.Parse(responseBody);
+                text = doc.RootElement
+                    .GetProperty("candidates")[0]
+                    .GetProperty("content")
+                    .GetProperty("parts")[0]
+                    .GetProperty("text")
+                    .GetString();
+
+                if (string.IsNullOrEmpty(text))
+                    throw new CloudApiException(TranslationSource.Get("GeminiEmptyResponse"));
+
+                // Strip markdown fences if present
+                text = text.Trim();
+                if (text.StartsWith("```json")) text = text[7..];
+                if (text.EndsWith("```")) text = text[..^3];
+                text = text.Trim();
+
+                var fields = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(text);
+                if (fields == null)
+                    throw new CloudApiException(TranslationSource.Get("GeminiParseError"));
+
+                return fields;
+            }
+            catch (JsonException jex)
+            {
+                // Log/carry the INNER invoice JSON (the actual malformed payload,
+                // not the API envelope) — this is the diagnostic value of the raw
+                // text and matches the pre-refactor behavior.
+                string rawText = text ?? responseBody;
+                LogMalformedJsonText("Gemini", rawText, jex, filePath);
+                lastJsonError = jex;
+                lastRawText = rawText;
+                if (attempt == 0)
+                {
+                    Debug.WriteLine($"[Hotix] Gemini malformed JSON — retrying (attempt 2/2)...");
+                    continue;
+                }
+                // Both attempts failed — surface a clear error with the raw text for diagnostics
+                throw new CloudApiException(
+                    TranslationSource.Fmt("GeminiParseErrorWithDetail", jex.Message),
+                    statusCode: null,
+                    responseBody: rawText);
+            }
+        }
+
+        // Unreachable — both attempts either returned or threw above
+        throw new CloudApiException(
+            TranslationSource.Fmt("GeminiParseErrorWithDetail", lastJsonError?.Message ?? "unknown"),
+            statusCode: null,
+            responseBody: lastRawText);
+    }
+
     /// <summary>Returns true if the Gemini model supports responseSchema in
     /// generationConfig. Schema support was added in gemini-1.5 and is present
     /// in all later models (2.x, 3.x, etc.). We default to including schema and
@@ -1386,64 +1536,28 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
 
         // ── Retry loop: malformed JSON from an LLM is often non-deterministic,
         //     so a single retry (fresh API call) frequently recovers. We do NOT
-        //     retry on auth/quota/network errors — those should fail immediately. ──
-        for (int attempt = 0; attempt < 2; attempt++)
-        {
-            var geminiClient = _httpCloudClient; // reuse shared instance
-            var response = await geminiClient.PostAsJsonAsync(
-                $"{geminiApiUrl}?key={apiKey}", requestBody);
-
-            string responseBody = await response.Content.ReadAsStringAsync();
-
-            if (!response.IsSuccessStatusCode)
+        //     retry on auth/quota/network errors — those should fail immediately.
+        //     The loop itself lives in FetchGeminiFieldsWithRetryAsync (factored
+        //     out so the retry+logging behavior is unit-testable offline). ──
+        Dictionary<string, JsonElement>? fields = await FetchGeminiFieldsWithRetryAsync(
+            async () =>
             {
-                if ((int)response.StatusCode == 429)
-                    throw new CloudQuotaExceededException(TranslationSource.Fmt("GeminiApiError", 429, ResponseBodySummary(responseBody)), response.StatusCode, responseBody);
-                throw new CloudApiException(TranslationSource.Fmt("GeminiApiError", (int)response.StatusCode, responseBody), response.StatusCode, responseBody);
-            }
+                var geminiClient = _httpCloudClient; // reuse shared instance
+                var response = await geminiClient.PostAsJsonAsync(
+                    $"{geminiApiUrl}?key={apiKey}", requestBody);
 
-            // Parse the whole response inside the retry scope so malformed
-            // top-level JSON (JsonDocument.Parse of the API envelope) also gets
-            // the single retry — LLM malformed output is non-deterministic, so
-            // a fresh API call frequently recovers.
-            Dictionary<string, JsonElement>? fields;
-            try
-            {
-                using var doc = JsonDocument.Parse(responseBody);
-                var text = doc.RootElement
-                    .GetProperty("candidates")[0]
-                    .GetProperty("content")
-                    .GetProperty("parts")[0]
-                    .GetProperty("text")
-                    .GetString();
+                string responseBody = await response.Content.ReadAsStringAsync();
 
-                if (string.IsNullOrEmpty(text))
-                    throw new CloudApiException(TranslationSource.Get("GeminiEmptyResponse"));
-
-                // Strip markdown fences if present
-                text = text.Trim();
-                if (text.StartsWith("```json")) text = text[7..];
-                if (text.EndsWith("```")) text = text[..^3];
-                text = text.Trim();
-
-                fields = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(text);
-                if (fields == null)
-                    throw new CloudApiException(TranslationSource.Get("GeminiParseError"));
-            }
-            catch (JsonException jex)
-            {
-                LogMalformedJsonText("Gemini", responseBody, jex, filePath);
-                if (attempt == 0)
+                if (!response.IsSuccessStatusCode)
                 {
-                    Debug.WriteLine($"[Hotix] Gemini malformed JSON — retrying (attempt 2/2)...");
-                    continue;
+                    if ((int)response.StatusCode == 429)
+                        throw new CloudQuotaExceededException(TranslationSource.Fmt("GeminiApiError", 429, ResponseBodySummary(responseBody)), response.StatusCode, responseBody);
+                    throw new CloudApiException(TranslationSource.Fmt("GeminiApiError", (int)response.StatusCode, responseBody), response.StatusCode, responseBody);
                 }
-                // Both attempts failed — surface a clear error with the raw text for diagnostics
-                throw new CloudApiException(
-                    TranslationSource.Fmt("GeminiParseErrorWithDetail", jex.Message),
-                    statusCode: null,
-                    responseBody: responseBody);
-            }
+
+                return responseBody;
+            },
+            filePath);
 
             // Parse items array (BUG 1 fix)
             List<InvoiceItem> items = new();
@@ -1514,10 +1628,6 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                 Items = items.Count > 0 ? items : null,
                 TaxSummary = taxSummary.Count > 0 ? taxSummary : null,
             };
-        }
-
-        // Unreachable — retained to satisfy compiler definite-assignment rules
-        throw new InvalidOperationException("Unreachable: Gemini retry loop exhausted");
     }
 
     /// <summary>
@@ -3254,6 +3364,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         };
 
         bool markMissing = exportDialog.SelectedFilter == global::Hotix.InvoiceClient.ExportDialog.FilterMode.Both;
+        bool includeItems = exportDialog.IncludeItemsInExport;
 
         if (rowsToExport.Count == 0)
         {
@@ -3280,13 +3391,12 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
 
             try
             {
-                new ExcelWriter().Write(saveDialog.FileName, rowsToExport, markMissing);
+                new ExcelWriter().Write(saveDialog.FileName, rowsToExport, markMissing, includeItems);
                 SaveConfirmationPath = saveDialog.FileName;
             }
-            catch (IOException ex)
+            catch (Exception ex)
             {
-                var msg = TranslationSource.Fmt("ExportErrorFileOpen", ex.Message);
-                MessageBox.Show(msg, TranslationSource.Get("ExportTitle"), MessageBoxButton.OK, MessageBoxImage.Warning);
+                ShowExportError(ex);
                 return;
             }
         }
@@ -3308,10 +3418,9 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             {
                 sheetNames = ExcelWriter.GetWorksheetNames(existingPath);
             }
-            catch (IOException ex)
+            catch (Exception ex)
             {
-                var msg = TranslationSource.Fmt("ExportErrorFileOpen", ex.Message);
-                MessageBox.Show(msg, TranslationSource.Get("ExportTitle"), MessageBoxButton.OK, MessageBoxImage.Warning);
+                ShowExportError(ex);
                 return;
             }
 
@@ -3343,16 +3452,30 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
 
             try
             {
-                new ExcelWriter().AppendToExisting(existingPath, rowsToExport, targetSheet, markMissing);
+                new ExcelWriter().AppendToExisting(existingPath, rowsToExport, targetSheet, markMissing, includeItems);
                 SaveConfirmationPath = existingPath;
             }
-            catch (IOException ex)
+            catch (Exception ex)
             {
-                var msg = TranslationSource.Fmt("ExportErrorFileOpen", ex.Message);
-                MessageBox.Show(msg, TranslationSource.Get("ExportTitle"), MessageBoxButton.OK, MessageBoxImage.Warning);
+                ShowExportError(ex);
                 return;
             }
         }
+    }
+
+    /// <summary>Shows a user-facing message for any export failure. File-lock
+    /// errors keep their specific "open in another app" hint; schema drift gets
+    /// its own message; anything else goes through the translator. The export
+    /// path never crashes the app — a failed export is recoverable.</summary>
+    private static void ShowExportError(Exception ex)
+    {
+        string msg = ex switch
+        {
+            IOException => TranslationSource.Fmt("ExportErrorFileOpen", ex.Message),
+            ExcelSchemaMismatchException => TranslationSource.Get("ExportSchemaMismatch"),
+            _ => ErrorMessageTranslator.ToUserMessage(ex),
+        };
+        MessageBox.Show(msg, TranslationSource.Get("ExportTitle"), MessageBoxButton.OK, MessageBoxImage.Warning);
     }
 
     /// <summary>

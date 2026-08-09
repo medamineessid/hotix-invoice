@@ -201,7 +201,7 @@
                         <Button Style="{StaticResource ButtonIconStyle}" Content="□" Click="MaximizeButton_Click"
                                 ToolTip="Maximize" AutomationProperties.Name="Maximize window" />
                         <Button Style="{StaticResource ButtonIconStyle}" Content="✕" Click="CloseButton_Click"
-                                ToolTip="Close" AutomationProperties.Name="Close window" />
+                                ToolTip="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[CloseBtn]}" AutomationProperties.Name="Close window" />
                     </StackPanel>
                 </Grid>
             </Border>
@@ -729,126 +729,186 @@
                                         <RowDefinition Height="*" />
                                     </Grid.RowDefinitions>
 
-                                    <!-- Confidence Legend + Direction Filter -->
-                                    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="24,8,24,12">
-                                        <!-- Confidence labels -->
-                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                            <TextBlock x:Name="InfoConfidenceIcon"
-                                                       Text="ⓘ"
-                                                       FontSize="12"
-                                                       Foreground="{StaticResource BrushTextMuted}"
-                                                       VerticalAlignment="Center"
-                                                       Margin="0,0,4,0"
-                                                       Cursor="Hand"
-                                                       MouseLeftButtonDown="InfoButton_Click" />
-                                            <Popup x:Name="InfoConfidencePopup"
-                                                   PlacementTarget="{Binding ElementName=InfoConfidenceIcon}"
-                                                   Placement="Bottom"
-                                                   AllowsTransparency="True"
-                                                   StaysOpen="False"
-                                                   PopupAnimation="Fade">
-                                                <Border Background="{StaticResource BrushSurface}"
-                                                        BorderBrush="{StaticResource BrushBorder}"
-                                                        BorderThickness="1"
-                                                        CornerRadius="8"
-                                                        Padding="14,10"
-                                                        MaxWidth="300"
-                                                        Effect="{StaticResource ShadowCard}">
-                                                    <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[InfoConfidence]}"
-                                                               Style="{StaticResource TextCaption}"
-                                                               TextWrapping="Wrap" />
+                                    <!-- Filter toolbar: confidence + direction are independent dimensions.
+                                         Both use one neutral scheme; the selected segment is highlighted
+                                         via background, not font color. -->
+                                    <Border Grid.Row="0"
+                                            Background="{StaticResource BrushAltBackground}"
+                                            BorderBrush="{StaticResource BrushBorder}"
+                                            BorderThickness="0,0,0,1"
+                                            Padding="24,10,24,10">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="1" />
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+
+                                            <!-- Confidence group -->
+                                            <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                                                <TextBlock x:Name="InfoConfidenceIcon"
+                                                           Text="ⓘ"
+                                                           FontSize="12"
+                                                           Foreground="{StaticResource BrushTextMuted}"
+                                                           VerticalAlignment="Center"
+                                                           Margin="0,0,6,0"
+                                                           Cursor="Hand"
+                                                           MouseLeftButtonDown="InfoButton_Click" />
+                                                <Popup x:Name="InfoConfidencePopup"
+                                                       PlacementTarget="{Binding ElementName=InfoConfidenceIcon}"
+                                                       Placement="Bottom"
+                                                       AllowsTransparency="True"
+                                                       StaysOpen="False"
+                                                       PopupAnimation="Fade">
+                                                    <Border Background="{StaticResource BrushSurface}"
+                                                            BorderBrush="{StaticResource BrushBorder}"
+                                                            BorderThickness="1"
+                                                            CornerRadius="8"
+                                                            Padding="14,10"
+                                                            MaxWidth="300"
+                                                            Effect="{StaticResource ShadowCard}">
+                                                        <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[InfoConfidence]}"
+                                                                   Style="{StaticResource TextCaption}"
+                                                                   TextWrapping="Wrap" />
+                                                    </Border>
+                                                </Popup>
+                                                <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ToolbarConfidenceLabel]}"
+                                                           Style="{StaticResource TextMetadata}"
+                                                           Foreground="{StaticResource BrushTextSecondary}"
+                                                           VerticalAlignment="Center"
+                                                           Margin="0,0,8,0" />
+                                                <!-- Segmented control (binary): neutral container, selected option
+                                                     gets a solid dark fill + white text. The confidence filter is now a
+                                                     simple All / To-check toggle reusing the exact old "low" threshold
+                                                     (<40%); fine-grained % lives in the grid's Confidence column. -->
+                                                <Border Style="{StaticResource SegmentedContainerStyle}" VerticalAlignment="Center">
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <!-- All / reset (neutral gray dot) -->
+                                                        <Border>
+                                                            <Border.Style>
+                                                                <Style TargetType="Border" BasedOn="{StaticResource SegmentedOptionStyle}">
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding ConfidenceFilterLowOnly}" Value="False">
+                                                                            <Setter Property="Background" Value="{StaticResource BrushTextPrimary}" />
+                                                                            <Setter Property="TextElement.Foreground" Value="{StaticResource BrushTextInverse}" />
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </Border.Style>
+                                                            <Border.InputBindings>
+                                                                <MouseBinding MouseAction="LeftClick" Command="{Binding SetConfidenceFilterCommand}" CommandParameter="all" />
+                                                            </Border.InputBindings>
+                                                            <StackPanel Orientation="Horizontal">
+                                                                <Ellipse Style="{StaticResource SegmentedDotStyle}" Fill="{StaticResource BrushTextMuted}" />
+                                                                <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[FilterConfidenceAll]}"
+                                                                           FontSize="{StaticResource FontSizeCaption}"
+                                                                           FontWeight="{StaticResource FontWeightMedium}" />
+                                                            </StackPanel>
+                                                        </Border>
+                                                        <!-- To check (red dot, same threshold as the old low bucket) -->
+                                                        <Border>
+                                                            <Border.Style>
+                                                                <Style TargetType="Border" BasedOn="{StaticResource SegmentedOptionStyle}">
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding ConfidenceFilterLowOnly}" Value="True">
+                                                                            <Setter Property="Background" Value="{StaticResource BrushTextPrimary}" />
+                                                                            <Setter Property="TextElement.Foreground" Value="{StaticResource BrushTextInverse}" />
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </Border.Style>
+                                                            <Border.InputBindings>
+                                                                <MouseBinding MouseAction="LeftClick" Command="{Binding SetConfidenceFilterCommand}" CommandParameter="low" />
+                                                            </Border.InputBindings>
+                                                            <StackPanel Orientation="Horizontal">
+                                                                <Ellipse Style="{StaticResource SegmentedDotStyle}" Fill="{StaticResource BrushError}" />
+                                                                <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[FilterConfidenceToVerify]}"
+                                                                           FontSize="{StaticResource FontSizeCaption}"
+                                                                           FontWeight="{StaticResource FontWeightMedium}" />
+                                                            </StackPanel>
+                                                        </Border>
+                                                    </StackPanel>
                                                 </Border>
-                                            </Popup>
-                                            <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[LegendConfidence]}"
-                                                       Style="{StaticResource TextMetadata}"
-                                                       VerticalAlignment="Center"
-                                                       Margin="0,0,16,0" />
-                                        </StackPanel>
-                                        <Border Background="{StaticResource BrushConfidenceHighBg}"
-                                                CornerRadius="{StaticResource RadiusPill}" Padding="10,4" Margin="0,0,8,0">
-                                            <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[LegendHigh]}" Foreground="{StaticResource BrushConfidenceHighText}"
-                                                       FontSize="{StaticResource FontSizeCaption}" FontWeight="{StaticResource FontWeightMedium}" />
-                                        </Border>
-                                        <Border Background="{StaticResource BrushConfidenceMediumBg}"
-                                                CornerRadius="{StaticResource RadiusPill}" Padding="10,4" Margin="0,0,8,0">
-                                            <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[LegendMedium]}" Foreground="{StaticResource BrushConfidenceMediumText}"
-                                                       FontSize="{StaticResource FontSizeCaption}" FontWeight="{StaticResource FontWeightMedium}" />
-                                        </Border>
-                                        <Border Background="{StaticResource BrushConfidenceLowBg}"
-                                                CornerRadius="{StaticResource RadiusPill}" Padding="10,4" Margin="0,0,16,0">
-                                            <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[LegendLow]}" Foreground="{StaticResource BrushConfidenceLowText}"
-                                                       FontSize="{StaticResource FontSizeCaption}" FontWeight="{StaticResource FontWeightMedium}" />
-                                        </Border>
+                                            </StackPanel>
 
-                                        <!-- Direction filter pills -->
-                                        <Border CornerRadius="{StaticResource RadiusPill}" Padding="10,4" Margin="0,0,4,0" Cursor="Hand"
-                                                Background="{StaticResource BrushAccentLight}"
-                                                BorderBrush="{StaticResource BrushAccent}"
-                                                BorderThickness="1">
-                                            <Border.Style>
-                                                <Style TargetType="Border">
-                                                    <Style.Triggers>
-                                                        <DataTrigger Binding="{Binding DirectionFilter}" Value="all">
-                                                            <Setter Property="Background" Value="{StaticResource BrushAccentLight}" />
-                                                            <Setter Property="BorderBrush" Value="{StaticResource BrushAccent}" />
-                                                            <Setter Property="Opacity" Value="1" />
-                                                        </DataTrigger>
-                                                    </Style.Triggers>
-                                                </Style>
-                                            </Border.Style>
-                                            <Border.InputBindings>
-                                                <MouseBinding MouseAction="LeftClick" Command="{Binding SetDirectionFilterCommand}" CommandParameter="all" />
-                                            </Border.InputBindings>
-                                            <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[DirectionFilterAll]}"
-                                                       FontSize="{StaticResource FontSizeCaption}"
-                                                       FontWeight="{StaticResource FontWeightMedium}"
-                                                       Foreground="{StaticResource BrushAccent}" />
-                                        </Border>
+                                            <!-- Vertical divider: separates independent filter dimensions -->
+                                            <Border Grid.Column="1" Width="1" Background="{StaticResource BrushBorder}" Margin="0,4,0,4" />
 
-                                        <Border CornerRadius="{StaticResource RadiusPill}" Padding="10,4" Margin="0,0,4,0" Cursor="Hand"
-                                                Background="{StaticResource BrushConfidenceHighBg}"
-                                                BorderThickness="1"
-                                                BorderBrush="Transparent">
-                                            <Border.Style>
-                                                <Style TargetType="Border">
-                                                    <Style.Triggers>
-                                                        <DataTrigger Binding="{Binding DirectionFilter}" Value="received">
-                                                            <Setter Property="BorderBrush" Value="{StaticResource BrushSuccess}" />
-                                                        </DataTrigger>
-                                                    </Style.Triggers>
-                                                </Style>
-                                            </Border.Style>
-                                            <Border.InputBindings>
-                                                <MouseBinding MouseAction="LeftClick" Command="{Binding SetDirectionFilterCommand}" CommandParameter="received" />
-                                            </Border.InputBindings>
-                                            <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[DirectionFilterReceived]}"
-                                                       FontSize="{StaticResource FontSizeCaption}"
-                                                       FontWeight="{StaticResource FontWeightMedium}"
-                                                       Foreground="{StaticResource BrushConfidenceHighText}" />
-                                        </Border>
-
-                                        <Border CornerRadius="{StaticResource RadiusPill}" Padding="10,4" Cursor="Hand"
-                                                Background="{StaticResource BrushInfoLight}"
-                                                BorderThickness="1"
-                                                BorderBrush="Transparent">
-                                            <Border.Style>
-                                                <Style TargetType="Border">
-                                                    <Style.Triggers>
-                                                        <DataTrigger Binding="{Binding DirectionFilter}" Value="issued">
-                                                            <Setter Property="BorderBrush" Value="{StaticResource BrushInfo}" />
-                                                        </DataTrigger>
-                                                    </Style.Triggers>
-                                                </Style>
-                                            </Border.Style>
-                                            <Border.InputBindings>
-                                                <MouseBinding MouseAction="LeftClick" Command="{Binding SetDirectionFilterCommand}" CommandParameter="issued" />
-                                            </Border.InputBindings>
-                                            <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[DirectionFilterIssued]}"
-                                                       FontSize="{StaticResource FontSizeCaption}"
-                                                       FontWeight="{StaticResource FontWeightMedium}"
-                                                       Foreground="{StaticResource BrushInfo}" />
-                                        </Border>
-                                    </StackPanel>
+                                            <!-- Direction group -->
+                                            <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="24,0,0,0">
+                                                <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ToolbarDirectionLabel]}"
+                                                           Style="{StaticResource TextMetadata}"
+                                                           Foreground="{StaticResource BrushTextSecondary}"
+                                                           VerticalAlignment="Center"
+                                                           Margin="0,0,8,0" />
+                                                <!-- Segmented control: neutral container, selected option gets a
+                                                     solid dark fill + white text. No per-option colors here — the
+                                                     direction dimension has no confidence semantics. -->
+                                                <Border Style="{StaticResource SegmentedContainerStyle}" VerticalAlignment="Center">
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <!-- All invoices -->
+                                                        <Border>
+                                                            <Border.Style>
+                                                                <Style TargetType="Border" BasedOn="{StaticResource SegmentedOptionStyle}">
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding DirectionFilter}" Value="all">
+                                                                            <Setter Property="Background" Value="{StaticResource BrushTextPrimary}" />
+                                                                            <Setter Property="TextElement.Foreground" Value="{StaticResource BrushTextInverse}" />
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </Border.Style>
+                                                            <Border.InputBindings>
+                                                                <MouseBinding MouseAction="LeftClick" Command="{Binding SetDirectionFilterCommand}" CommandParameter="all" />
+                                                            </Border.InputBindings>
+                                                            <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[DirectionFilterAll]}"
+                                                                       FontSize="{StaticResource FontSizeCaption}"
+                                                                       FontWeight="{StaticResource FontWeightMedium}" />
+                                                        </Border>
+                                                        <!-- Received only -->
+                                                        <Border>
+                                                            <Border.Style>
+                                                                <Style TargetType="Border" BasedOn="{StaticResource SegmentedOptionStyle}">
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding DirectionFilter}" Value="received">
+                                                                            <Setter Property="Background" Value="{StaticResource BrushTextPrimary}" />
+                                                                            <Setter Property="TextElement.Foreground" Value="{StaticResource BrushTextInverse}" />
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </Border.Style>
+                                                            <Border.InputBindings>
+                                                                <MouseBinding MouseAction="LeftClick" Command="{Binding SetDirectionFilterCommand}" CommandParameter="received" />
+                                                            </Border.InputBindings>
+                                                            <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[DirectionFilterReceived]}"
+                                                                       FontSize="{StaticResource FontSizeCaption}"
+                                                                       FontWeight="{StaticResource FontWeightMedium}" />
+                                                        </Border>
+                                                        <!-- Issued only -->
+                                                        <Border>
+                                                            <Border.Style>
+                                                                <Style TargetType="Border" BasedOn="{StaticResource SegmentedOptionStyle}">
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding DirectionFilter}" Value="issued">
+                                                                            <Setter Property="Background" Value="{StaticResource BrushTextPrimary}" />
+                                                                            <Setter Property="TextElement.Foreground" Value="{StaticResource BrushTextInverse}" />
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </Border.Style>
+                                                            <Border.InputBindings>
+                                                                <MouseBinding MouseAction="LeftClick" Command="{Binding SetDirectionFilterCommand}" CommandParameter="issued" />
+                                                            </Border.InputBindings>
+                                                            <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[DirectionFilterIssued]}"
+                                                                       FontSize="{StaticResource FontSizeCaption}"
+                                                                       FontWeight="{StaticResource FontWeightMedium}" />
+                                                        </Border>
+                                                    </StackPanel>
+                                                </Border>
+                                            </StackPanel>
+                                        </Grid>
+                                    </Border>
 
                                     <DataGrid Grid.Row="1"
                                               x:Name="ResultsGrid"
@@ -971,17 +1031,17 @@
                                             </DataGridTextColumn>                                            <DataGridTextColumn Header="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ColumnAmountExcl]}"  Binding="{Binding MontantHt, Converter={StaticResource NullToPlaceholderConverter}}"
                                                                 MinWidth="80" MaxWidth="120" />
 
-                                            <DataGridTextColumn Header="TVA" Binding="{Binding MontantTva, Converter={StaticResource NullToPlaceholderConverter}}"
+                                            <DataGridTextColumn Header="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ColumnVat]}" Binding="{Binding MontantTva, Converter={StaticResource NullToPlaceholderConverter}}"
                                                                 MinWidth="60" MaxWidth="100" />
 
-                                            <DataGridTextColumn Header="Taxe" Binding="{Binding MontantTaxe, Converter={StaticResource NullToPlaceholderConverter}}"
+                                            <DataGridTextColumn Header="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ColumnTax]}" Binding="{Binding MontantTaxe, Converter={StaticResource NullToPlaceholderConverter}}"
                                                                 MinWidth="60" MaxWidth="100" />
 
-                                            <DataGridTextColumn Header="TTC" Binding="{Binding MontantTtc, Converter={StaticResource NullToPlaceholderConverter}}"
+                                            <DataGridTextColumn Header="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ColumnTotalIncl]}" Binding="{Binding MontantTtc, Converter={StaticResource NullToPlaceholderConverter}}"
                                                                 MinWidth="60" MaxWidth="100" />
 
                                             <!-- Confidence Badge (pastel) -->
-                                            <DataGridTemplateColumn Header="Confiance" Width="160" CanUserSort="True" SortMemberPath="Confidence">
+                                            <DataGridTemplateColumn Header="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ColumnConfidence]}" Width="160" CanUserSort="True" SortMemberPath="Confidence">
                                                 <DataGridTemplateColumn.CellTemplate>
                                                     <DataTemplate>
                                                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Center">
@@ -1033,7 +1093,7 @@
                                                                 Style="{StaticResource ButtonGhostStyle}"
                                                                 Width="28" Height="28"
                                                                 FontSize="14"
-                                                                ToolTip="Close"
+                                                                ToolTip="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[CloseBtn]}"
                                                                 Command="{Binding DataContext.ClearSelectedRowCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}" />
                                                         <StackPanel Grid.Row="1">
                                                         <!-- Invoice Summary -->
@@ -1053,7 +1113,7 @@
                                                                            VerticalAlignment="Center" />
                                                             </Border>
                                                             <StackPanel Grid.Column="1" Margin="12,0,0,0">
-                                                                <TextBlock Text="Invoice Summary"
+                                                                <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[SummaryTitle]}"
                                                                            Style="{StaticResource TextCardTitle}"
                                                                            Margin="0,0,0,12" />
                                                                 <Grid>
@@ -1063,51 +1123,66 @@
                                                                     </Grid.ColumnDefinitions>
                                                                     <StackPanel Grid.Column="0">
                                                                         <TextBlock Style="{StaticResource TextMetadata}" Margin="0,0,0,6">
-                                                                            <Run Text="Invoice No." /><Run Text="  " />
+                                                                            <Run Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ColumnInvoiceNo]}" /><Run Text="  " />
                                                                             <Run Text="{Binding NumeroFacture, Converter={StaticResource NullToPlaceholderConverter}}" FontWeight="Medium" />
                                                                         </TextBlock>
                                                                         <TextBlock Style="{StaticResource TextMetadata}" Margin="0,0,0,6">
-                                                                            <Run Text="Date" /><Run Text="  " />
+                                                                            <Run Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ColumnDate]}" /><Run Text="  " />
                                                                             <Run Text="{Binding Date, Converter={StaticResource NullToPlaceholderConverter}}" FontWeight="Medium" />
                                                                         </TextBlock>
                                                                         <TextBlock Style="{StaticResource TextMetadata}" Margin="0,0,0,6">
-                                                                            <Run Text="Supplier" /><Run Text="  " />
+                                                                            <Run Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ColumnSupplier]}" /><Run Text="  " />
                                                                             <Run Text="{Binding Fournisseur, Converter={StaticResource NullToPlaceholderConverter}}" FontWeight="Medium" />
                                                                         </TextBlock>
                                                                         <TextBlock Style="{StaticResource TextMetadata}" Margin="0,0,0,6">
-                                                                            <Run Text="Client" /><Run Text="  " />
+                                                                            <Run Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ColumnClient]}" /><Run Text="  " />
                                                                             <Run Text="{Binding Client, Converter={StaticResource NullToPlaceholderConverter}}" FontWeight="Medium" />
                                                                         </TextBlock>
                                                                     </StackPanel>
                                                                     <StackPanel Grid.Column="1" Margin="32,0,0,0">
                                                                         <TextBlock Style="{StaticResource TextMetadata}" Margin="0,0,0,6">
-                                                                            <Run Text="HT" /><Run Text="  " />
+                                                                            <Run Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[SummaryHt]}" /><Run Text="  " />
                                                                             <Run Text="{Binding MontantHt, Converter={StaticResource NullToPlaceholderConverter}}" FontWeight="Medium" />
                                                                         </TextBlock>
                                                                         <TextBlock Style="{StaticResource TextMetadata}" Margin="0,0,0,6">
-                                                                            <Run Text="TVA" /><Run Text="  " />
+                                                                            <Run Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ColumnVat]}" /><Run Text="  " />
                                                                             <Run Text="{Binding MontantTva, Converter={StaticResource NullToPlaceholderConverter}}" FontWeight="Medium" />
                                                                         </TextBlock>
                                                                         <TextBlock Style="{StaticResource TextMetadata}" Margin="0,0,0,6">
-                                                                            <Run Text="Tax" /><Run Text="  " />
+                                                                            <Run Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ColumnTax]}" /><Run Text="  " />
                                                                             <Run Text="{Binding MontantTaxe, Converter={StaticResource NullToPlaceholderConverter}}" FontWeight="Medium" />
                                                                         </TextBlock>
                                                                         <TextBlock Style="{StaticResource TextMetadata}" Margin="0,0,0,6">
-                                                                            <Run Text="TTC" /><Run Text="  " />
+                                                                            <Run Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[SummaryTtc]}" /><Run Text="  " />
                                                                             <Run Text="{Binding MontantTtc, Converter={StaticResource NullToPlaceholderConverter}}" FontWeight="Medium" />
                                                                         </TextBlock>
                                                                         <TextBlock Style="{StaticResource TextMetadata}" Margin="0,0,0,6">
-                                                                            <Run Text="Confidence" /><Run Text="  " />
+                                                                            <Run Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ColumnConfidence]}" /><Run Text="  " />
                                                                             <Run Text="{Binding ConfidenceDisplay, Mode=OneWay}" FontWeight="Medium" />
                                                                         </TextBlock>
                                                                         <TextBlock Style="{StaticResource TextMetadata}">
-                                                                            <Run Text="Engine" /><Run Text="  " />
+                                                                            <Run Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[SummaryEngine]}" /><Run Text="  " />
                                                                             <Run Text="{Binding EngineUsed}" FontWeight="Medium" />
                                                                         </TextBlock>
                                                                     </StackPanel>
                                                                 </Grid>
                                                             </StackPanel>
                                                         </Grid>
+
+                                                        <!-- Direction ambiguity banner (Hotix→Hotix): explains why
+                                                             direction is unset and manual input is required. -->
+                                                        <Border Background="{StaticResource BrushWarningLight}"
+                                                                BorderBrush="{StaticResource BrushWarning}"
+                                                                BorderThickness="1"
+                                                                CornerRadius="{StaticResource RadiusMedium}"
+                                                                Padding="12,8"
+                                                                Margin="0,0,0,16"
+                                                                Visibility="{Binding HasDirectionAmbiguity, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                            <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[DirectionAmbiguityBanner]}"
+                                                                       Style="{StaticResource TextCaption}"
+                                                                       Foreground="{StaticResource BrushError}"
+                                                                       TextWrapping="Wrap" />
+                                                        </Border>
 
                                                         <!-- Divider -->
                                                         <Border Height="1" Background="{StaticResource BrushBorder}" Margin="0,0,0,16" />
@@ -1116,7 +1191,13 @@
                                                         <StackPanel>
                                                             <TextBlock Text="{Binding ItemsHeaderText}"
                                                                        Style="{StaticResource TextCardTitle}"
-                                                                       Margin="0,0,0,12" />
+                                                                       Margin="0,0,0,8" />
+
+                                                            <!-- Per-invoice export toggle -->
+                                                            <CheckBox IsChecked="{Binding IncludeItemsInExport}"
+                                                                      Content="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[IncludeItemsInExport]}"
+                                                                      Style="{StaticResource CheckBoxStyle}"
+                                                                      Margin="0,0,0,12" />
 
                                                             <!-- Items present: show table -->
                                                             <Border BorderBrush="{StaticResource BrushBorder}"
@@ -1134,23 +1215,23 @@
                                                                             <ColumnDefinition Width="60" />
                                                                             <ColumnDefinition Width="90" />
                                                                         </Grid.ColumnDefinitions>
-                                                                        <TextBlock Grid.Column="0" Text="Description"
+                                                                        <TextBlock Grid.Column="0" Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ItemColDescription]}"
                                                                                    Style="{StaticResource TextMetadata}"
                                                                                    FontWeight="{StaticResource FontWeightMedium}"
                                                                                    Padding="14,10" />
-                                                                        <TextBlock Grid.Column="1" Text="Qty"
+                                                                        <TextBlock Grid.Column="1" Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ItemColQty]}"
                                                                                    Style="{StaticResource TextMetadata}"
                                                                                    FontWeight="{StaticResource FontWeightMedium}"
                                                                                    Padding="14,10" />
-                                                                        <TextBlock Grid.Column="2" Text="Unit Price"
+                                                                        <TextBlock Grid.Column="2" Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ItemColUnitPrice]}"
                                                                                    Style="{StaticResource TextMetadata}"
                                                                                    FontWeight="{StaticResource FontWeightMedium}"
                                                                                    Padding="14,10" />
-                                                                        <TextBlock Grid.Column="3" Text="VAT%"
+                                                                        <TextBlock Grid.Column="3" Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ItemColVatPct]}"
                                                                                    Style="{StaticResource TextMetadata}"
                                                                                    FontWeight="{StaticResource FontWeightMedium}"
                                                                                    Padding="14,10" />
-                                                                        <TextBlock Grid.Column="4" Text="Total"
+                                                                        <TextBlock Grid.Column="4" Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ItemColTotal]}"
                                                                                    Style="{StaticResource TextMetadata}"
                                                                                    FontWeight="{StaticResource FontWeightMedium}"
                                                                                    Padding="14,10" />
@@ -1205,7 +1286,7 @@
                                                                     BorderBrush="{StaticResource BrushBorder}"
                                                                     BorderThickness="1"
                                                                     Visibility="{Binding HasItems, Converter={StaticResource InverseBooleanToVisibilityConverter}}">
-                                                                <TextBlock Text="No extracted items available."
+                                                                <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ItemsEmpty]}"
                                                                            Style="{StaticResource TextCaption}"
                                                                            Foreground="{StaticResource BrushTextMuted}"
                                                                            HorizontalAlignment="Center" />
@@ -1361,14 +1442,14 @@
 
                                             <DataGridTextColumn Header="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ColumnInvoiceNo]}" Binding="{Binding NumeroFacture, Converter={StaticResource NullToPlaceholderConverter}}" MinWidth="100" MaxWidth="180" />
                                             <DataGridTextColumn Header="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ColumnDate]}" Binding="{Binding Date, Converter={StaticResource NullToPlaceholderConverter}}" MinWidth="80"  MaxWidth="120" />
-                                            <DataGridTextColumn Header="Fournisseur" Binding="{Binding Fournisseur,   Converter={StaticResource NullToPlaceholderConverter}}" MinWidth="100" MaxWidth="200" />
-                                            <DataGridTextColumn Header="Client"      Binding="{Binding Client,        Converter={StaticResource NullToPlaceholderConverter}}" MinWidth="80"  MaxWidth="160" />
-                                            <DataGridTextColumn Header="Montant HT"  Binding="{Binding MontantHt,     Converter={StaticResource NullToPlaceholderConverter}}" MinWidth="80"  MaxWidth="120" />
+                                            <DataGridTextColumn Header="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ColumnSupplier]}" Binding="{Binding Fournisseur,   Converter={StaticResource NullToPlaceholderConverter}}" MinWidth="100" MaxWidth="200" />
+                                            <DataGridTextColumn Header="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ColumnClient]}"      Binding="{Binding Client,        Converter={StaticResource NullToPlaceholderConverter}}" MinWidth="80"  MaxWidth="160" />
+                                            <DataGridTextColumn Header="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ColumnAmountExcl]}"  Binding="{Binding MontantHt,     Converter={StaticResource NullToPlaceholderConverter}}" MinWidth="80"  MaxWidth="120" />
                                             <DataGridTextColumn Header="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ColumnVat]}"         Binding="{Binding MontantTva,    Converter={StaticResource NullToPlaceholderConverter}}" MinWidth="60"  MaxWidth="100" />
                                             <DataGridTextColumn Header="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ColumnTax]}"        Binding="{Binding MontantTaxe,   Converter={StaticResource NullToPlaceholderConverter}}" MinWidth="60"  MaxWidth="100" />
                                             <DataGridTextColumn Header="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ColumnTotalIncl]}"         Binding="{Binding MontantTtc,    Converter={StaticResource NullToPlaceholderConverter}}" MinWidth="60"  MaxWidth="100" />
 
-                                            <DataGridTemplateColumn Header="Confiance" Width="160" CanUserSort="True" SortMemberPath="Confidence">
+                                            <DataGridTemplateColumn Header="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ColumnConfidence]}" Width="160" CanUserSort="True" SortMemberPath="Confidence">
                                                 <DataGridTemplateColumn.CellTemplate>
                                                     <DataTemplate>
                                                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Center">
@@ -1420,7 +1501,7 @@
                                                                 Style="{StaticResource ButtonGhostStyle}"
                                                                 Width="28" Height="28"
                                                                 FontSize="14"
-                                                                ToolTip="Close"
+                                                                ToolTip="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[CloseBtn]}"
                                                                 Command="{Binding DataContext.ClearSelectedRowCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}" />
                                                         <StackPanel Grid.Row="1">
                                                         <!-- Invoice Summary -->
@@ -1440,7 +1521,7 @@
                                                                            VerticalAlignment="Center" />
                                                             </Border>
                                                             <StackPanel Grid.Column="1" Margin="12,0,0,0">
-                                                                <TextBlock Text="Invoice Summary"
+                                                                <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[SummaryTitle]}"
                                                                            Style="{StaticResource TextCardTitle}"
                                                                            Margin="0,0,0,12" />
                                                                 <Grid>
@@ -1450,51 +1531,66 @@
                                                                     </Grid.ColumnDefinitions>
                                                                     <StackPanel Grid.Column="0">
                                                                         <TextBlock Style="{StaticResource TextMetadata}" Margin="0,0,0,6">
-                                                                            <Run Text="Invoice No." /><Run Text="  " />
+                                                                            <Run Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ColumnInvoiceNo]}" /><Run Text="  " />
                                                                             <Run Text="{Binding NumeroFacture, Converter={StaticResource NullToPlaceholderConverter}}" FontWeight="Medium" />
                                                                         </TextBlock>
                                                                         <TextBlock Style="{StaticResource TextMetadata}" Margin="0,0,0,6">
-                                                                            <Run Text="Date" /><Run Text="  " />
+                                                                            <Run Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ColumnDate]}" /><Run Text="  " />
                                                                             <Run Text="{Binding Date, Converter={StaticResource NullToPlaceholderConverter}}" FontWeight="Medium" />
                                                                         </TextBlock>
                                                                         <TextBlock Style="{StaticResource TextMetadata}" Margin="0,0,0,6">
-                                                                            <Run Text="Supplier" /><Run Text="  " />
+                                                                            <Run Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ColumnSupplier]}" /><Run Text="  " />
                                                                             <Run Text="{Binding Fournisseur, Converter={StaticResource NullToPlaceholderConverter}}" FontWeight="Medium" />
                                                                         </TextBlock>
                                                                         <TextBlock Style="{StaticResource TextMetadata}" Margin="0,0,0,6">
-                                                                            <Run Text="Client" /><Run Text="  " />
+                                                                            <Run Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ColumnClient]}" /><Run Text="  " />
                                                                             <Run Text="{Binding Client, Converter={StaticResource NullToPlaceholderConverter}}" FontWeight="Medium" />
                                                                         </TextBlock>
                                                                     </StackPanel>
                                                                     <StackPanel Grid.Column="1" Margin="32,0,0,0">
                                                                         <TextBlock Style="{StaticResource TextMetadata}" Margin="0,0,0,6">
-                                                                            <Run Text="HT" /><Run Text="  " />
+                                                                            <Run Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[SummaryHt]}" /><Run Text="  " />
                                                                             <Run Text="{Binding MontantHt, Converter={StaticResource NullToPlaceholderConverter}}" FontWeight="Medium" />
                                                                         </TextBlock>
                                                                         <TextBlock Style="{StaticResource TextMetadata}" Margin="0,0,0,6">
-                                                                            <Run Text="TVA" /><Run Text="  " />
+                                                                            <Run Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ColumnVat]}" /><Run Text="  " />
                                                                             <Run Text="{Binding MontantTva, Converter={StaticResource NullToPlaceholderConverter}}" FontWeight="Medium" />
                                                                         </TextBlock>
                                                                         <TextBlock Style="{StaticResource TextMetadata}" Margin="0,0,0,6">
-                                                                            <Run Text="Tax" /><Run Text="  " />
+                                                                            <Run Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ColumnTax]}" /><Run Text="  " />
                                                                             <Run Text="{Binding MontantTaxe, Converter={StaticResource NullToPlaceholderConverter}}" FontWeight="Medium" />
                                                                         </TextBlock>
                                                                         <TextBlock Style="{StaticResource TextMetadata}" Margin="0,0,0,6">
-                                                                            <Run Text="TTC" /><Run Text="  " />
+                                                                            <Run Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[SummaryTtc]}" /><Run Text="  " />
                                                                             <Run Text="{Binding MontantTtc, Converter={StaticResource NullToPlaceholderConverter}}" FontWeight="Medium" />
                                                                         </TextBlock>
                                                                         <TextBlock Style="{StaticResource TextMetadata}" Margin="0,0,0,6">
-                                                                            <Run Text="Confidence" /><Run Text="  " />
+                                                                            <Run Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ColumnConfidence]}" /><Run Text="  " />
                                                                             <Run Text="{Binding ConfidenceDisplay, Mode=OneWay}" FontWeight="Medium" />
                                                                         </TextBlock>
                                                                         <TextBlock Style="{StaticResource TextMetadata}">
-                                                                            <Run Text="Engine" /><Run Text="  " />
+                                                                            <Run Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[SummaryEngine]}" /><Run Text="  " />
                                                                             <Run Text="{Binding EngineUsed}" FontWeight="Medium" />
                                                                         </TextBlock>
                                                                     </StackPanel>
                                                                 </Grid>
                                                             </StackPanel>
                                                         </Grid>
+
+                                                        <!-- Direction ambiguity banner (Hotix→Hotix): explains why
+                                                             direction is unset and manual input is required. -->
+                                                        <Border Background="{StaticResource BrushWarningLight}"
+                                                                BorderBrush="{StaticResource BrushWarning}"
+                                                                BorderThickness="1"
+                                                                CornerRadius="{StaticResource RadiusMedium}"
+                                                                Padding="12,8"
+                                                                Margin="0,0,0,16"
+                                                                Visibility="{Binding HasDirectionAmbiguity, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                            <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[DirectionAmbiguityBanner]}"
+                                                                       Style="{StaticResource TextCaption}"
+                                                                       Foreground="{StaticResource BrushError}"
+                                                                       TextWrapping="Wrap" />
+                                                        </Border>
 
                                                         <!-- Divider -->
                                                         <Border Height="1" Background="{StaticResource BrushBorder}" Margin="0,0,0,16" />
@@ -1503,7 +1599,13 @@
                                                         <StackPanel>
                                                             <TextBlock Text="{Binding ItemsHeaderText}"
                                                                        Style="{StaticResource TextCardTitle}"
-                                                                       Margin="0,0,0,12" />
+                                                                       Margin="0,0,0,8" />
+
+                                                            <!-- Per-invoice export toggle -->
+                                                            <CheckBox IsChecked="{Binding IncludeItemsInExport}"
+                                                                      Content="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[IncludeItemsInExport]}"
+                                                                      Style="{StaticResource CheckBoxStyle}"
+                                                                      Margin="0,0,0,12" />
 
                                                             <!-- Items present: show table -->
                                                             <Border BorderBrush="{StaticResource BrushBorder}"
@@ -1521,23 +1623,23 @@
                                                                             <ColumnDefinition Width="60" />
                                                                             <ColumnDefinition Width="90" />
                                                                         </Grid.ColumnDefinitions>
-                                                                        <TextBlock Grid.Column="0" Text="Description"
+                                                                        <TextBlock Grid.Column="0" Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ItemColDescription]}"
                                                                                    Style="{StaticResource TextMetadata}"
                                                                                    FontWeight="{StaticResource FontWeightMedium}"
                                                                                    Padding="14,10" />
-                                                                        <TextBlock Grid.Column="1" Text="Qty"
+                                                                        <TextBlock Grid.Column="1" Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ItemColQty]}"
                                                                                    Style="{StaticResource TextMetadata}"
                                                                                    FontWeight="{StaticResource FontWeightMedium}"
                                                                                    Padding="14,10" />
-                                                                        <TextBlock Grid.Column="2" Text="Unit Price"
+                                                                        <TextBlock Grid.Column="2" Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ItemColUnitPrice]}"
                                                                                    Style="{StaticResource TextMetadata}"
                                                                                    FontWeight="{StaticResource FontWeightMedium}"
                                                                                    Padding="14,10" />
-                                                                        <TextBlock Grid.Column="3" Text="VAT%"
+                                                                        <TextBlock Grid.Column="3" Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ItemColVatPct]}"
                                                                                    Style="{StaticResource TextMetadata}"
                                                                                    FontWeight="{StaticResource FontWeightMedium}"
                                                                                    Padding="14,10" />
-                                                                        <TextBlock Grid.Column="4" Text="Total"
+                                                                        <TextBlock Grid.Column="4" Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ItemColTotal]}"
                                                                                    Style="{StaticResource TextMetadata}"
                                                                                    FontWeight="{StaticResource FontWeightMedium}"
                                                                                    Padding="14,10" />
@@ -1592,7 +1694,7 @@
                                                                     BorderBrush="{StaticResource BrushBorder}"
                                                                     BorderThickness="1"
                                                                     Visibility="{Binding HasItems, Converter={StaticResource InverseBooleanToVisibilityConverter}}">
-                                                                <TextBlock Text="No extracted items available."
+                                                                <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ItemsEmpty]}"
                                                                            Style="{StaticResource TextCaption}"
                                                                            Foreground="{StaticResource BrushTextMuted}"
                                                                            HorizontalAlignment="Center" />
@@ -2049,7 +2151,7 @@
                                                                                                Style="{StaticResource TextTiny}"
                                                                                                Foreground="{StaticResource BrushTextMuted}"
                                                                                                VerticalAlignment="Center">
-                                                                                        <Run Text="Base: " /><Run Text="{Binding BaseHtDisplay, Mode=OneWay}" />
+                                                                                        <Run Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[TaxBaseLabel]}" /><Run Text="{Binding BaseHtDisplay, Mode=OneWay}" />
                                                                                     </TextBlock>
                                                                                     <TextBlock Grid.Column="2"
                                                                                                Text="{Binding TaxAmountDisplay, Mode=OneWay}"

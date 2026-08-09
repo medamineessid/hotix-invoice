@@ -54,6 +54,44 @@
         </ControlTemplate.Triggers>
     </ControlTemplate>
 
+    <!-- ═══════════════════════════════════════════════
+         Segmented Control — neutral toolbar filter groups
+         Container: light neutral background, 1px border, 8px corners, ~2px padding.
+         Option: transparent bg + gray text by default; the SELECTED option alone
+         gets a solid dark fill with white text (no per-option color). Confidence
+         options may carry a small colored dot (6px circle) as a visual cue.
+         ═══════════════════════════════════════════════ -->
+
+    <!-- Neutral container that groups one filter dimension's options. -->
+    <Style x:Key="SegmentedContainerStyle" TargetType="Border">
+        <Setter Property="Background" Value="{StaticResource BrushAltBackground}" />
+        <Setter Property="BorderBrush" Value="{StaticResource BrushBorder}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="{StaticResource RadiusSmall}" />
+        <Setter Property="Padding" Value="2" />
+    </Style>
+
+    <!-- Individual option inside a segmented container. Default: transparent
+         bg + secondary gray text. The DataTrigger per option (added where used)
+         flips it to solid dark bg + white text when selected. -->
+    <Style x:Key="SegmentedOptionStyle" TargetType="Border">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="CornerRadius" Value="6" />
+        <Setter Property="Padding" Value="12,5" />
+        <Setter Property="Margin" Value="1" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="TextElement.Foreground" Value="{StaticResource BrushTextSecondary}" />
+    </Style>
+
+    <!-- Small colored dot (6px circle) used as a neutral visual cue on
+         confidence filter options (green/orange/red). -->
+    <Style x:Key="SegmentedDotStyle" TargetType="Ellipse">
+        <Setter Property="Width" Value="6" />
+        <Setter Property="Height" Value="6" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="Margin" Value="0,0,6,0" />
+    </Style>
+
     <!-- ═══ Primary Button — Red Accent ═══ -->
     <Style x:Key="ButtonPrimaryStyle" TargetType="ButtonBase">
         <Setter Property="Background"  Value="{StaticResource BrushButtonPrimary}" />

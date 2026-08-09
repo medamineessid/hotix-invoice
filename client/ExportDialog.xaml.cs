@@ -23,6 +23,10 @@ public partial class ExportDialog : Window
     public FilterMode SelectedFilter { get; private set; } = FilterMode.Both;
     public DestinationMode SelectedDestination { get; private set; } = DestinationMode.CreateNew;
 
+    /// <summary>Whether the per-item "Articles" sheet is created for this
+    /// export. The per-invoice toggle on each row only matters when this is on.</summary>
+    public bool IncludeItemsInExport { get; private set; } = true;
+
     public ExportDialog()
     {
         InitializeComponent();
@@ -30,9 +34,21 @@ public partial class ExportDialog : Window
 
     private void Window_Loaded(object sender, RoutedEventArgs e)
     {
-        // Default: Both selected, Create New
+        // Default: Both selected, Create New, items included
         UpdateFilterSelection(FilterMode.Both);
         AppendCheckBox.IsChecked = false;
+        IncludeItemsCheckBox.IsChecked = true;
+        IncludeItemsInExport = true;
+    }
+
+    private void IncludeItemsCard_Click(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        IncludeItemsCheckBox.IsChecked = !IncludeItemsCheckBox.IsChecked;
+    }
+
+    private void IncludeItemsCheckBox_Changed(object sender, RoutedEventArgs e)
+    {
+        IncludeItemsInExport = IncludeItemsCheckBox.IsChecked == true;
     }
 
     private void FilterResultsOnly_Click(object sender, System.Windows.Input.MouseButtonEventArgs e)

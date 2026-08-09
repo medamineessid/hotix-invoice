@@ -27,6 +27,7 @@ public sealed class InvoiceRowViewModel : INotifyPropertyChanged
     private HashSet<string> _computedFields = new();
     private bool _amountMismatch;
     private string _invoiceDirection = string.Empty;
+    private bool _directionAmbiguity;
     private int _itemsCount;
     private bool _areItemsExpanded;
     private List<InvoiceItem> _items = new();
@@ -220,8 +221,15 @@ public sealed class InvoiceRowViewModel : INotifyPropertyChanged
         get => _invoiceDirection;
         set
         {
-            if (SetField(ref _invoiceDirection, value ?? string.Empty))
+            string newValue = value ?? string.Empty;
+            if (SetField(ref _invoiceDirection, newValue))
             {
+                // Assigning a concrete direction resolves any auto-detection
+                // ambiguity flagged earlier — regardless of which code path
+                // assigns (CycleDirection, retry, or a future direct setter).
+                if (!string.IsNullOrEmpty(newValue) && _directionAmbiguity)
+                    HasDirectionAmbiguity = false;
+
                 OnPropertyChanged(nameof(DirectionDisplay));
                 OnPropertyChanged(nameof(DirectionBadgeColor));
                 OnPropertyChanged(nameof(DirectionBadgeBg));
@@ -263,15 +271,34 @@ public sealed class InvoiceRowViewModel : INotifyPropertyChanged
         _          => "○",
     };
 
-    /// <summary>Tooltip for the direction badge (from translations).</summary>
+    /// <summary>Tooltip for the direction badge (from translations). When the
+    /// auto-detection hit the real ambiguous case (both sides contain
+    /// "Hotix"), the tooltip explains WHY the direction is unset instead of
+    /// just saying "click to set".</summary>
     public string DirectionTooltip => _invoiceDirection switch
     {
         "received" => TranslationSource.Get("DirectionTooltipReceived"),
         "issued"   => TranslationSource.Get("DirectionTooltipIssued"),
+        _ when _directionAmbiguity => TranslationSource.Get("DirectionAmbiguityBoth"),
         _          => TranslationSource.Get("DirectionTooltipUnset"),
     };
 
-    /// <summary>Cycle direction: unset → received → issued → unset.</summary>
+    /// <summary>True when auto-detection hit the genuinely ambiguous case:
+    /// both Fournisseur and Client contain "Hotix" (internal Hotix-to-Hotix
+    /// invoice), so no direction was locked and the user must decide.</summary>
+    public bool HasDirectionAmbiguity
+    {
+        get => _directionAmbiguity;
+        private set
+        {
+            if (SetField(ref _directionAmbiguity, value))
+                OnPropertyChanged(nameof(DirectionTooltip));
+        }
+    }
+
+    /// <summary>Cycle direction: unset → received → issued → unset.
+    /// Manual input resolves any auto-detection ambiguity flag (handled by the
+    /// InvoiceDirection setter itself).</summary>
     public void CycleDirection()
     {
         InvoiceDirection = _invoiceDirection switch
@@ -286,9 +313,12 @@ public sealed class InvoiceRowViewModel : INotifyPropertyChanged
     /// <summary>
     /// Auto-detect invoice direction from Fournisseur/Client fields.
     /// Only applies when direction is currently unset (user hasn't manually set it).
-    /// If "Hotix" (case-insensitive) appears in Fournisseur → "issued"
-    /// If "Hotix" appears in Client → "received"
-    /// If in neither or both (ambiguous) → leave unset.
+    /// Business rule (case-insensitive "Hotix" match):
+    ///   1. Fournisseur contains "Hotix", Client does not        → "issued"
+    ///   2. Client contains "Hotix", Fournisseur does not        → "received"
+    ///   3. Neither contains "Hotix" (third-party invoice)       → unset, manual
+    ///   4. Both contain "Hotix" (internal Hotix-to-Hotix)       → unset + explicit
+    ///      ambiguity message shown to the user (NOT silently locked)
     /// </summary>
     public void AutoDetectDirection()
     {
@@ -306,11 +336,33 @@ public sealed class InvoiceRowViewModel : INotifyPropertyChanged
         bool hotixInClient = _client.Contains("Hotix", StringComparison.OrdinalIgnoreCase);
 
         if (hotixInFournisseur && !hotixInClient)
+        {
+            HasDirectionAmbiguity = false;
             InvoiceDirection = "issued";
+        }
         else if (hotixInClient && !hotixInFournisseur)
+        {
+            HasDirectionAmbiguity = false;
             InvoiceDirection = "received";
-        // else: ambiguous (both or neither) — leave as unset
+        }
+        else if (hotixInFournisseur && hotixInClient)
+        {
+            // Real ambiguous case: Hotix issued an invoice to itself. Do NOT
+            // silently lock on a value — stay unset but flag the ambiguity so
+            // the UI can tell the user why manual input is required.
+            HasDirectionAmbiguity = true;
+            InvoiceDirection = string.Empty;
+        }
+        else
+        {
+            // Neither side is Hotix: third-party invoice, direction is genuinely
+            // unknown — stay unset, manual input required.
+            HasDirectionAmbiguity = false;
+            InvoiceDirection = string.Empty;
+        }
     }
+
+
 
     // ── Items / Line-Articles (UI placeholder for future item-level data) ──
 
@@ -384,6 +436,17 @@ public sealed class InvoiceRowViewModel : INotifyPropertyChanged
 
     /// <summary>Toggle the articles expand/collapse state.</summary>
     public void ToggleItemsExpanded() => AreItemsExpanded = !AreItemsExpanded;
+
+    private bool _includeItemsInExport = true;
+
+    /// <summary>Per-invoice choice: include this invoice's line items on the
+    /// export's "Articles" sheet. Defaults to true; only rows that opt in AND
+    /// have extracted items contribute rows to that sheet.</summary>
+    public bool IncludeItemsInExport
+    {
+        get => _includeItemsInExport;
+        set => SetField(ref _includeItemsInExport, value);
+    }
 
     /// <summary>
     /// Cross-check item-level VAT against the invoice-level MontantTva field.

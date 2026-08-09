@@ -17,8 +17,8 @@ _GEMINI_PROMPT_FR = """Extrais les informations de cette facture sous forme de J
 Les clés doivent être exactement : numero_facture, date, fournisseur, client, montant_ht, montant_tva, montant_taxe, montant_ttc.
 Pour numero_facture : cherche dans le coin supérieur droit ou gauche de la facture. Même s'il n'y a pas de label "N° Facture", il y a souvent un identifiant comme "FAC-2025-001", "2025/042", ou "REF-12345" près de la date ou du logo. Si tu trouves un tel identifiant, retourne-le comme numero_facture.
 Extrais également les lignes d'articles si présentes dans un tableau nommé "items".
-Chaque article a les clés : designation, quantite, unite, prix_unitaire, tva_rate, montant.
-Pour unite, extrais le texte brut de la colonne unité (h., pce., stère, kg, m², etc.) comme string.
+Chaque article a les clés : designation, quantite, unit, prix_unitaire, tva_rate, montant.
+Pour unit, extrais le texte brut de la colonne unité (h., pce., stère, kg, m², etc.) comme string.
 Pour tva_rate, utilise le format décimal (ex: 0.20 pour 20%, 0.10 pour 10%, 0.055 pour 5.5%).
 Extrais aussi le tableau récapitulatif de TVA (souvent en bas de facture, après les lignes d'articles) dans un tableau "tax_summary".
 Chaque ligne de tax_summary a les clés : rate, base_ht, tax_amount (tous en float).
@@ -27,7 +27,7 @@ Si la facture n'a pas de tableau d'articles, mets items à []. Si pas de récapi
 RÈGLES STRICTES :
 - numero_facture, date, fournisseur, client doivent être des strings simples (pas d'objet, pas de nombre sans guillemets).
 - Les montants (montant_ht, montant_tva, montant_taxe, montant_ttc) doivent être des nombres (float), jamais des strings.
-- Chaque item dans "items" doit avoir designation comme string simple et unite comme string simple.
+- Chaque item dans "items" doit avoir designation comme string simple et unit comme string simple.
 - Ne retourne JAMAIS un objet là où une string est attendue.
 Réponds uniquement avec le JSON."""
 
@@ -35,8 +35,8 @@ _GEMINI_PROMPT_EN = """Extract the information from this invoice as JSON only.
 The keys must be exactly: numero_facture, date, fournisseur, client, montant_ht, montant_tva, montant_taxe, montant_ttc.
 For numero_facture: look in the top-right or top-left corner of the invoice. Even if there's no "Invoice Number" label, there is often an identifier like "FAC-2025-001", "2025/042", or "REF-12345" near the date or logo. If you find such an identifier, return it as numero_facture.
 Also extract line items if present in an array named "items".
-Each item has keys: designation, quantite, unite, prix_unitaire, tva_rate, montant.
-For unite, extract the raw text from the unit column (h., pce., stère, kg, m², etc.) as a string.
+Each item has keys: designation, quantite, unit, prix_unitaire, tva_rate, montant.
+For unit, extract the raw text from the unit column (h., pce., stère, kg, m², etc.) as a string.
 For tva_rate use decimal format (e.g. 0.20 for 20%, 0.10 for 10%, 0.055 for 5.5%).
 Also extract the tax summary table (usually at the bottom of the invoice, below the line items) in an array named "tax_summary".
 Each tax_summary row has keys: rate, base_ht, tax_amount (all as floats).
@@ -45,9 +45,20 @@ If the invoice has no item table, set items to []. If no tax summary, set tax_su
 STRICT RULES:
 - numero_facture, date, fournisseur, client must be plain strings (no objects, no unquoted numbers).
 - Amounts (montant_ht, montant_tva, montant_taxe, montant_ttc) must be numbers (float), never strings.
-- Each item in "items" must have designation as a plain string and unite as a plain string.
+- Each item in "items" must have designation as a plain string and unit as a plain string.
 - NEVER return an object where a string is expected.
 Reply with JSON only."""
+
+
+# ── Canonical wire schema ───────────────────────────────────────────────────
+# These are the exact keys the WPF client deserializes (InvoiceResult.cs /
+# InvoiceItem / TaxSummaryRow). The extraction prompts and the normalizers
+# below MUST agree with them — server/tests/test_llm_schema_parity.py pins
+# this contract across all three LLM paths so a rename cannot drift silently
+# (the Bug B drift class that once blanked the tax column).
+
+GEMINI_ITEM_KEYS = ("designation", "quantite", "unit", "prix_unitaire", "tva_rate", "montant")
+TAX_SUMMARY_KEYS = ("rate", "base_ht", "tax_amount")
 
 
 def _get_gemini_prompt() -> str:
@@ -239,6 +250,60 @@ async def _call_gemini_with_retry(client, model_name: str, prompt: str, image_da
         raise GeminiExtractionError(f"Erreur inattendue lors de l'extraction Gemini: {e}")
 
 
+def _normalize_item(raw_item: dict[str, Any]) -> dict[str, Any]:
+    """Normalize ONE raw Gemini item into the canonical wire format.
+
+    Tolerates the legacy French key "unite" (older prompts / model habits) —
+    the OUTPUT always uses "unit", the key the WPF client deserializes.
+    """
+    return {
+        "designation": _normalize_string_field(raw_item.get("designation")),
+        "quantite": _normalize_amount_field(raw_item.get("quantite")),
+        "unit": _normalize_string_field(raw_item.get("unite") or raw_item.get("unit")),
+        "prix_unitaire": _normalize_amount_field(raw_item.get("prix_unitaire")),
+        "tva_rate": _normalize_amount_field(raw_item.get("tva_rate")),
+        "montant": _normalize_amount_field(raw_item.get("montant")),
+    }
+
+
+def _normalize_items(raw_items: Any) -> list[dict[str, Any]]:
+    """Normalize Gemini's raw items payload (list, or dict with numeric keys)
+    into the canonical wire format. Handles the single-string-object shape
+    Gemini sometimes returns and always emits GEMINI_ITEM_KEYS."""
+    parsed_items: list[dict[str, Any]] = []
+    if isinstance(raw_items, list):
+        for raw_item in raw_items:
+            if not isinstance(raw_item, dict):
+                continue
+            # Handle Gemini returning a single string instead of an object
+            if len(raw_item) == 1 and isinstance(list(raw_item.values())[0], str):
+                key = list(raw_item.keys())[0]
+                raw_item = {"designation": raw_item[key]}
+            parsed_items.append(_normalize_item(raw_item))
+    elif isinstance(raw_items, dict):
+        # Gemini sometimes returns items as a dict with numeric keys
+        for key in sorted(raw_items.keys()):
+            item = raw_items[key]
+            if isinstance(item, dict):
+                parsed_items.append(_normalize_item(item))
+    return parsed_items
+
+
+def _normalize_tax_summary(raw_tax: Any) -> list[dict[str, Any]]:
+    """Normalize Gemini's raw tax_summary payload into the canonical wire
+    format (TAX_SUMMARY_KEYS)."""
+    parsed_tax: list[dict[str, Any]] = []
+    if isinstance(raw_tax, list):
+        for row in raw_tax:
+            if isinstance(row, dict):
+                parsed_tax.append({
+                    "rate": _normalize_amount_field(row.get("rate")),
+                    "base_ht": _normalize_amount_field(row.get("base_ht")),
+                    "tax_amount": _normalize_amount_field(row.get("tax_amount")),
+                })
+    return parsed_tax
+
+
 async def extract_with_gemini(image_data: bytes, mime_type: str) -> Dict[str, Any]:
     """Extract invoice fields (and optionally line items) using Gemini Vision.
 
@@ -283,55 +348,10 @@ async def extract_with_gemini(image_data: bytes, mime_type: str) -> Dict[str, An
                 result[key] = _normalize_string_field(value)
 
         # Parse items array with robust normalization (optional — may be missing or empty)
-        raw_items = data.get("items", [])
-        parsed_items: list[dict[str, Any]] = []
-
-        if isinstance(raw_items, list):
-            for raw_item in raw_items:
-                if not isinstance(raw_item, dict):
-                    continue
-
-                # Handle Gemini returning a single string instead of an object
-                if len(raw_item) == 1 and isinstance(list(raw_item.values())[0], str):
-                    key = list(raw_item.keys())[0]
-                    raw_item = {"designation": raw_item[key]}
-
-                parsed_items.append({
-                    "designation": _normalize_string_field(raw_item.get("designation")),
-                    "quantite": _normalize_amount_field(raw_item.get("quantite")),
-                    "unit": _normalize_string_field(raw_item.get("unite") or raw_item.get("unit")),
-                    "prix_unitaire": _normalize_amount_field(raw_item.get("prix_unitaire")),
-                    "tva_rate": _normalize_amount_field(raw_item.get("tva_rate")),
-                    "montant": _normalize_amount_field(raw_item.get("montant")),
-                })
-        elif isinstance(raw_items, dict):
-            # Gemini sometimes returns items as a dict with numeric keys
-            for key in sorted(raw_items.keys()):
-                item = raw_items[key]
-                if isinstance(item, dict):
-                    parsed_items.append({
-                        "designation": _normalize_string_field(item.get("designation")),
-                        "quantite": _normalize_amount_field(item.get("quantite")),
-                        "unit": _normalize_string_field(item.get("unite") or item.get("unit")),
-                        "prix_unitaire": _normalize_amount_field(item.get("prix_unitaire")),
-                        "tva_rate": _normalize_amount_field(item.get("tva_rate")),
-                        "montant": _normalize_amount_field(item.get("montant")),
-                    })
-
-        result["items"] = parsed_items
+        result["items"] = _normalize_items(data.get("items", []))
 
         # Parse tax_summary array (optional per-rate VAT breakdown)
-        raw_tax = data.get("tax_summary", [])
-        parsed_tax: list[dict[str, Any]] = []
-        if isinstance(raw_tax, list):
-            for row in raw_tax:
-                if isinstance(row, dict):
-                    parsed_tax.append({
-                        "rate": _normalize_amount_field(row.get("rate")),
-                        "base_ht": _normalize_amount_field(row.get("base_ht")),
-                        "tax_amount": _normalize_amount_field(row.get("tax_amount")),
-                    })
-        result["tax_summary"] = parsed_tax
+        result["tax_summary"] = _normalize_tax_summary(data.get("tax_summary", []))
 
         return result
 

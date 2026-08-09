@@ -30,6 +30,7 @@
   <ItemGroup>
     <None Include="../client/Resources/strings.json" Link="Resources/strings.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../client/Resources/strings.fr.json" Link="Resources/strings.fr.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="preview_sample.png" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>
