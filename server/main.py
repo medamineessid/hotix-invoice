@@ -163,7 +163,22 @@ class SimpleRateLimiter:
 
 
 # Global rate limiter instances for different endpoint groups
-_rate_limiter_default = SimpleRateLimiter(max_requests=10, window_seconds=60)
+# The extraction endpoint is local and single-user, and the desktop client can
+# submit batches with up to 16 concurrent requests. Keep protection against a
+# runaway local process while leaving normal folder imports well above that
+# concurrency and batch size. Override once at startup with
+# HOTIX_EXTRACT_RATE_LIMIT when a deployment needs a different ceiling.
+def _parse_rate_limit(env_value: Optional[str], default: int = 100) -> int:
+    """Parse the extraction request ceiling defensively."""
+    try:
+        value = int(env_value) if env_value else default
+    except (TypeError, ValueError):
+        value = default
+    return max(1, value)
+
+
+EXTRACT_RATE_LIMIT: int = _parse_rate_limit(os.getenv("HOTIX_EXTRACT_RATE_LIMIT"))
+_rate_limiter_default = SimpleRateLimiter(max_requests=EXTRACT_RATE_LIMIT, window_seconds=60)
 _rate_limiter_validate = SimpleRateLimiter(max_requests=5, window_seconds=60)
 
 
@@ -869,9 +884,11 @@ async def extract(
     Wrapped in asyncio.wait_for with a 120-second timeout to prevent
     hanging on corrupted files or PaddleOCR deadlocks.
 
-    Rate-limited to 10 requests per minute per IP.
+    Rate-limited to EXTRACT_RATE_LIMIT requests per minute per IP. The default
+    is 100, which accommodates normal local batch imports while retaining a
+    runaway-process safeguard; override with HOTIX_EXTRACT_RATE_LIMIT.
     """
-    # Rate limit: 10 req/min per IP
+    # Rate limit: EXTRACT_RATE_LIMIT req/min per IP
     client_ip = _get_client_ip(request)
     if not _rate_limiter_default.is_allowed(client_ip):
         raise HTTPException(

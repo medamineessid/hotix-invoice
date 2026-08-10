@@ -25,6 +25,9 @@ jobs:
       - name: Run C# tests
         run: dotnet test client-tests/Hotix.InvoiceClient.Tests.csproj
       - name: Install Python test dependencies
-        run: pip install pytest fastapi httpx pydantic python-multipart numpy Pillow sentry-sdk google-genai pdf2image
+        run: pip install -r requirements.txt pytest
+      # PaddleOCR/PaddlePaddle are intentionally installed from requirements.txt.
+      # They are heavyweight, but CI must exercise the same runtime dependency
+      # set shipped by the application instead of silently omitting OCR coverage.
       - name: Run Python tests
         run: pytest server/tests/
