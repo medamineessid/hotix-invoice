@@ -3,19 +3,20 @@
 from __future__ import annotations
 
 import asyncio
+import hmac
 import io
 import json
 import logging
 import os
 import random
+import secrets
 import sys
 import time
 from collections import defaultdict
 from contextlib import asynccontextmanager
-from hashlib import sha256
 from pathlib import Path
 
-from fastapi import FastAPI, File, HTTPException, Query, Request, UploadFile
+from fastapi import FastAPI, File, Header, HTTPException, Query, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
 
@@ -324,8 +325,6 @@ async def health() -> HealthResponse:
     )
 
 
-PREVIEW_ROOT = Path(os.getenv("HOTIX_PREVIEW_ROOT", "./previews")).resolve()
-
 # Token-based preview registration: client registers a file path, gets a
 # short-lived token, then fetches the preview by token.  This keeps arbitrary
 # filesystem access gated behind an explicit registration step instead of
@@ -360,9 +359,11 @@ async def preview_register(request: Request) -> dict:
     if suffix not in SUPPORTED_SUFFIXES:
         raise HTTPException(status_code=400, detail=f"Type de fichier non supporté : {suffix}")
 
-    # Generate a token from the resolved path + timestamp
-    raw = f"{resolved}:{time.time()}"
-    token = sha256(raw.encode()).hexdigest()[:32]
+    # Generate an unguessable, path-independent token using a cryptographic
+    # random source.  (Previously the token was sha256(resolved_path + timestamp),
+    # which a local attacker who knows the file path and can bound the timestamp
+    # window could recompute without ever calling this endpoint.)
+    token = secrets.token_urlsafe(32)
 
     # Clean up expired tokens (cheap, no timer needed)
     now = time.time()
@@ -560,14 +561,42 @@ async def validate_gemini_key(
         return {"valid": False, "error": error_str}
 
 
+def _admin_token_matches(provided: str) -> bool:
+    """Constant-time check of an admin token against HOTIX_ADMIN_TOKEN.
+
+    Fails closed: when HOTIX_ADMIN_TOKEN is not configured, every provided
+    token (including an empty one) is rejected.  hmac.compare_digest avoids
+    leaking the expected value through response-timing differences.
+    """
+    expected = os.getenv("HOTIX_ADMIN_TOKEN")
+    if not expected:
+        return False
+    return hmac.compare_digest(provided.encode("utf-8"), expected.encode("utf-8"))
+
+
 @app.post("/admin/recycle-engine")
-async def admin_recycle_engine() -> dict:
+async def admin_recycle_engine(x_admin_token: str = Header(default="")) -> dict:
     """Force-recycle the OCR engine on demand (for diagnostics/testing).
+
+    Protected by a shared-secret header: the request must carry
+    ``X-Admin-Token`` equal to the ``HOTIX_ADMIN_TOKEN`` environment variable
+    (constant-time comparison).  This is a manual diagnostic tool — the desktop
+    client never calls it (verified: no ``/admin/recycle-engine`` reference in
+    ``client/``) — so the token is supplied out-of-band, e.g.::
+
+        curl -X POST -H "X-Admin-Token: $HOTIX_ADMIN_TOKEN" \\
+             http://127.0.0.1:8000/admin/recycle-engine
+
+    Fails closed: without ``HOTIX_ADMIN_TOKEN`` set, every request is rejected
+    with HTTP 403.
 
     Acquires both _ocr_semaphore (to ensure no extraction is in progress)
     and ocr_recycle_lock (to prevent concurrent recycling with the
     interval-triggered path).
     """
+    if not _admin_token_matches(x_admin_token):
+        raise HTTPException(status_code=403, detail="Token admin manquant ou invalide")
+
     async with _ocr_semaphore:
         async with app.state.ocr_recycle_lock:
             rss_delta = await asyncio.to_thread(_recycle_ocr_engine, app.state)

@@ -53,7 +53,6 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     private string _grokModel = string.Empty;
     private bool _isSettingsPanelOpen;
     private DispatcherTimer? _engineStatusTimer;
-    private DispatcherTimer? _processingTimer;
     private readonly Stopwatch _processingStopwatch = new();
     private bool _isServerRunning = true;
     private bool _isServerStarted;
