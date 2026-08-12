@@ -38,6 +38,12 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     private static readonly HttpClient _httpShortClient = new() { Timeout = TimeSpan.FromSeconds(10) };
     private static readonly HttpClient _httpCloudClient = new() { Timeout = TimeSpan.FromSeconds(30) };
 
+    // Cloud providers may reject a burst of concurrent vision requests even when
+    // the API key is valid. Serialize requests per provider so batch concurrency
+    // does not turn a normal multi-file import into a spurious per-file OCR fallback.
+    private static readonly SemaphoreSlim _geminiRequestGate = new(1, 1);
+    private static readonly SemaphoreSlim _grokRequestGate = new(1, 1);
+
     private string _selectedEngine = "auto";
     private bool _geminiAvailable;
     private string _geminiKeyInput = string.Empty;
@@ -1502,6 +1508,24 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
 
     private async Task<InvoiceResult> CallGeminiDirectlyAsync(string filePath, string apiKey)
     {
+        await _geminiRequestGate.WaitAsync();
+        try
+        {
+            if (GeminiDisabled)
+                throw new CloudQuotaExceededException(
+                    _geminiDisabledReason,
+                    HttpStatusCode.TooManyRequests);
+
+            return await CallGeminiDirectlyCoreAsync(filePath, apiKey);
+        }
+        finally
+        {
+            _geminiRequestGate.Release();
+        }
+    }
+
+    private async Task<InvoiceResult> CallGeminiDirectlyCoreAsync(string filePath, string apiKey)
+    {
         byte[] fileBytes = await File.ReadAllBytesAsync(filePath);
         string base64Data = Convert.ToBase64String(fileBytes);
         string mimeType = GetMimeType(filePath);
@@ -1634,6 +1658,24 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     /// Extract invoice data via the Grok (xAI) API using an OpenAI-compatible chat completions call.
     /// </summary>
     private async Task<InvoiceResult> CallGrokDirectlyAsync(string filePath, string apiKey)
+    {
+        await _grokRequestGate.WaitAsync();
+        try
+        {
+            if (GrokDisabled)
+                throw new CloudQuotaExceededException(
+                    _grokDisabledReason,
+                    HttpStatusCode.TooManyRequests);
+
+            return await CallGrokDirectlyCoreAsync(filePath, apiKey);
+        }
+        finally
+        {
+            _grokRequestGate.Release();
+        }
+    }
+
+    private async Task<InvoiceResult> CallGrokDirectlyCoreAsync(string filePath, string apiKey)
     {
         byte[] fileBytes = await File.ReadAllBytesAsync(filePath);
         string base64Data = Convert.ToBase64String(fileBytes);
@@ -2723,30 +2765,30 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                             LogPipeline("Grok succeeded after Gemini quota");
                             row = InvoiceRowViewModel.FromSuccess(file, grokResult);
                         }
-                        catch (CloudQuotaExceededException grokEx)
-                        {
-                            bool firstGrokQuota = TryMarkGrokDisabled(ErrorMessageTranslator.ToUserMessage(grokEx));
-                            LogPipeline("Grok also failed after Gemini quota — falling back to OCR");
+                    catch (CloudQuotaExceededException grokEx)
+                    {
+                        bool firstGrokQuota = TryMarkGrokDisabled(ErrorMessageTranslator.ToUserMessage(grokEx));
+                        LogPipeline("Grok also failed after Gemini quota — falling back to OCR");
 
-                            if (firstGrokQuota && !_grokOcrChosenForSession)
-                                await HandleQuotaExceededAsync(isGemini: false, "grok");
+                        if (firstGrokQuota && !_grokOcrChosenForSession)
+                            await HandleQuotaExceededAsync(isGemini: false, "grok");
 
-                            await ShowQuotaFallbackBannerAsync();
-                            row = await ExtractViaServerAsync(file, ct);
-                        }
-                        catch (CloudApiException grokEx) when (grokEx.StatusCode.HasValue && IsPermanentCloudFailure(grokEx.StatusCode.Value))
-                        {
-                            TryMarkGrokDisabled(ErrorMessageTranslator.ToUserMessage(grokEx));
-                            LogPipeline("Grok also failed after Gemini quota — falling back to OCR");
-                            await ShowQuotaFallbackBannerAsync();
-                            row = await ExtractViaServerAsync(file, ct);
-                        }
-                        catch
-                        {
-                            LogPipeline("Grok also failed after Gemini quota — falling back to OCR");
-                            await ShowQuotaFallbackBannerAsync();
-                            row = await ExtractViaServerAsync(file, ct);
-                        }
+                        await ShowQuotaFallbackBannerAsync();
+                        row = await ExtractViaServerAsync(file, ct, ErrorMessageTranslator.ToUserMessage(grokEx));
+                    }
+                    catch (CloudApiException grokEx) when (grokEx.StatusCode.HasValue && IsPermanentCloudFailure(grokEx.StatusCode.Value))
+                    {
+                        TryMarkGrokDisabled(ErrorMessageTranslator.ToUserMessage(grokEx));
+                        LogPipeline("Grok also failed after Gemini quota — falling back to OCR");
+                        await ShowQuotaFallbackBannerAsync();
+                        row = await ExtractViaServerAsync(file, ct, ErrorMessageTranslator.ToUserMessage(grokEx));
+                    }
+                    catch (Exception grokEx)
+                    {
+                        LogPipeline("Grok also failed after Gemini quota — falling back to OCR");
+                        await ShowQuotaFallbackBannerAsync();
+                        row = await ExtractViaServerAsync(file, ct, ErrorMessageTranslator.ToUserMessage(grokEx, ocrServerContext: false));
+                    }
                     }
                     else if (selectedEngine == "gemini")
                     {
@@ -2758,7 +2800,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                     else
                     {
                         await ShowQuotaFallbackBannerAsync();
-                        row = await ExtractViaServerAsync(file, ct);
+                        row = await ExtractViaServerAsync(file, ct, ErrorMessageTranslator.ToUserMessage(ex));
                     }
                 }
                 catch (CloudApiException ex) when (ex.StatusCode.HasValue && IsPermanentCloudFailure(ex.StatusCode.Value))
@@ -2785,24 +2827,24 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                                 if (firstGrokQuota && !_grokOcrChosenForSession)
                                     await HandleQuotaExceededAsync(isGemini: false, "grok");
 
-                                row = await ExtractViaServerAsync(file, ct);
+                                row = await ExtractViaServerAsync(file, ct, ErrorMessageTranslator.ToUserMessage(grokEx));
                             }
                             catch (CloudApiException grokEx) when (grokEx.StatusCode.HasValue && IsPermanentCloudFailure(grokEx.StatusCode.Value))
                             {
                                 TryMarkGrokDisabled(ErrorMessageTranslator.ToUserMessage(grokEx));
                                 LogPipeline("Grok fallback also failed — trying OCR server");
-                                row = await ExtractViaServerAsync(file, ct);
+                                row = await ExtractViaServerAsync(file, ct, ErrorMessageTranslator.ToUserMessage(grokEx));
                             }
-                            catch
+                            catch (Exception grokEx)
                             {
                                 LogPipeline("Grok fallback also failed — trying OCR server");
-                                row = await ExtractViaServerAsync(file, ct);
+                                row = await ExtractViaServerAsync(file, ct, ErrorMessageTranslator.ToUserMessage(grokEx, ocrServerContext: false));
                             }
                         }
                         else
                         {
                             LogPipeline("No Grok key — falling back to OCR server");
-                            row = await ExtractViaServerAsync(file, ct);
+                            row = await ExtractViaServerAsync(file, ct, ErrorMessageTranslator.ToUserMessage(ex));
                         }
                     }
                     else
@@ -2831,11 +2873,6 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                     LogPipeline("HTTP response received — success");
                     row = InvoiceRowViewModel.FromSuccess(file, result);
                 }
-                catch (Exception) when (selectedEngine == "auto")
-                {
-                    LogPipeline("Grok failed in auto mode — falling back to OCR server");
-                    row = await ExtractViaServerAsync(file, ct);
-                }
                 catch (CloudQuotaExceededException ex)
                 {
                     bool firstGrokQuota = TryMarkGrokDisabled(ErrorMessageTranslator.ToUserMessage(ex));
@@ -2847,7 +2884,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
 
                     if (selectedEngine == "auto")
                     {
-                        row = await ExtractViaServerAsync(file, ct);
+                        row = await ExtractViaServerAsync(file, ct, ErrorMessageTranslator.ToUserMessage(ex));
                     }
                     else
                     {
@@ -2862,13 +2899,18 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                     TryMarkGrokDisabled(ErrorMessageTranslator.ToUserMessage(ex));
                     LogPipeline($"Grok skipped (cached failure) for {fileName}");
                     row = selectedEngine == "auto"
-                        ? await ExtractViaServerAsync(file, ct)
+                        ? await ExtractViaServerAsync(file, ct, ErrorMessageTranslator.ToUserMessage(ex))
                         : InvoiceRowViewModel.FromError(file, ErrorMessageTranslator.ToUserMessage(ex));
                 }
                 catch (CloudApiException ex)
                 {
                     LogPipeline($"Grok API error: {ex.Message}");
                     row = InvoiceRowViewModel.FromError(file, ErrorMessageTranslator.ToUserMessage(ex));
+                }
+                catch (Exception ex2) when (selectedEngine == "auto")
+                {
+                    LogPipeline("Grok failed in auto mode — falling back to OCR server");
+                    row = await ExtractViaServerAsync(file, ct, ErrorMessageTranslator.ToUserMessage(ex2, ocrServerContext: false));
                 }
                 catch (Exception ex2)
                 {
@@ -2923,7 +2965,12 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         });
         NotifySummaryChanged();
 
-        string[] files = DetectedFiles.Where(f => f.IsSelected).Select(f => f.FilePath).ToArray();
+        // Snapshot canonical paths once. File selection can be populated from a
+        // folder drop, a multi-select dialog, or individual drops; equivalent
+        // relative/absolute spellings must still represent one input file.
+        string[] files = DistinctInputFilePaths(
+                DetectedFiles.Where(f => f.IsSelected).Select(f => f.FilePath))
+            .ToArray();
         TotalFiles = files.Length;
         LogPipeline($"Input file count: {files.Length}");
 
@@ -3063,27 +3110,34 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                             return;
 
                         var extractionToken = _extractionCts?.Token ?? CancellationToken.None;
-                        InvoiceRowViewModel row = await ProcessInvoiceAsync(
-                            file,
-                            selectedEngine,
-                            geminiKey,
-                            grokKey,
-                            hasGemini,
-                            hasGrok,
-                            extractionToken);
+                        InvoiceRowViewModel row;
+                        try
+                        {
+                            row = await ProcessInvoiceAsync(
+                                file,
+                                selectedEngine,
+                                geminiKey,
+                                grokKey,
+                                hasGemini,
+                                hasGrok,
+                                extractionToken);
+                        }
+                        catch (OperationCanceledException)
+                        {
+                            LogPipeline("Invoice task cancelled by user");
+                            return;
+                        }
+                        catch (Exception ex)
+                        {
+                            LogPipeline($"Invoice task failed: {ex.GetType().Name}: {ex.Message}");
+                            row = InvoiceRowViewModel.FromError(file, ErrorMessageTranslator.ToUserMessage(ex));
+                        }
 
+                        // Keep result insertion outside the extraction catch. If a
+                        // UI/view notification fails after a row was inserted, the
+                        // old broad catch created a second error row for the same
+                        // file. One input path must have one final result row.
                         await AddExtractionResultAsync(row);
-                        LogPipeline("UI update triggered — ObservableCollection updated");
-                    }
-                    catch (OperationCanceledException)
-                    {
-                        LogPipeline("Invoice task cancelled by user");
-                    }
-                    catch (Exception ex)
-                    {
-                        LogPipeline($"Invoice task failed: {ex.GetType().Name}: {ex.Message}");
-                        InvoiceRowViewModel errorRow = InvoiceRowViewModel.FromError(file, ErrorMessageTranslator.ToUserMessage(ex));
-                        await AddExtractionResultAsync(errorRow);
                         LogPipeline("UI update triggered — ObservableCollection updated");
                     }
                     finally
@@ -3148,7 +3202,10 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     private static readonly TimeSpan OcrExtractionTimeout = TimeSpan.FromMinutes(15);
 
     /// <summary>Extract a file through the local OCR server (starts it lazily if needed).</summary>
-    private async Task<InvoiceRowViewModel> ExtractViaServerAsync(string file, CancellationToken ct = default)
+    private async Task<InvoiceRowViewModel> ExtractViaServerAsync(
+        string file,
+        CancellationToken ct = default,
+        string? cloudFallbackReason = null)
     {
         LogPipeline("OCR started");
         CancellationTokenSource? linkedCts = null;
@@ -3165,7 +3222,9 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
 
             InvoiceResult result = await _invoiceClient.ExtractAsync(file, "ocr", linkedCts.Token);
             LogPipeline("OCR completed");
-            return InvoiceRowViewModel.FromSuccess(file, result);
+            var row = InvoiceRowViewModel.FromSuccess(file, result);
+            row.GeminiFallbackReason = cloudFallbackReason;
+            return row;
         }
         catch (OperationCanceledException) when (
             _extractionCts?.Token.IsCancellationRequested == true)
@@ -3640,12 +3699,15 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     /// </summary>
     public void AddValidatedFilePaths(IEnumerable<string> filePaths)
     {
-        foreach (string file in filePaths.OrderBy(f => f))
+        foreach (string rawFile in filePaths.OrderBy(f => f))
         {
+            string file = NormalizeFilePathForComparison(rawFile);
             string ext = Path.GetExtension(file).ToLowerInvariant();
             if (!AllowedExtensions.Contains(ext))
                 continue;
-            if (DetectedFiles.Any(f => string.Equals(f.FilePath, file, StringComparison.OrdinalIgnoreCase)))
+            if (DetectedFiles.Any(f => string.Equals(
+                    NormalizeFilePathForComparison(f.FilePath), file,
+                    StringComparison.OrdinalIgnoreCase)))
                 continue;
             var item = new FileItemViewModel(file);
             item.PropertyChanged += OnFileItemPropertyChanged;
@@ -3654,6 +3716,34 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         NotifyFileCountChanged();
         RaiseCommandStateChanged();
     }
+
+    /// <summary>
+    /// Returns a stable absolute path for file identity comparisons. This is
+    /// deliberately path-based rather than invoice-number-based: two different
+    /// files may contain the same invoice number, but one file must produce one
+    /// extraction task and one result row.
+    /// </summary>
+    internal static string NormalizeFilePathForComparison(string filePath)
+    {
+        if (string.IsNullOrWhiteSpace(filePath))
+            return string.Empty;
+
+        string fullPath = Path.GetFullPath(filePath);
+        string? root = Path.GetPathRoot(fullPath);
+        return string.Equals(fullPath, root, StringComparison.OrdinalIgnoreCase)
+            ? fullPath
+            : fullPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+    }
+
+    /// <summary>
+    /// De-duplicates selected input paths by canonical file identity while
+    /// preserving their first-seen order. Invoice numbers are intentionally not
+    /// part of this key: different files may legitimately share one number.
+    /// </summary>
+    internal static IEnumerable<string> DistinctInputFilePaths(IEnumerable<string> filePaths)
+        => filePaths
+            .Select(NormalizeFilePathForComparison)
+            .Distinct(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
     /// Handles a folder being dropped via drag-and-drop (append mode).
@@ -3758,6 +3848,9 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         _httpQuickClient.Dispose();
         _httpShortClient.Dispose();
         _httpCloudClient.Dispose();
+        // Request gates are intentionally not disposed here: extraction tasks
+        // may still be unwinding after cancellation, and disposing a semaphore
+        // while a waiter is active would turn normal shutdown into an exception.
     }
 }
 

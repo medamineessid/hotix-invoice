@@ -1,239 +1,256 @@
-# 🔥 HOTIX — Extraction de Factures
+# 🔥 HOTIX — Extraction de factures
 
-> Système local Windows d'extraction automatique des champs de factures scannées (PDF, images) via OCR + IA, avec interface graphique WPF premium.
+> Application Windows locale d'extraction de factures PDF et images par OCR, avec moteurs cloud optionnels, interface WPF et export Excel.
 
 [![Build](https://github.com/medamineessid/hotix-invoice/actions/workflows/build-check.yml/badge.svg)](https://github.com/medamineessid/hotix-invoice/actions)
 [![Sentry](https://img.shields.io/badge/monitoring-Sentry-6B5B95)](https://must-ap.sentry.io)
-[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE.txt)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](installer/LICENSE.txt)
 
 ---
 
-## ✨ Fonctionnalités
+## État actuel
 
-| Fonctionnalité | Détail |
+| Élément | État vérifié |
 |---|---|
-| **OCR Local** | PaddleOCR (français) — hors ligne, aucune clé API requise |
-| **Gemini Vision** | Cloud Google Gemini — **haute précision** (clé API requise) |
-| **Grok Vision (xAI)** | Cloud alternative — **précision similaire** (clé API requise) |
-| **Sélection de modèle** | Choisissez le modèle AI (gemini-2.5-flash, gemini-1.5-pro, grok-4.3, etc.) |
-| **Moteur Automatique** | Gemini → Grok → OCR local (fallback automatique) |
-| **Export Excel** | Filtres: Résultats/Missing/Complets + Ajouter au fichier existant |
-| **Grille éditable** | Double-clic pour corriger les champs extraits avant export |
-| **Multi-langue** | Français / Anglais — bascule en un clic |
-| **Glisser-déposer** | Déposez un dossier de factures directement sur la fenêtre |
-| **Onboarding** | Visite guidée au premier lancement (spotlight + callout) |
-| **Vérification mises à jour** | Notification GitHub Releases (vérification quotidienne) |
-| **Thème Premium** | Design system complet — animations, ombres, badges de confiance |
+| Version client / installateur | **1.0.1** |
+| Version API | **1.0.0** |
+| Branche | `master` synchronisée avec `origin/master` |
+| Dernier commit documenté | `040ae0b` — `fix: align CI dependencies and local extraction rate limit` |
+| Tests Python locaux | **406 passed**, 0 failed, 0 skipped, 0 errors — Python 3.12 |
+| Tests C# locaux | **76 passed**, 0 failed — .NET 8 |
+| GitHub Actions | **Build Check #67 réussi** pour [`040ae0b`](https://github.com/medamineessid/hotix-invoice/actions/runs/31406743267) |
 
-### Engines d'extraction
-
-```
-┌─────────────────────────────────────────────────────┐
-│   Automatique (recommandé)                          │
-│   ├── Gemini Vision  ──┐                            │
-│   ├── Grok Vision  ────┤── en cascade               │
-│   └── OCR Local  ──────┘ (fallback)                 │
-└─────────────────────────────────────────────────────┘
-```
+Les résultats ci-dessus correspondent à la dernière validation effectuée le **10 août 2026** sur le commit `040ae0b`. Le build C# réussit ; il peut encore afficher des avertissements de nullable/asynchronisme qui ne bloquent pas la compilation. Une prochaine modification du dépôt doit rafraîchir cette ligne de référence.
 
 ---
 
-## 🖼️ Aperçu
+## Fonctionnalités
 
-| Élément | Description |
+| Fonctionnalité | Description |
 |---|---|
-| **Barre latérale** | Navigation, version, statut du serveur (point vert) |
-| **Panneau de contrôle** | Sélection dossier/fichiers, moteur, bouton d'extraction |
-| **Résultats** | DataGrid avec tris, badges de confiance, badge "Local (hors ligne)" |
-| **Extractions Incomplètes** | Onglet dédié aux factures avec champs manquants |
-| **Aperçu brut** | Texte OCR brut de la ligne sélectionnée |
-| **Bannière de synthèse** | Résumé après extraction (succès/échecs) |
-| **Barre d'état** | Statut serveur, progression, actions rapides |
+| **OCR local** | PaddleOCR en français, sans clé API et utilisable hors ligne après installation des modèles |
+| **Gemini Vision** | Extraction cloud Google Gemini, clé API requise |
+| **Grok Vision** | Extraction cloud xAI/Grok, clé API requise |
+| **Mode automatique** | Cascade côté client : Gemini → Grok → OCR local |
+| **Extraction structurée** | Numéro, date, fournisseur, client, montants, lignes d'articles et récapitulatif TVA |
+| **Validation métier** | Réconciliation HT/TVA/taxe/TTC, détection de collisions et score de confiance |
+| **PDF et images** | PDF, JPG/JPEG, PNG, BMP, TIF/TIFF |
+| **Export Excel** | Résultats, extractions incomplètes, feuilles d'articles, récapitulatif TVA et mode append |
+| **Grille éditable** | Correction manuelle avant export |
+| **Multi-langue** | Français / anglais |
+| **Glisser-déposer** | Fichiers et dossiers de factures |
+| **Aperçu** | Aperçu image/PDF, zoom, texte OCR brut et cache local borné |
+| **Onboarding** | Visite guidée au premier lancement |
+| **Mises à jour** | Vérification quotidienne des GitHub Releases |
+| **Diagnostics** | Outil WPF séparé pour vérifier Python, Poppler et le serveur |
+
+### Flux d'extraction
+
+```text
+Sélection de fichiers
+        │
+        ▼
+┌───────────────────────────┐
+│ Client WPF                 │
+│ Auto : Gemini → Grok → OCR│
+└─────────────┬─────────────┘
+              │ HTTP localhost
+              ▼
+┌───────────────────────────┐
+│ FastAPI local             │
+│ Ingestion + PaddleOCR    │
+│ Extraction heuristique   │
+└───────────────────────────┘
+```
+
+Le client appelle directement Gemini/Grok pour les parcours cloud. Le serveur FastAPI fournit principalement l'OCR local, le mode backend Gemini, l'aperçu, la santé du service et les validations de clés.
 
 ---
 
-## 🏗️ Architecture
+## Architecture
 
-```
+```text
 hotix-invoice/
-├── server/              ← Python FastAPI — extraction engines
-│   ├── main.py          ← Point d'entrée API (FastAPI)
-│   ├── models.py        ← Schémas Pydantic
-│   ├── ingestion.py     ← Conversion PDF/images → pages
-│   ├── ocr_engine.py    ← Wrapper PaddleOCR
-│   ├── field_extractor.py ← Extracteur heuristique de champs
-│   ├── gemini_extractor.py ← Client Gemini/Grok API
-│   ├── utils.py         ← Utilitaires géométrie/texte
-│   ├── verify_system.py ← Vérification pré-installation
-│   ├── score_accuracy.py ← Évaluation de précision
-│   ├── diagnose_invoice.py ← Diagnostic DEBUG
-│   ├── generate_test_invoices.py ← Génération factures test
-│   ├── appsettings.json ← Configuration (clés API, modèle)
-│   └── tests/           ← Tests unitaires pytest
+├── server/                         # Backend Python/FastAPI
+│   ├── main.py                     # API, lifecycle OCR, rate limiting
+│   ├── models.py                   # Schémas Pydantic
+│   ├── ingestion.py                # PDF/images → pages PIL
+│   ├── ocr_engine.py               # Wrapper PaddleOCR 3.x
+│   ├── field_extractor.py          # Extraction heuristique et géométrique
+│   ├── gemini_extractor.py         # Gemini côté serveur + normalisation JSON
+│   ├── utils.py                    # Texte, montants, géométrie, réconciliation
+│   ├── verify_system.py            # Preflight de l'environnement
+│   └── tests/                      # Tests pytest
 │
-├── client/              ← WPF C# — interface utilisateur
-│   ├── MainWindow.xaml  ← Fenêtre principale (2 600 lignes)
-│   ├── ViewModels/      ← MVVM (MainViewModel, InvoiceRowVM, FileItemVM)
-│   ├── Themes/          ← 11 dictionnaires de design system
-│   │   ├── Colors.xaml, Brushes.xaml, Spacing.xaml
-│   │   ├── Typography.xaml, Animations.xaml
-│   │   ├── ButtonStyles.xaml, InputStyles.xaml
-│   │   ├── CardStyles.xaml, DataGridStyles.xaml
-│   │   ├── DialogStyles.xaml, NavigationStyles.xaml
-│   ├── Converters/      ← Value converters (confidence, visibilité)
-│   ├── GeminiSetupWindow.xaml ← Configuration API + sélecteur modèle
-│   ├── ExportDialog.xaml ← Export Excel avec 3 filtres
-│   ├── SplashScreen.xaml ← Écran de démarrage
-│   ├── Controls/        ← Contrôles personnalisés (ProgressRing)
-│   ├── Resources/       ← Fichiers de traduction (EN/FR)
-│   └── HotixDiagnostics/ ← Outil de diagnostic post-installation
+├── client/                         # Client desktop WPF/.NET 8
+│   ├── App.xaml.cs                 # Démarrage/arrêt du serveur local
+│   ├── MainWindow.xaml             # Interface principale
+│   ├── ViewModels/MainViewModel.cs # Orchestration UI et batch
+│   ├── InvoiceClient.cs            # Client HTTP de l'API locale
+│   ├── ExcelWriter.cs              # Export ClosedXML
+│   ├── Themes/                     # Design system XAML
+│   ├── Resources/                  # Traductions EN/FR
+│   └── HotixDiagnostics/           # Utilitaire de diagnostic
 │
-├── installer/           ← Inno Setup — installateur
-│   ├── Hotix.iss        ← Script 600+ lignes Pascal
-│   ├── vendor/          ← Python 3.12 + Poppler
-│   ├── CRITICAL_ITEMS_ANSWERS.md
-│   └── VERIFICATION_REPORT.md
-│
-├── scripts/             ← Automatisation
-│   ├── setup.ps1        ← Configuration machine unique
-│   ├── start.ps1        ← Lancement (PowerShell)
-│   └── start.bat        ← Lancement (batch)
-│
-├── requirements.txt     ← Dépendances Python
-└── README.md            ← Ce fichier
+├── client-tests/                   # Tests xUnit du client
+├── invoices/                       # Fixtures OCR et données d'évaluation
+├── installer/                      # Script Inno Setup et documentation
+├── scripts/                        # Setup et lancement Windows
+├── requirements.txt                # Dépendances runtime Python
+└── .github/workflows/              # CI GitHub Actions
 ```
+
+### Serveur local
+
+Le client démarre `uvicorn server.main:app` sur `127.0.0.1:8000`, attend le endpoint `/health`, puis affiche l'interface. Le serveur :
+
+- préchauffe PaddleOCR au démarrage ;
+- sérialise les opérations OCR avec un sémaphore ;
+- recycle le moteur après 25 requêtes OCR pour limiter l'accumulation mémoire ;
+- limite la taille d'un upload à 50 MB ;
+- applique un timeout d'extraction configurable ;
+- conserve un rate limit `/extract` de **100 requêtes/minute/IP par défaut**, configurable par `HOTIX_EXTRACT_RATE_LIMIT` ;
+- conserve un rate limit séparé de **5 requêtes/minute/IP** pour la validation des clés.
 
 ---
 
-## 🚀 Pour les utilisateurs — Guide de démarrage rapide
+## Installation utilisateur
 
 ### Prérequis
 
-| Logiciel | Version | Lien |
-|---|---|---|
-| Python | 3.8+ (3.12 recommandé) | [python.org](https://www.python.org/downloads/) |
-| .NET Desktop Runtime | 8.0+ | [dotnet.microsoft.com](https://dotnet.microsoft.com/en-us/download/dotnet/8.0) |
-| Poppler | Dernière version | [poppler-windows](https://github.com/oschwartz10612/poppler-windows/releases/latest) |
+| Logiciel | Version / condition |
+|---|---|
+| Windows | Client WPF Windows uniquement |
+| Python | **3.12+ recommandé et validé par `setup.ps1` et la CI** |
+| .NET | .NET 8 Desktop Runtime / SDK |
+| Poppler | Requis pour convertir les PDF |
+| Espace disque | Environ **2 200 MB** pour l'installation et les dépendances OCR |
 
-> ⚠️ **Important**: Lors de l'installation de Python, cochez **"Add Python to PATH"**.
+L'installateur peut rechercher plusieurs installations Python et applique un contrôle de version minimal, mais la combinaison réellement validée par `setup.ps1`, les dépendances Paddle et la CI est Python 3.12. Utilisez Python 3.12 pour éviter les incompatibilités de wheels natives ; les autres versions ne constituent pas une cible de développement validée.
 
-### Installation rapide
+### Installation depuis les sources
+
+Depuis la racine du dépôt, dans PowerShell :
 
 ```powershell
-# 1. Cloner le dépôt
-git clone https://github.com/medamineessid/hotix-invoice.git
-cd hotix-invoice
-
-# 2. Lancer le script de configuration (une seule fois)
+# Vérifie Python 3.12+, Poppler et .NET 8,
+# crée venv, installe requirements.txt et publie le client.
 .\scripts\setup.ps1
-
-# 3. Publier l'application
-cd client
-dotnet publish -c Release -o publish
 ```
 
-### Ou via l'installateur
+Le script produit le client dans `client\publish\`.
 
-Téléchargez `HotixSetup_1.0.0.exe` (~50 MB) depuis la page [Releases](https://github.com/medamineessid/hotix-invoice/releases/latest).
+### Lancement
 
-L'installateur gère automatiquement :
-- ✅ Détection de Python (PATH → registre → installateur intégré)
-- ✅ Vérification de la version Python (3.8+)
-- ✅ Vérification de la connexion Internet
-- ✅ Vérification de l'espace disque (2 200 MB requis)
-- ✅ Création de l'environnement virtuel
-- ✅ Installation des dépendances Python (3 tentatives avec backoff)
-- ✅ Installation de Poppler et configuration PATH
-- ✅ Rollback automatique en cas d'échec
-- ✅ Journal d'installation détaillé (`{app}\install.log`)
-- ✅ Lancement de l'application après installation
+```powershell
+.\scripts\start.ps1
+```
 
-### Utilisation quotidienne
+Ou, selon l'installation :
 
-1. **Lancement** : Double-cliquez sur le raccourci **HOTIX** (ou `client/publish/Hotix.InvoiceClient.exe`)
-2. **Splash** : Écran de démarrage pendant l'initialisation du serveur OCR
-3. **Ajout fichiers** : Cliquez **Ajouter >** ou glissez-déposez un dossier
-4. **Sélection moteur** : Automatique (recommandé), Gemini, Grok, ou OCR local
-5. **Extraction** : Cliquez **Lancer l'extraction** (ou `F5`)
-6. **Correction** : Double-cliquez sur les cellules pour éditer
-7. **Export** : Cliquez **Exporter en Excel** (ou `Ctrl+E`)
+```text
+scripts\start.bat
+```
 
-### Raccourcis clavier
+### Installateur Inno Setup
+
+La version actuelle de l'installateur est **1.0.1** :
+
+```text
+HotixSetup_1.0.1.exe
+```
+
+L'installateur gère notamment :
+
+- détection de Python par `py.exe`, `python.exe` et registre ;
+- installation Python intégrée en dernier recours ;
+- création du virtualenv ;
+- installation de `requirements.txt` avec retries ;
+- configuration Poppler ;
+- journal `install.log` ;
+- rollback du virtualenv en cas d'échec ;
+- lancement de l'outil de diagnostics.
+
+Pour compiler l'installateur, publier d'abord le client puis utiliser Inno Setup 6.3+ :
+
+```powershell
+dotnet publish client -c Release -o client\publish --self-contained false
+& "C:\Program Files (x86)\Inno Setup 6\iscc.exe" installer\Hotix.iss
+```
+
+Le binaire Python `installer\vendor\python-3.12.6-amd64.exe` et les fichiers Poppler vendorisés doivent être présents pour une compilation complète.
+
+---
+
+## Utilisation
+
+1. Lancez HOTIX.
+2. Ajoutez des fichiers ou un dossier de factures.
+3. Choisissez `Automatique`, `Gemini`, `Grok` ou `OCR local`.
+4. Cliquez sur **Lancer l'extraction**.
+5. Vérifiez les champs, les scores de confiance et les extractions incomplètes.
+6. Corrigez les cellules si nécessaire.
+7. Exportez vers Excel.
+
+Raccourcis :
 
 | Touche | Action |
 |---|---|
 | `F5` | Lancer l'extraction |
 | `Escape` | Annuler l'extraction |
-| `Ctrl+E` | Exporter en Excel |
+| `Ctrl+E` | Exporter vers Excel |
 
-### Configuration API Gemini / Grok
+### Configuration Gemini / Grok
 
-Pour utiliser les moteurs cloud (précision supérieure) :
-
-1. Cliquez sur l'icône **⚙** à côté du sélecteur de moteur
-2. Entrez votre **clé API Gemini** ([Google AI Studio](https://aistudio.google.com/app/apikey))
-3. Et/ou votre **clé API Grok** ([xAI](https://x.ai))
-4. Sélectionnez le modèle souhaité dans la liste déroulante
-5. Cliquez **Enregistrer**
-
-La clé est validée automatiquement avant d'être sauvegardée.
+Ouvrez le bouton de paramètres près du moteur, saisissez la clé du fournisseur, choisissez le modèle puis validez. Les appels cloud nécessitent Internet ; l'OCR local ne nécessite pas de clé.
 
 ---
 
-## 🔧 Pour les développeurs — Guide technique
+## Configuration et variables d'environnement
 
-### Build du client
+### Fichiers de configuration
 
-```bash
-cd client
-dotnet restore
-dotnet build -c Debug
-dotnet publish -c Release -o publish
-```
+- `%APPDATA%\Hotix\settings.json` : préférence de moteur, langue, onboarding et dernier contrôle de mise à jour.
+- `%LOCALAPPDATA%\Hotix\appsettings.json` : configuration utilisateur et clés saisies dans le client. Le client chiffre les clés au repos avec DPAPI Windows et les déchiffre en mémoire pour les appels directs Gemini/Grok.
+- `server/appsettings.json` : modèle de configuration livré avec les sources ; utilisé comme fallback/migration, sans clé secrète committée. Pour le chemin Gemini exécuté par Python, utilisez plutôt `GEMINI_API_KEY` ou une configuration serveur lisible par Python : le serveur ne déchiffre pas les valeurs DPAPI du client.
 
-### Lancement du serveur seul
+### Variables principales
 
-```bash
-cd serveur de la racine du projet
+| Variable | Défaut | Rôle |
+|---|---:|---|
+| `HOTIX_API_BASE_URL` | `http://127.0.0.1:8000` | URL de l'API locale/client |
+| `HOTIX_BATCH_CONCURRENCY` | `4` | Parallélisme client, borné de 1 à 16 |
+| `HOTIX_EXTRACT_RATE_LIMIT` | `100` | Requêtes `/extract` par minute et par IP |
+| `HOTIX_EXTRACT_TIMEOUT_SECONDS` | `300` | Timeout d'une extraction serveur, minimum 10 s |
+| `HOTIX_SERVER_START_TIMEOUT_SECONDS` | `90` | Timeout de démarrage du serveur local |
+| `POPPLER_PATH` | auto-détection | Dossier des binaires Poppler |
+| `GEMINI_API_KEY` | vide | Clé Gemini côté serveur, si utilisée |
+| `SENTRY_DSN` | vide | Monitoring Sentry du serveur |
+
+Ne mettez jamais de clé réelle dans Git, dans une fixture ou dans la documentation. Les clés cloud du parcours client direct sont envoyées au fournisseur choisi uniquement lorsque ce moteur est activé ; le parcours serveur Python suit sa propre configuration (`GEMINI_API_KEY`/`appsettings.json`).
+
+---
+
+## API FastAPI
+
+Lancer le serveur depuis la racine du dépôt :
+
+```powershell
 python -m uvicorn server.main:app --host 127.0.0.1 --port 8000 --reload
 ```
 
-### Tests Python
-
-```bash
-cd server
-pytest tests/ -v
-```
-
-### Build de l'installateur
-
-```powershell
-# Prérequis : Inno Setup 6.3+
-# 1. Publier le client
-cd client
-dotnet publish -c Release -o publish
-
-# 2. Compiler l'installateur
-cd installer
-& "C:\Program Files (x86)\Inno Setup 6\iscc.exe" Hotix.iss
-```
-
----
-
-## 📊 Tableau de bord technique
-
-### Python Server
-
 | Endpoint | Méthode | Description |
 |---|---|---|
-| `/health` | GET | Santé du serveur |
-| `/engine-status` | GET | Disponibilité Gemini/OCR |
-| `/extract` | POST | Extraction d'une facture (multipart) |
-| `/validate-gemini-key` | POST | Validation clé API Gemini |
-| `/validate-grok-key` | POST | Validation clé API Grok |
-| `/admin/recycle-engine` | POST | Recyclage forcé du moteur OCR |
+| `/health` | GET | État OCR, Poppler et configuration cloud |
+| `/engine-status` | GET | Disponibilité de l'OCR et présence de la clé Gemini |
+| `/extract?engine=auto\|gemini\|ocr` | POST | Upload multipart et extraction structurée |
+| `/preview/register` | POST | Enregistre temporairement un fichier pour aperçu |
+| `/preview?token=...` | GET | Renvoie l'aperçu image/PDF associé au token |
+| `/validate-gemini-key` | POST | Valide une clé Gemini auprès de Google |
+| `/validate-grok-key` | POST | Valide une clé Grok auprès de xAI |
+| `/admin/recycle-engine` | POST | Recycle le moteur OCR pour diagnostics |
 
-### Modèle de réponse (`InvoiceExtractionResponse`)
+### Exemple de réponse `/extract`
 
 ```json
 {
@@ -241,101 +258,110 @@ cd installer
   "date": "01/01/2024",
   "fournisseur": "ABC SARL",
   "client": "Client X",
-  "montant_ht": "1000.00",
-  "tva": "200.00",
-  "taxe": "10.00",
-  "ttc": "1210.00",
-  "confiance": 0.92,
-  "texte_brut": "...",
-  "engine_used": "gemini"
+  "montant_ht": "1000.000",
+  "montant_tva": "200.000",
+  "montant_taxe": "10.000",
+  "montant_ttc": "1210.000",
+  "confidence": 0.92,
+  "raw_text": "...",
+  "engine_used": "ocr",
+  "computed_fields": [],
+  "amount_mismatch": false,
+  "items": [],
+  "tax_summary": []
 }
 ```
 
-### Design System
-
-Le design system HOTIX est composé de **11 dictionnaires de ressources XAML** :
-
-| Fichier | Contenu |
-|---|---|
-| `Colors.xaml` | Palette — 30 couleurs (fond, texte, accent, fonctionnel, badges) |
-| `Brushes.xaml` | Pinceaux + ombres portées Apple-style |
-| `Typography.xaml` | Échelle typographique (11px → 32px), 5 graisses |
-| `Spacing.xaml` | Grille 8px (4, 8, 12, 16, 24, 32, 40, 48) |
-| `Animations.xaml` | 14 storyboards (150-250ms, easing cubique) |
-| `ButtonStyles.xaml` | 4 styles + TemplateButtonBase avec hover lift + press scale |
-| `InputStyles.xaml` | TextBox, PasswordBox, ComboBox, CheckBox, RadioButton |
-| `CardStyles.xaml` | Cartes avec radius 16, hover lift 1px |
-| `DataGridStyles.xaml` | Grille premium — en-tête triable, badges pastel, lignes 48px |
-| `DialogStyles.xaml` | Modaux avec fade + scale (0.95→1.0, 250ms) |
-| `NavigationStyles.xaml` | Barre latérale 240px, nav active soft red |
-
-### Gestion d'erreurs (Sentry)
-
-Le projet utilise **Sentry** pour le monitoring des erreurs :
-
-- **DSN client** : Configuré dans `App.xaml.cs`
-- **DSN serveur** : Via `SENTRY_DSN` variable d'environnement
-- **Bugs résolus** : DOTNET-A (curseur), DOTNET-B (traduction), DOTNET-C (ToggleButton)
-
 ---
 
-## 🧪 Tests
+## Développement et tests
 
-### Tests Python (pytest)
+### Installer les dépendances Python
 
-```bash
-# Tous les tests
-cd server && pytest tests/ -v
-
-# Tests spécifiques
-pytest tests/test_field_extractor.py -v
-pytest tests/test_ingestion.py -v
-pytest tests/test_ocr_engine.py -v
-pytest tests/test_utils.py -v
+```powershell
+py -3.12 -m pip install -r requirements.txt
 ```
 
-### Build client
+### Tests Python
 
-```bash
-cd client
-dotnet build -c Debug
-# ✅ 0 erreurs, 0 warnings
+```powershell
+py -3.12 -m pytest server/tests/ -q
 ```
 
+La suite couvre notamment l'ingestion, l'OCR normalisé, l'extraction heuristique, les montants, les contrats de schéma LLM, les retries JSON, les traductions et le rate limit.
+
+### Build et tests C#
+
+```powershell
+dotnet build client/Hotix.InvoiceClient.csproj
+dotnet test client-tests/Hotix.InvoiceClient.Tests.csproj
+```
+
+### Vérification des traductions
+
+```powershell
+python scripts/check_translations.py
+```
+
+### CI GitHub Actions
+
+Le workflow `.github/workflows/build-check.yml` s'exécute sur `push` et `pull_request` vers `master` :
+
+1. configure .NET 8 et Python 3.12 ;
+2. vérifie l'intégrité des traductions ;
+3. build le client ;
+4. exécute les tests xUnit ;
+5. installe **l'intégralité de `requirements.txt`**, y compris PaddleOCR/PaddlePaddle ;
+6. exécute `pytest server/tests/`.
+
+La dernière exécution réussie est [Build Check #67](https://github.com/medamineessid/hotix-invoice/actions/runs/31406743267).
+
 ---
 
-## 📋 Scripts utiles
+## Historique Git récent
 
-| Script | Usage |
-|---|---|
-| `scripts/setup.ps1` | Configuration machine unique (venv, dépendances) |
-| `scripts/start.ps1` | Lancement serveur + client (PowerShell) |
-| `scripts/start.bat` | Lancement rapide (double-clic) |
-| `client/rebuild-and-run.bat` | Nettoyage + build + lancement |
+Les derniers commits expliquent l'état actuel du projet :
 
----
-
-## 🔒 Sécurité
-
-- Les clés API sont stockées dans `server/appsettings.json` (hors git)
-- Le serveur écoute uniquement sur `127.0.0.1:8000` (localhost)
-- CORS restreint aux origines localhost, méthodes GET/POST
-- Aucune donnée n'est transmise à des serveurs tiers (sauf Gemini/Grok si configuré)
-- Journalisation des erreurs via Sentry (DSN configurable)
+| Commit | Date | Changement |
+|---|---|---|
+| [`040ae0b`](https://github.com/medamineessid/hotix-invoice/commit/040ae0be5f6fc654023904aae96909ac246b57ca) | 2026-08-10 | CI alignée sur `requirements.txt` et rate limit local `/extract` porté à 100/configurable |
+| [`98c2574`](https://github.com/medamineessid/hotix-invoice/commit/98c2574e699759cfca75e4d740db61a89e3002b4) | 2026-08-09 | CI dotnet + pytest et tests de régression LLM, direction et traduction |
+| [`2348f79`](https://github.com/medamineessid/hotix-invoice/commit/2348f79c329979212c20abf633b36a23d1c80a56) | 2026-08-09 | Messages d'erreur utilisateur centralisés et traduits |
+| [`1d1161e`](https://github.com/medamineessid/hotix-invoice/commit/1d1161e) | 2026-08-08 | Extraction directe Gemini/Grok, `responseSchema` et retry JSON |
+| [`2561c5d`](https://github.com/medamineessid/hotix-invoice/commit/2561c5d) | 2026-08-08 | Correction du endpoint OCR et alignement de `tax_amount` |
+| [`c4f6a97`](https://github.com/medamineessid/hotix-invoice/commit/c4f6a97) | 2026-08-08 | Export de toutes les lignes du récapitulatif TVA |
+| [`6858a54`](https://github.com/medamineessid/hotix-invoice/commit/6858a54) | 2026-08-08 | Ajout de `unit` et `tax_summary`, correction de l'aperçu |
+| [`7b1154a`](https://github.com/medamineessid/hotix-invoice/commit/7b1154a) | 2026-08-08 | Ajout de `ButtonGhostStyle` pour éviter une erreur XAML au chargement |
+| [`964b914`](https://github.com/medamineessid/hotix-invoice/commit/964b914) | 2026-08-08 | Version client/installateur portée de 1.0.0 à 1.0.1 |
+| [`38782c1`](https://github.com/medamineessid/hotix-invoice/commit/38782c1) | 2026-08-08 | Correction du crash `GetStringField` sur les nombres JSON |
 
 ---
 
-## 📄 License
+## Sécurité et limites connues
 
-Ce projet est sous licence MIT. Voir le fichier [LICENSE.txt](LICENSE.txt) pour plus de détails.
+- Le serveur écoute sur `127.0.0.1`, pas sur une interface réseau publique.
+- Le CORS est limité aux origines localhost et aux méthodes GET/POST.
+- Les clés cloud saisies par l'utilisateur sont stockées dans le profil utilisateur et chiffrées côté client avec DPAPI.
+- Les fichiers envoyés à Gemini/Grok quittent la machine uniquement lorsque l'utilisateur active/configure le moteur cloud.
+- Le rate limit `/extract` reste actif pour limiter une boucle ou un processus local défaillant ; il est de 100/60 par défaut.
+- Les tokens d'aperçu sont temporaires et l'accès passe par une étape explicite d'enregistrement.
+- PaddleOCR/PaddlePaddle sont lourds et le premier démarrage peut télécharger ou charger des modèles pendant plusieurs dizaines de secondes.
+- Le client est Windows/WPF ; l'API Python peut être testée séparément, mais l'interface n'est pas multiplateforme.
+- Le schéma API expose `engine_used` pour `gemini` et `ocr` côté serveur ; Grok est orchestré directement par le client WPF dans la cascade cloud.
+
+Pour les scénarios UI, réseau et processus impossibles à couvrir uniquement par des tests unitaires, consulter [`client/TESTING_GUIDE.md`](client/TESTING_GUIDE.md).
 
 ---
 
-## 🙏 Remerciements
+## Licence
 
-- [PaddleOCR](https://github.com/PaddlePaddle/PaddleOCR) — Moteur OCR local
-- [FastAPI](https://fastapi.tiangolo.com/) — Framework API Python
-- [ClosedXML](https://closedxml.github.io/ClosedXML/) — Export Excel .NET
-- [Inno Setup](https://jrsoftware.org/isinfo.php) — Installateur Windows
-- [Sentry](https://sentry.io/) — Monitoring d'erreurs
-- [Poppler](https://poppler.freedesktop.org/) — Traitement PDF
+Projet sous licence MIT : [`installer/LICENSE.txt`](installer/LICENSE.txt).
+
+## Remerciements
+
+- [PaddleOCR](https://github.com/PaddlePaddle/PaddleOCR) — OCR local
+- [FastAPI](https://fastapi.tiangolo.com/) — API Python
+- [ClosedXML](https://closedxml.github.io/ClosedXML/) — export Excel .NET
+- [Inno Setup](https://jrsoftware.org/isinfo.php) — installateur Windows
+- [Sentry](https://sentry.io/) — monitoring
+- [Poppler](https://poppler.freedesktop.org/) — conversion PDF
