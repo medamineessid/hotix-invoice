@@ -663,7 +663,7 @@
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="380" MinWidth="280" MaxWidth="600">
+                            <ColumnDefinition Width="300" MinWidth="250" MaxWidth="520">
                                 <ColumnDefinition.Style>
                                     <Style TargetType="ColumnDefinition">
                                         <Setter Property="Width" Value="380" />
@@ -932,7 +932,7 @@
                                         </DataGrid.RowStyle>
                                         <DataGrid.Columns>
                                             <!-- Select Checkbox -->
-                                            <DataGridTemplateColumn Width="44" CanUserSort="False">
+                                            <DataGridTemplateColumn Width="38" CanUserSort="False">
                                                 <DataGridTemplateColumn.HeaderTemplate>
                                                     <DataTemplate>
                                                         <CheckBox IsChecked="{Binding DataContext.AllRowsSelected, RelativeSource={RelativeSource AncestorType=DataGrid}}"
@@ -949,7 +949,7 @@
                                             </DataGridTemplateColumn>
 
                                             <!-- Direction badge (Received / Issued) -->
-                                            <DataGridTemplateColumn Header="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[DirectionColumn]}" Width="72" CanUserSort="False">
+                                            <DataGridTemplateColumn Header="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[DirectionColumn]}" Width="56" CanUserSort="False">
                                                 <DataGridTemplateColumn.CellTemplate>
                                                     <DataTemplate>
                                                         <Border CornerRadius="{StaticResource RadiusPill}"
@@ -973,7 +973,7 @@
                                             </DataGridTemplateColumn>
 
                                             <DataGridTextColumn Header="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ColumnInvoiceNo]}" Binding="{Binding NumeroFacture, Converter={StaticResource NullToPlaceholderConverter}}"
-                                                                MinWidth="100" MaxWidth="180">
+                                                                MinWidth="90" MaxWidth="170">
                                                 <DataGridTextColumn.ElementStyle>
                                                     <Style TargetType="TextBlock">
                                                         <Setter Property="VerticalAlignment" Value="Center" />
@@ -989,7 +989,7 @@
                                             </DataGridTextColumn>
 
                                             <DataGridTextColumn Header="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ColumnDate]}" Binding="{Binding Date, Converter={StaticResource NullToPlaceholderConverter}}"
-                                                                MinWidth="80" MaxWidth="120">
+                                                                MinWidth="70" MaxWidth="110">
                                                 <DataGridTextColumn.ElementStyle>
                                                     <Style TargetType="TextBlock">
                                                         <Style.Triggers>
@@ -1003,7 +1003,7 @@
                                             </DataGridTextColumn>
 
                                             <DataGridTextColumn Header="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ColumnSupplier]}" Binding="{Binding Fournisseur, Converter={StaticResource NullToPlaceholderConverter}}"
-                                                                MinWidth="100" MaxWidth="200">
+                                                                MinWidth="85" MaxWidth="180">
                                                 <DataGridTextColumn.ElementStyle>
                                                     <Style TargetType="TextBlock">
                                                         <Style.Triggers>
@@ -1017,7 +1017,7 @@
                                             </DataGridTextColumn>
 
                                             <DataGridTextColumn Header="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ColumnClient]}" Binding="{Binding Client, Converter={StaticResource NullToPlaceholderConverter}}"
-                                                                MinWidth="80" MaxWidth="160">
+                                                                MinWidth="70" MaxWidth="140">
                                                 <DataGridTextColumn.ElementStyle>
                                                     <Style TargetType="TextBlock">
                                                         <Style.Triggers>
@@ -1029,17 +1029,17 @@
                                                     </Style>
                                                 </DataGridTextColumn.ElementStyle>
                                             </DataGridTextColumn>                                            <DataGridTextColumn Header="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ColumnAmountExcl]}"  Binding="{Binding MontantHt, Converter={StaticResource NullToPlaceholderConverter}}"
-                                                                MinWidth="80" MaxWidth="120" />
+                                                                MinWidth="70" MaxWidth="110" />
 
                                             <DataGridTextColumn Header="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ColumnVat]}" Binding="{Binding MontantTva, Converter={StaticResource NullToPlaceholderConverter}}"
-                                                                MinWidth="60" MaxWidth="100" />
+                                                                MinWidth="52" MaxWidth="90" />
 
                                             <DataGridTextColumn Header="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ColumnTax]}" Binding="{Binding MontantTaxe, Converter={StaticResource NullToPlaceholderConverter}}"
-                                                                MinWidth="60" MaxWidth="100" />
+                                                                MinWidth="52" MaxWidth="90" />
 
 
                                             <!-- Confidence Badge (pastel) -->
-                                            <DataGridTemplateColumn Header="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ColumnConfidence]}" Width="160" CanUserSort="True" SortMemberPath="Confidence">
+                                            <DataGridTemplateColumn Header="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ColumnConfidence]}" Width="120" CanUserSort="True" SortMemberPath="Confidence">
                                                 <DataGridTemplateColumn.CellTemplate>
                                                     <DataTemplate>
                                                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Center">
@@ -1413,7 +1413,7 @@
                                         </DataGrid.RowStyle>
                                         <DataGrid.Columns>
                                             <!-- Direction badge (Received / Issued) -->
-                                            <DataGridTemplateColumn Header="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[DirectionColumn]}" Width="72" CanUserSort="False">
+                                            <DataGridTemplateColumn Header="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[DirectionColumn]}" Width="56" CanUserSort="False">
                                                 <DataGridTemplateColumn.CellTemplate>
                                                     <DataTemplate>
                                                         <Border CornerRadius="{StaticResource RadiusPill}"
@@ -1436,7 +1436,7 @@
                                                 </DataGridTemplateColumn.CellTemplate>
                                             </DataGridTemplateColumn>
 
-                                            <DataGridTemplateColumn Width="44" CanUserSort="False">
+                                            <DataGridTemplateColumn Width="38" CanUserSort="False">
                                                 <DataGridTemplateColumn.HeaderTemplate>
                                                     <DataTemplate>
                                                         <CheckBox IsChecked="{Binding DataContext.AllRowsSelected, RelativeSource={RelativeSource AncestorType=DataGrid}}"
@@ -1452,15 +1452,15 @@
                                                 </DataGridTemplateColumn.CellTemplate>
                                             </DataGridTemplateColumn>
 
-                                            <DataGridTextColumn Header="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ColumnInvoiceNo]}" Binding="{Binding NumeroFacture, Converter={StaticResource NullToPlaceholderConverter}}" MinWidth="100" MaxWidth="180" />
-                                            <DataGridTextColumn Header="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ColumnDate]}" Binding="{Binding Date, Converter={StaticResource NullToPlaceholderConverter}}" MinWidth="80"  MaxWidth="120" />
-                                            <DataGridTextColumn Header="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ColumnSupplier]}" Binding="{Binding Fournisseur,   Converter={StaticResource NullToPlaceholderConverter}}" MinWidth="100" MaxWidth="200" />
-                                            <DataGridTextColumn Header="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ColumnClient]}"      Binding="{Binding Client,        Converter={StaticResource NullToPlaceholderConverter}}" MinWidth="80"  MaxWidth="160" />
-                                            <DataGridTextColumn Header="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ColumnAmountExcl]}"  Binding="{Binding MontantHt,     Converter={StaticResource NullToPlaceholderConverter}}" MinWidth="80"  MaxWidth="120" />
-                                            <DataGridTextColumn Header="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ColumnVat]}"         Binding="{Binding MontantTva,    Converter={StaticResource NullToPlaceholderConverter}}" MinWidth="60"  MaxWidth="100" />
-                                            <DataGridTextColumn Header="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ColumnTax]}"        Binding="{Binding MontantTaxe,   Converter={StaticResource NullToPlaceholderConverter}}" MinWidth="60"  MaxWidth="100" />
+                                            <DataGridTextColumn Header="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ColumnInvoiceNo]}" Binding="{Binding NumeroFacture, Converter={StaticResource NullToPlaceholderConverter}}" MinWidth="90" MaxWidth="170" />
+                                            <DataGridTextColumn Header="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ColumnDate]}" Binding="{Binding Date, Converter={StaticResource NullToPlaceholderConverter}}" MinWidth="70"  MaxWidth="110" />
+                                            <DataGridTextColumn Header="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ColumnSupplier]}" Binding="{Binding Fournisseur,   Converter={StaticResource NullToPlaceholderConverter}}" MinWidth="85" MaxWidth="180" />
+                                            <DataGridTextColumn Header="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ColumnClient]}"      Binding="{Binding Client,        Converter={StaticResource NullToPlaceholderConverter}}" MinWidth="70"  MaxWidth="140" />
+                                            <DataGridTextColumn Header="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ColumnAmountExcl]}"  Binding="{Binding MontantHt,     Converter={StaticResource NullToPlaceholderConverter}}" MinWidth="70"  MaxWidth="110" />
+                                            <DataGridTextColumn Header="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ColumnVat]}"         Binding="{Binding MontantTva,    Converter={StaticResource NullToPlaceholderConverter}}" MinWidth="52"  MaxWidth="90" />
+                                            <DataGridTextColumn Header="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ColumnTax]}"        Binding="{Binding MontantTaxe,   Converter={StaticResource NullToPlaceholderConverter}}" MinWidth="52"  MaxWidth="90" />
 
-                                            <DataGridTemplateColumn Header="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ColumnConfidence]}" Width="160" CanUserSort="True" SortMemberPath="Confidence">
+                                            <DataGridTemplateColumn Header="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ColumnConfidence]}" Width="120" CanUserSort="True" SortMemberPath="Confidence">
                                                 <DataGridTemplateColumn.CellTemplate>
                                                     <DataTemplate>
                                                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Center">
