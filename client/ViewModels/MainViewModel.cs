@@ -1109,19 +1109,58 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         PreviewZoomLevel = 1.0;
     }
 
-    /// <summary>Selects the given row and switches the preview panel to the
-    /// image view, re-fitting the loaded invoice image so it is fully visible.
-    /// Used by the "View invoice" button in the row details. Selecting the row
-    /// explicitly guarantees the preview is shown (and its image loaded) even
-    /// if the grid's selection state and the expanded row ever diverge.</summary>
+    /// <summary>Opens the invoice image in a full-window viewer so it can be
+    /// read comfortably. Used by the "View invoice" button in the row details.
+    /// Selecting the row first guarantees the preview image is loaded (the row
+    /// details are only visible when the row is already selected, but this
+    /// re-arms the load in case selection and the expanded row diverge).</summary>
     private void ShowPreviewImage(InvoiceRowViewModel? row)
     {
         if (row != null)
             SelectedRow = row;
 
         PreviewShowRawText = false;
-        if (_previewImageSource != null && _previewNaturalWidth > 1)
-            FitPreviewToAvailableWidth(_previewNaturalWidth);
+        _ = OpenImageViewerAsync(row);
+    }
+
+    /// <summary>Loads the preview image (the exact same pipeline the side panel
+    /// uses) and opens it in the full-window viewer. If the image cannot be
+    /// resolved, shows a clear message instead of silently doing nothing.</summary>
+    private async Task OpenImageViewerAsync(InvoiceRowViewModel? row)
+    {
+        try
+        {
+            if (row != null && row.FilePath != _selectedRow?.FilePath)
+                return;
+
+            if (_previewImageSource == null)
+                await LoadPreviewImageAsync();
+
+            var source = _previewImageSource;
+            if (source == null)
+            {
+                string reason = string.IsNullOrWhiteSpace(PreviewStatusMessage)
+                    ? TranslationSource.Get("PreviewLoadError")
+                    : PreviewStatusMessage;
+                MessageBox.Show(Application.Current.MainWindow, reason,
+                    TranslationSource.Get("PreviewBtnViewImage"),
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            var viewer = new ImageViewerWindow(source, row?.FileName ?? PreviewFileName)
+            {
+                Owner = Application.Current.MainWindow,
+            };
+            viewer.ShowDialog();
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(Application.Current.MainWindow,
+                TranslationSource.Get("PreviewLoadError") + "\n\n" + ex.Message,
+                TranslationSource.Get("PreviewBtnViewImage"),
+                MessageBoxButton.OK, MessageBoxImage.Error);
+        }
     }
 
     /// <summary>Sets the preview zoom so a freshly loaded image fits within a
@@ -1172,7 +1211,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     }
 
     /// <summary>Window title including the build commit hash for build-identification.</summary>
-    public string WindowTitle => $"{TranslationSource.Get("MainWindowTitle")} — {BuildInfo.CommitHash}";
+    public string WindowTitle => $"{TranslationSource.Get("MainWindowTitle")} — v{BuildInfo.AppVersion} ({BuildInfo.CommitHash})";
 
     public async Task InitializeAsync()
     {
