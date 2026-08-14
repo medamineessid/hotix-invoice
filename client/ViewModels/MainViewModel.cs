@@ -2608,6 +2608,8 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
 
             Results.Add(row);
             LogPipeline($"ADD-RESULT: {row.FilePath} (results={Results.Count}, items={row.ItemsCount})");
+            foreach (var item in row.Items)
+                LogPipeline($"    ITEM: '{item.Designation}' qty={item.Quantite} pu={item.PrixUnitaire} montant={item.Montant}");
             if (row.IsIncomplete) IncompleteResults.Add(row);
 
             ProcessedFiles += 1;

@@ -532,6 +532,25 @@ public sealed class InvoiceRowViewModel : INotifyPropertyChanged
         }
     }
 
+    /// <summary>Removes exact duplicate line items (same designation, quantity
+    /// and amount) that extractors emit when they double-detect a row.</summary>
+    private static List<InvoiceItem> DedupeItems(List<InvoiceItem>? items)
+    {
+        if (items is null || items.Count <= 1)
+            return items ?? new List<InvoiceItem>();
+
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var deduped = new List<InvoiceItem>(items.Count);
+        foreach (var item in items)
+        {
+            string designation = (item.Designation ?? string.Empty).Trim();
+            string key = $"{designation}\u0000{item.Quantite}\u0000{item.Montant}";
+            if (seen.Add(key))
+                deduped.Add(item);
+        }
+        return deduped;
+    }
+
     public static InvoiceRowViewModel FromSuccess(string filePath, InvoiceResult result) => new()
     {
         FilePath      = filePath,
@@ -554,7 +573,7 @@ public sealed class InvoiceRowViewModel : INotifyPropertyChanged
             : new HashSet<string>(),
         AmountMismatch = result.AmountMismatch,
         ItemsCount = result.Items?.Count ?? 0,
-        Items = result.Items ?? new List<InvoiceItem>(),
+        Items = DedupeItems(result.Items),
         TaxSummary = result.TaxSummary ?? new List<TaxSummaryRow>(),
     };
 
