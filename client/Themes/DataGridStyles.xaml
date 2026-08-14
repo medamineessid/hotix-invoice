@@ -21,7 +21,7 @@
         <Setter Property="FontFamily"      Value="{StaticResource FontPrimary}" />
         <Setter Property="FontSize"        Value="{StaticResource FontSizeMetadata}" />
         <Setter Property="FontWeight"      Value="{StaticResource FontWeightMedium}" />
-        <Setter Property="Padding"         Value="16,12" />
+        <Setter Property="Padding"         Value="14,10" />
         <Setter Property="BorderThickness" Value="0,0,0,1" />
         <Setter Property="BorderBrush"     Value="{StaticResource BrushBorder}" />
         <Setter Property="SeparatorBrush"  Value="Transparent" />
@@ -97,14 +97,14 @@
         <Setter Property="Foreground"      Value="{StaticResource BrushTextPrimary}" />
         <Setter Property="FontFamily"      Value="{StaticResource FontPrimary}" />
         <Setter Property="FontSize"        Value="{StaticResource FontSizeBody}" />
-        <Setter Property="Padding"         Value="16,12" />
+        <Setter Property="Padding"         Value="14,10" />
         <Setter Property="BorderThickness" Value="0" />
         <Setter Property="VerticalAlignment" Value="Center" />
     </Style>
 
     <Style x:Key="DataGridRowStyle" TargetType="DataGridRow">
         <Setter Property="Background"      Value="Transparent" />
-        <Setter Property="MinHeight"       Value="48" />
+        <Setter Property="MinHeight"       Value="40" />
         <Setter Property="BorderThickness" Value="0" />
         <Setter Property="VerticalAlignment" Value="Center" />
         <Style.Triggers>
@@ -139,7 +139,7 @@
         <Setter Property="RowStyle"                 Value="{StaticResource DataGridRowStyle}" />
         <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Auto" />
         <Setter Property="ScrollViewer.VerticalScrollBarVisibility"   Value="Auto" />
-        <Setter Property="ScrollViewer.CanContentScroll"              Value="True" />
+        <Setter Property="ScrollViewer.CanContentScroll"              Value="False" />
         <Setter Property="VirtualizingPanel.VirtualizationMode"       Value="Recycling" />
         <Setter Property="EnableRowVirtualization"                    Value="True" />
     </Style>

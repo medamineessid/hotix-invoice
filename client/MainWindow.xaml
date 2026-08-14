@@ -1037,8 +1037,6 @@
                                             <DataGridTextColumn Header="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ColumnTax]}" Binding="{Binding MontantTaxe, Converter={StaticResource NullToPlaceholderConverter}}"
                                                                 MinWidth="60" MaxWidth="100" />
 
-                                            <DataGridTextColumn Header="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ColumnTotalIncl]}" Binding="{Binding MontantTtc, Converter={StaticResource NullToPlaceholderConverter}}"
-                                                                MinWidth="60" MaxWidth="100" />
 
                                             <!-- Confidence Badge (pastel) -->
                                             <DataGridTemplateColumn Header="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ColumnConfidence]}" Width="160" CanUserSort="True" SortMemberPath="Confidence">
@@ -1075,7 +1073,6 @@
                                                 </DataGridTemplateColumn.CellTemplate>
                                             </DataGridTemplateColumn>
 
-                                            <DataGridTextColumn Header="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ColumnFile]}" Binding="{Binding FileDisplay, Mode=OneWay}" MinWidth="120" />
                                         </DataGrid.Columns>
                                         <DataGrid.RowDetailsTemplate>
                                             <DataTemplate>
@@ -1093,7 +1090,8 @@
                                                                     MinWidth="116" Height="30" Padding="12,0" FontSize="12"
                                                                     Margin="0,0,8,0"
                                                                     ToolTip="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[PreviewBtnViewImage], Mode=OneWay}"
-                                                                    Command="{Binding DataContext.ShowPreviewImageCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}">
+                                                                    Command="{Binding DataContext.ShowPreviewImageCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                                    CommandParameter="{Binding}">
                                                                 <StackPanel Orientation="Horizontal">
                                                                     <TextBlock Text="👁" FontSize="12" VerticalAlignment="Center" Margin="0,0,6,0" />
                                                                     <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[PreviewBtnViewImage], Mode=OneWay}" VerticalAlignment="Center" />
@@ -1138,37 +1136,37 @@
                                                                     <StackPanel Grid.Column="0">
                                                                         <TextBlock Style="{StaticResource TextMetadata}" Margin="0,0,0,6">
                                                                             <Run Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ColumnInvoiceNo], Mode=OneWay}" /><Run Text="  " />
-                                                                            <Run Text="{Binding NumeroFacture, Converter={StaticResource NullToPlaceholderConverter}}" FontWeight="Medium" />
+                                                                            <Run Text="{Binding NumeroFacture, Converter={StaticResource NullToPlaceholderConverter}, ConverterParameter=detail}" FontWeight="Medium" />
                                                                         </TextBlock>
                                                                         <TextBlock Style="{StaticResource TextMetadata}" Margin="0,0,0,6">
                                                                             <Run Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ColumnDate], Mode=OneWay}" /><Run Text="  " />
-                                                                            <Run Text="{Binding Date, Converter={StaticResource NullToPlaceholderConverter}}" FontWeight="Medium" />
+                                                                            <Run Text="{Binding Date, Converter={StaticResource NullToPlaceholderConverter}, ConverterParameter=detail}" FontWeight="Medium" />
                                                                         </TextBlock>
                                                                         <TextBlock Style="{StaticResource TextMetadata}" Margin="0,0,0,6">
                                                                             <Run Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ColumnSupplier], Mode=OneWay}" /><Run Text="  " />
-                                                                            <Run Text="{Binding Fournisseur, Converter={StaticResource NullToPlaceholderConverter}}" FontWeight="Medium" />
+                                                                            <Run Text="{Binding Fournisseur, Converter={StaticResource NullToPlaceholderConverter}, ConverterParameter=detail}" FontWeight="Medium" />
                                                                         </TextBlock>
                                                                         <TextBlock Style="{StaticResource TextMetadata}" Margin="0,0,0,6">
                                                                             <Run Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ColumnClient], Mode=OneWay}" /><Run Text="  " />
-                                                                            <Run Text="{Binding Client, Converter={StaticResource NullToPlaceholderConverter}}" FontWeight="Medium" />
+                                                                            <Run Text="{Binding Client, Converter={StaticResource NullToPlaceholderConverter}, ConverterParameter=detail}" FontWeight="Medium" />
                                                                         </TextBlock>
                                                                     </StackPanel>
                                                                     <StackPanel Grid.Column="1" Margin="32,0,0,0">
                                                                         <TextBlock Style="{StaticResource TextMetadata}" Margin="0,0,0,6">
                                                                             <Run Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[SummaryHt], Mode=OneWay}" /><Run Text="  " />
-                                                                            <Run Text="{Binding MontantHt, Converter={StaticResource NullToPlaceholderConverter}}" FontWeight="Medium" />
+                                                                            <Run Text="{Binding MontantHt, Converter={StaticResource NullToPlaceholderConverter}, ConverterParameter=detail}" FontWeight="Medium" />
                                                                         </TextBlock>
                                                                         <TextBlock Style="{StaticResource TextMetadata}" Margin="0,0,0,6">
                                                                             <Run Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ColumnVat], Mode=OneWay}" /><Run Text="  " />
-                                                                            <Run Text="{Binding MontantTva, Converter={StaticResource NullToPlaceholderConverter}}" FontWeight="Medium" />
+                                                                            <Run Text="{Binding MontantTva, Converter={StaticResource NullToPlaceholderConverter}, ConverterParameter=detail}" FontWeight="Medium" />
                                                                         </TextBlock>
                                                                         <TextBlock Style="{StaticResource TextMetadata}" Margin="0,0,0,6">
                                                                             <Run Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ColumnTax], Mode=OneWay}" /><Run Text="  " />
-                                                                            <Run Text="{Binding MontantTaxe, Converter={StaticResource NullToPlaceholderConverter}}" FontWeight="Medium" />
+                                                                            <Run Text="{Binding MontantTaxe, Converter={StaticResource NullToPlaceholderConverter}, ConverterParameter=detail}" FontWeight="Medium" />
                                                                         </TextBlock>
                                                                         <TextBlock Style="{StaticResource TextMetadata}" Margin="0,0,0,6">
                                                                             <Run Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[SummaryTtc], Mode=OneWay}" /><Run Text="  " />
-                                                                            <Run Text="{Binding MontantTtc, Converter={StaticResource NullToPlaceholderConverter}}" FontWeight="Medium" />
+                                                                            <Run Text="{Binding MontantTtc, Converter={StaticResource NullToPlaceholderConverter}, ConverterParameter=detail}" FontWeight="Medium" />
                                                                         </TextBlock>
                                                                         <TextBlock Style="{StaticResource TextMetadata}" Margin="0,0,0,6">
                                                                             <Run Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ColumnConfidence], Mode=OneWay}" /><Run Text="  " />
@@ -1461,7 +1459,6 @@
                                             <DataGridTextColumn Header="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ColumnAmountExcl]}"  Binding="{Binding MontantHt,     Converter={StaticResource NullToPlaceholderConverter}}" MinWidth="80"  MaxWidth="120" />
                                             <DataGridTextColumn Header="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ColumnVat]}"         Binding="{Binding MontantTva,    Converter={StaticResource NullToPlaceholderConverter}}" MinWidth="60"  MaxWidth="100" />
                                             <DataGridTextColumn Header="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ColumnTax]}"        Binding="{Binding MontantTaxe,   Converter={StaticResource NullToPlaceholderConverter}}" MinWidth="60"  MaxWidth="100" />
-                                            <DataGridTextColumn Header="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ColumnTotalIncl]}"         Binding="{Binding MontantTtc,    Converter={StaticResource NullToPlaceholderConverter}}" MinWidth="60"  MaxWidth="100" />
 
                                             <DataGridTemplateColumn Header="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ColumnConfidence]}" Width="160" CanUserSort="True" SortMemberPath="Confidence">
                                                 <DataGridTemplateColumn.CellTemplate>
@@ -1497,7 +1494,6 @@
                                                 </DataGridTemplateColumn.CellTemplate>
                                             </DataGridTemplateColumn>
 
-                                            <DataGridTextColumn Header="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ColumnFile]}" Binding="{Binding FileDisplay, Mode=OneWay}" MinWidth="120" />
                                         </DataGrid.Columns>
                                         <DataGrid.RowDetailsTemplate>
                                             <DataTemplate>
@@ -1515,7 +1511,8 @@
                                                                     MinWidth="116" Height="30" Padding="12,0" FontSize="12"
                                                                     Margin="0,0,8,0"
                                                                     ToolTip="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[PreviewBtnViewImage], Mode=OneWay}"
-                                                                    Command="{Binding DataContext.ShowPreviewImageCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}">
+                                                                    Command="{Binding DataContext.ShowPreviewImageCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                                    CommandParameter="{Binding}">
                                                                 <StackPanel Orientation="Horizontal">
                                                                     <TextBlock Text="👁" FontSize="12" VerticalAlignment="Center" Margin="0,0,6,0" />
                                                                     <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[PreviewBtnViewImage], Mode=OneWay}" VerticalAlignment="Center" />
@@ -1560,37 +1557,37 @@
                                                                     <StackPanel Grid.Column="0">
                                                                         <TextBlock Style="{StaticResource TextMetadata}" Margin="0,0,0,6">
                                                                             <Run Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ColumnInvoiceNo], Mode=OneWay}" /><Run Text="  " />
-                                                                            <Run Text="{Binding NumeroFacture, Converter={StaticResource NullToPlaceholderConverter}}" FontWeight="Medium" />
+                                                                            <Run Text="{Binding NumeroFacture, Converter={StaticResource NullToPlaceholderConverter}, ConverterParameter=detail}" FontWeight="Medium" />
                                                                         </TextBlock>
                                                                         <TextBlock Style="{StaticResource TextMetadata}" Margin="0,0,0,6">
                                                                             <Run Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ColumnDate], Mode=OneWay}" /><Run Text="  " />
-                                                                            <Run Text="{Binding Date, Converter={StaticResource NullToPlaceholderConverter}}" FontWeight="Medium" />
+                                                                            <Run Text="{Binding Date, Converter={StaticResource NullToPlaceholderConverter}, ConverterParameter=detail}" FontWeight="Medium" />
                                                                         </TextBlock>
                                                                         <TextBlock Style="{StaticResource TextMetadata}" Margin="0,0,0,6">
                                                                             <Run Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ColumnSupplier], Mode=OneWay}" /><Run Text="  " />
-                                                                            <Run Text="{Binding Fournisseur, Converter={StaticResource NullToPlaceholderConverter}}" FontWeight="Medium" />
+                                                                            <Run Text="{Binding Fournisseur, Converter={StaticResource NullToPlaceholderConverter}, ConverterParameter=detail}" FontWeight="Medium" />
                                                                         </TextBlock>
                                                                         <TextBlock Style="{StaticResource TextMetadata}" Margin="0,0,0,6">
                                                                             <Run Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ColumnClient], Mode=OneWay}" /><Run Text="  " />
-                                                                            <Run Text="{Binding Client, Converter={StaticResource NullToPlaceholderConverter}}" FontWeight="Medium" />
+                                                                            <Run Text="{Binding Client, Converter={StaticResource NullToPlaceholderConverter}, ConverterParameter=detail}" FontWeight="Medium" />
                                                                         </TextBlock>
                                                                     </StackPanel>
                                                                     <StackPanel Grid.Column="1" Margin="32,0,0,0">
                                                                         <TextBlock Style="{StaticResource TextMetadata}" Margin="0,0,0,6">
                                                                             <Run Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[SummaryHt], Mode=OneWay}" /><Run Text="  " />
-                                                                            <Run Text="{Binding MontantHt, Converter={StaticResource NullToPlaceholderConverter}}" FontWeight="Medium" />
+                                                                            <Run Text="{Binding MontantHt, Converter={StaticResource NullToPlaceholderConverter}, ConverterParameter=detail}" FontWeight="Medium" />
                                                                         </TextBlock>
                                                                         <TextBlock Style="{StaticResource TextMetadata}" Margin="0,0,0,6">
                                                                             <Run Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ColumnVat], Mode=OneWay}" /><Run Text="  " />
-                                                                            <Run Text="{Binding MontantTva, Converter={StaticResource NullToPlaceholderConverter}}" FontWeight="Medium" />
+                                                                            <Run Text="{Binding MontantTva, Converter={StaticResource NullToPlaceholderConverter}, ConverterParameter=detail}" FontWeight="Medium" />
                                                                         </TextBlock>
                                                                         <TextBlock Style="{StaticResource TextMetadata}" Margin="0,0,0,6">
                                                                             <Run Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ColumnTax], Mode=OneWay}" /><Run Text="  " />
-                                                                            <Run Text="{Binding MontantTaxe, Converter={StaticResource NullToPlaceholderConverter}}" FontWeight="Medium" />
+                                                                            <Run Text="{Binding MontantTaxe, Converter={StaticResource NullToPlaceholderConverter}, ConverterParameter=detail}" FontWeight="Medium" />
                                                                         </TextBlock>
                                                                         <TextBlock Style="{StaticResource TextMetadata}" Margin="0,0,0,6">
                                                                             <Run Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[SummaryTtc], Mode=OneWay}" /><Run Text="  " />
-                                                                            <Run Text="{Binding MontantTtc, Converter={StaticResource NullToPlaceholderConverter}}" FontWeight="Medium" />
+                                                                            <Run Text="{Binding MontantTtc, Converter={StaticResource NullToPlaceholderConverter}, ConverterParameter=detail}" FontWeight="Medium" />
                                                                         </TextBlock>
                                                                         <TextBlock Style="{StaticResource TextMetadata}" Margin="0,0,0,6">
                                                                             <Run Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ColumnConfidence], Mode=OneWay}" /><Run Text="  " />

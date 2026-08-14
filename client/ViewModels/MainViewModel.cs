@@ -247,7 +247,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         PreviewZoomOutCommand = new RelayCommand(_ => PreviewZoomLevel /= 1.25);
         PreviewFitWidthCommand = new RelayCommand(_ => FitPreviewToWidth());
         PreviewFitPageCommand = new RelayCommand(_ => FitPreviewToPage());
-        ShowPreviewImageCommand = new RelayCommand(_ => ShowPreviewImage());
+        ShowPreviewImageCommand = new RelayCommand(p => ShowPreviewImage(p as InvoiceRowViewModel));
 
         LoadSettings();
         LoadProviderKeysFromAppSettings();
@@ -1109,11 +1109,16 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         PreviewZoomLevel = 1.0;
     }
 
-    /// <summary>Switches the preview panel to the image view and re-fits the
-    /// loaded invoice image so it is fully visible. Used by the "View invoice"
-    /// button in the row details.</summary>
-    private void ShowPreviewImage()
+    /// <summary>Selects the given row and switches the preview panel to the
+    /// image view, re-fitting the loaded invoice image so it is fully visible.
+    /// Used by the "View invoice" button in the row details. Selecting the row
+    /// explicitly guarantees the preview is shown (and its image loaded) even
+    /// if the grid's selection state and the expanded row ever diverge.</summary>
+    private void ShowPreviewImage(InvoiceRowViewModel? row)
     {
+        if (row != null)
+            SelectedRow = row;
+
         PreviewShowRawText = false;
         if (_previewImageSource != null && _previewNaturalWidth > 1)
             FitPreviewToAvailableWidth(_previewNaturalWidth);
@@ -2645,9 +2650,10 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     }
 
     /// <summary>
-    /// On the FIRST quota detection for a provider in a batch, shows the interactive
-    /// quota dialog on the UI thread (the extraction loop may be on a background
-    /// thread — hence the Dispatcher hop).
+    /// On the FIRST availability failure (quota or high demand) for a provider in a
+    /// batch, shows the interactive dialog on the UI thread (the extraction loop may
+    /// be on a background thread — hence the Dispatcher hop). Returns the user's
+    /// choice; choosing "Stop" also cancels the running batch.
     ///
     /// Depending on the user's choice:
     ///  - "Enter a new key": opens the settings window on the provider's tab; if a
@@ -2655,43 +2661,84 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     ///    remaining files of the batch retry it.
     ///  - "Continue with OCR": keeps the current fallback behavior; if "remember for
     ///    this session" is ticked, the dialog is suppressed for later batches too.
+    ///  - "Stop": cancels the batch so no file is silently handed to local OCR.
     /// </summary>
-    private async Task HandleQuotaExceededAsync(bool isGemini, string provider)
+    private async Task<QuotaDialogChoice> HandleQuotaExceededAsync(bool isGemini, string provider)
     {
+        QuotaDialogChoice result = QuotaDialogChoice.ContinueWithOcr;
+
         await Application.Current.Dispatcher.InvokeAsync(() =>
         {
             var dialog = new QuotaExceededDialog(isGemini) { Owner = Application.Current.MainWindow };
             if (dialog.ShowDialog() != true)
                 return;
 
-            if (dialog.Choice == QuotaDialogChoice.EnterNewKey)
+            result = dialog.Choice;
+
+            switch (dialog.Choice)
             {
-                OpenSettingsForProvider(provider);
-                if (isGemini ? HasGeminiKey : HasGrokKey)
-                {
-                    lock (this)
+                case QuotaDialogChoice.EnterNewKey:
+                    OpenSettingsForProvider(provider);
+                    if (isGemini ? HasGeminiKey : HasGrokKey)
                     {
-                        if (isGemini)
+                        lock (this)
                         {
-                            _geminiDisabled = false;
-                            _geminiDisabledReason = string.Empty;
-                        }
-                        else
-                        {
-                            _grokDisabled = false;
-                            _grokDisabledReason = string.Empty;
+                            if (isGemini)
+                            {
+                                _geminiDisabled = false;
+                                _geminiDisabledReason = string.Empty;
+                            }
+                            else
+                            {
+                                _grokDisabled = false;
+                                _grokDisabledReason = string.Empty;
+                            }
                         }
                     }
-                }
-            }
-            else if (dialog.RememberForSession)
-            {
-                if (isGemini)
-                    _geminiOcrChosenForSession = true;
-                else
-                    _grokOcrChosenForSession = true;
+                    break;
+
+                case QuotaDialogChoice.Stop:
+                    _extractionCts?.Cancel();
+                    break;
+
+                case QuotaDialogChoice.ContinueWithOcr:
+                    if (dialog.RememberForSession)
+                    {
+                        if (isGemini)
+                            _geminiOcrChosenForSession = true;
+                        else
+                            _grokOcrChosenForSession = true;
+                    }
+                    break;
             }
         });
+
+        return result;
+    }
+
+    /// <summary>
+    /// Falls back to local OCR for one file after a cloud provider became
+    /// unavailable (quota or high demand). The user is asked — once per batch per
+    /// provider — whether to continue with OCR, enter a new key, or stop. If the
+    /// user chooses "Stop", the batch is cancelled and an error row is returned
+    /// instead of running OCR. Otherwise the local OCR extraction runs.
+    /// </summary>
+    private async Task<InvoiceRowViewModel> FallbackToOcrWithConsentAsync(
+        string file,
+        CancellationToken ct,
+        string reason,
+        bool isGemini,
+        string provider,
+        bool firstProviderFailure)
+    {
+        if (firstProviderFailure && !(isGemini ? _geminiOcrChosenForSession : _grokOcrChosenForSession))
+        {
+            QuotaDialogChoice choice = await HandleQuotaExceededAsync(isGemini, provider);
+            if (choice == QuotaDialogChoice.Stop)
+                return InvoiceRowViewModel.FromError(file, TranslationSource.Get("ExtractionStoppedByUser"));
+        }
+
+        return await ExtractViaServerAsync(file, ct, reason);
     }
 
     private bool GeminiDisabled
@@ -2793,11 +2840,18 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                     bool firstGeminiQuota = TryMarkGeminiDisabled(ErrorMessageTranslator.ToUserMessage(ex));
                     LogPipeline("Gemini quota exceeded");
 
-                    // Interactive quota dialog — shown once per batch per provider.
+                    // Interactive dialog — shown once per batch per provider. The
+                    // user chooses whether to continue with OCR, enter a new key,
+                    // or stop (never silently fall back to OCR).
+                    QuotaDialogChoice choice = QuotaDialogChoice.ContinueWithOcr;
                     if (firstGeminiQuota && !_geminiOcrChosenForSession)
-                        await HandleQuotaExceededAsync(isGemini: true, "gemini");
+                        choice = await HandleQuotaExceededAsync(isGemini: true, "gemini");
 
-                    if (selectedEngine == "auto" && hasGrok && !GrokDisabled)
+                    if (choice == QuotaDialogChoice.Stop)
+                    {
+                        row = InvoiceRowViewModel.FromError(file, TranslationSource.Get("ExtractionStoppedByUser"));
+                    }
+                    else if (selectedEngine == "auto" && hasGrok && !GrokDisabled)
                     {
                         LogPipeline("Gemini quota — trying Grok before OCR");
                         try
@@ -2806,30 +2860,24 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                             LogPipeline("Grok succeeded after Gemini quota");
                             row = InvoiceRowViewModel.FromSuccess(file, grokResult);
                         }
-                    catch (CloudQuotaExceededException grokEx)
-                    {
-                        bool firstGrokQuota = TryMarkGrokDisabled(ErrorMessageTranslator.ToUserMessage(grokEx));
-                        LogPipeline("Grok also failed after Gemini quota — falling back to OCR");
-
-                        if (firstGrokQuota && !_grokOcrChosenForSession)
-                            await HandleQuotaExceededAsync(isGemini: false, "grok");
-
-                        await ShowQuotaFallbackBannerAsync();
-                        row = await ExtractViaServerAsync(file, ct, ErrorMessageTranslator.ToUserMessage(grokEx));
-                    }
-                    catch (CloudApiException grokEx) when (grokEx.StatusCode.HasValue && IsPermanentCloudFailure(grokEx.StatusCode.Value))
-                    {
-                        TryMarkGrokDisabled(ErrorMessageTranslator.ToUserMessage(grokEx));
-                        LogPipeline("Grok also failed after Gemini quota — falling back to OCR");
-                        await ShowQuotaFallbackBannerAsync();
-                        row = await ExtractViaServerAsync(file, ct, ErrorMessageTranslator.ToUserMessage(grokEx));
-                    }
-                    catch (Exception grokEx)
-                    {
-                        LogPipeline("Grok also failed after Gemini quota — falling back to OCR");
-                        await ShowQuotaFallbackBannerAsync();
-                        row = await ExtractViaServerAsync(file, ct, ErrorMessageTranslator.ToUserMessage(grokEx, ocrServerContext: false));
-                    }
+                        catch (CloudQuotaExceededException grokEx)
+                        {
+                            bool firstGrokQuota = TryMarkGrokDisabled(ErrorMessageTranslator.ToUserMessage(grokEx));
+                            LogPipeline("Grok also failed after Gemini quota — falling back to OCR");
+                            row = await FallbackToOcrWithConsentAsync(file, ct, ErrorMessageTranslator.ToUserMessage(grokEx), isGemini: false, provider: "grok", firstProviderFailure: firstGrokQuota);
+                        }
+                        catch (CloudApiException grokEx) when (grokEx.StatusCode.HasValue && IsPermanentCloudFailure(grokEx.StatusCode.Value))
+                        {
+                            bool firstGrokQuota = TryMarkGrokDisabled(ErrorMessageTranslator.ToUserMessage(grokEx));
+                            LogPipeline("Grok also failed after Gemini quota — falling back to OCR");
+                            row = await FallbackToOcrWithConsentAsync(file, ct, ErrorMessageTranslator.ToUserMessage(grokEx), isGemini: false, provider: "grok", firstProviderFailure: firstGrokQuota);
+                        }
+                        catch (Exception grokEx)
+                        {
+                            LogPipeline("Grok also failed after Gemini quota — falling back to OCR");
+                            await ShowQuotaFallbackBannerAsync();
+                            row = await ExtractViaServerAsync(file, ct, ErrorMessageTranslator.ToUserMessage(grokEx, ocrServerContext: false));
+                        }
                     }
                     else if (selectedEngine == "gemini")
                     {
@@ -2840,18 +2888,30 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                     }
                     else
                     {
+                        // Auto mode, no Grok available. The user was already asked
+                        // above (choice != Stop), so proceed with the OCR fallback.
                         await ShowQuotaFallbackBannerAsync();
                         row = await ExtractViaServerAsync(file, ct, ErrorMessageTranslator.ToUserMessage(ex));
                     }
                 }
                 catch (CloudApiException ex) when (ex.StatusCode.HasValue && IsPermanentCloudFailure(ex.StatusCode.Value))
                 {
-                    TryMarkGeminiDisabled(ErrorMessageTranslator.ToUserMessage(ex));
-                    LogPipeline($"Gemini skipped (cached failure) for {fileName}");
+                    bool firstGeminiFailure = TryMarkGeminiDisabled(ErrorMessageTranslator.ToUserMessage(ex));
+                    LogPipeline($"Gemini unavailable (HTTP {(int)ex.StatusCode.Value}) for {fileName}");
 
                     if (selectedEngine == "auto")
                     {
-                        if (hasGrok && !GrokDisabled)
+                        // High demand / overload / quota: ask the user before
+                        // silently handing the file to local OCR.
+                        QuotaDialogChoice choice = QuotaDialogChoice.ContinueWithOcr;
+                        if (firstGeminiFailure && !_geminiOcrChosenForSession)
+                            choice = await HandleQuotaExceededAsync(isGemini: true, "gemini");
+
+                        if (choice == QuotaDialogChoice.Stop)
+                        {
+                            row = InvoiceRowViewModel.FromError(file, TranslationSource.Get("ExtractionStoppedByUser"));
+                        }
+                        else if (hasGrok && !GrokDisabled)
                         {
                             try
                             {
@@ -2864,17 +2924,13 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                             {
                                 bool firstGrokQuota = TryMarkGrokDisabled(ErrorMessageTranslator.ToUserMessage(grokEx));
                                 LogPipeline("Grok fallback also failed — trying OCR server");
-
-                                if (firstGrokQuota && !_grokOcrChosenForSession)
-                                    await HandleQuotaExceededAsync(isGemini: false, "grok");
-
-                                row = await ExtractViaServerAsync(file, ct, ErrorMessageTranslator.ToUserMessage(grokEx));
+                                row = await FallbackToOcrWithConsentAsync(file, ct, ErrorMessageTranslator.ToUserMessage(grokEx), isGemini: false, provider: "grok", firstProviderFailure: firstGrokQuota);
                             }
                             catch (CloudApiException grokEx) when (grokEx.StatusCode.HasValue && IsPermanentCloudFailure(grokEx.StatusCode.Value))
                             {
-                                TryMarkGrokDisabled(ErrorMessageTranslator.ToUserMessage(grokEx));
+                                bool firstGrokQuota = TryMarkGrokDisabled(ErrorMessageTranslator.ToUserMessage(grokEx));
                                 LogPipeline("Grok fallback also failed — trying OCR server");
-                                row = await ExtractViaServerAsync(file, ct, ErrorMessageTranslator.ToUserMessage(grokEx));
+                                row = await FallbackToOcrWithConsentAsync(file, ct, ErrorMessageTranslator.ToUserMessage(grokEx), isGemini: false, provider: "grok", firstProviderFailure: firstGrokQuota);
                             }
                             catch (Exception grokEx)
                             {
@@ -2919,11 +2975,18 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                     bool firstGrokQuota = TryMarkGrokDisabled(ErrorMessageTranslator.ToUserMessage(ex));
                     LogPipeline("Grok quota exceeded");
 
-                    // Interactive quota dialog — shown once per batch per provider.
+                    // Interactive dialog — shown once per batch per provider. The
+                    // user chooses whether to continue with OCR, enter a new key,
+                    // or stop (never silently fall back to OCR).
+                    QuotaDialogChoice choice = QuotaDialogChoice.ContinueWithOcr;
                     if (firstGrokQuota && !_grokOcrChosenForSession)
-                        await HandleQuotaExceededAsync(isGemini: false, "grok");
+                        choice = await HandleQuotaExceededAsync(isGemini: false, "grok");
 
-                    if (selectedEngine == "auto")
+                    if (choice == QuotaDialogChoice.Stop)
+                    {
+                        row = InvoiceRowViewModel.FromError(file, TranslationSource.Get("ExtractionStoppedByUser"));
+                    }
+                    else if (selectedEngine == "auto")
                     {
                         row = await ExtractViaServerAsync(file, ct, ErrorMessageTranslator.ToUserMessage(ex));
                     }
@@ -2937,11 +3000,23 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                 }
                 catch (CloudApiException ex) when (ex.StatusCode.HasValue && IsPermanentCloudFailure(ex.StatusCode.Value))
                 {
-                    TryMarkGrokDisabled(ErrorMessageTranslator.ToUserMessage(ex));
-                    LogPipeline($"Grok skipped (cached failure) for {fileName}");
-                    row = selectedEngine == "auto"
-                        ? await ExtractViaServerAsync(file, ct, ErrorMessageTranslator.ToUserMessage(ex))
-                        : InvoiceRowViewModel.FromError(file, ErrorMessageTranslator.ToUserMessage(ex));
+                    bool firstGrokFailure = TryMarkGrokDisabled(ErrorMessageTranslator.ToUserMessage(ex));
+                    LogPipeline($"Grok unavailable (HTTP {(int)ex.StatusCode.Value}) for {fileName}");
+
+                    if (selectedEngine == "auto")
+                    {
+                        QuotaDialogChoice choice = QuotaDialogChoice.ContinueWithOcr;
+                        if (firstGrokFailure && !_grokOcrChosenForSession)
+                            choice = await HandleQuotaExceededAsync(isGemini: false, "grok");
+
+                        row = choice == QuotaDialogChoice.Stop
+                            ? InvoiceRowViewModel.FromError(file, TranslationSource.Get("ExtractionStoppedByUser"))
+                            : await ExtractViaServerAsync(file, ct, ErrorMessageTranslator.ToUserMessage(ex));
+                    }
+                    else
+                    {
+                        row = InvoiceRowViewModel.FromError(file, ErrorMessageTranslator.ToUserMessage(ex));
+                    }
                 }
                 catch (CloudApiException ex)
                 {
@@ -3422,7 +3497,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     {
         int errors     = Results.Count(r => r.HasError);
         int incomplete = IncompleteResults.Count(r => !r.HasError);
-        int success    = Results.Count - errors;
+        int success    = Results.Count - errors - incomplete;
 
         SummaryBannerText  = TranslationSource.Fmt("SummaryBannerComplete", success, incomplete, errors);
         SummaryBannerColor = ResolveSummaryColor(errors, incomplete);

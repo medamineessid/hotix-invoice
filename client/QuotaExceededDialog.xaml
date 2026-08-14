@@ -50,18 +50,30 @@
                           Margin="0,0,0,24" />
 
                 <!-- Actions -->
-                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                    <Button Content="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[QuotaDialogContinueOcr]}"
-                            Style="{StaticResource ButtonSecondaryStyle}"
-                            MinWidth="130"
-                            Margin="0,0,8,0"
-                            Click="ContinueOcr_Click" />
-                    <Button Content="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[QuotaDialogEnterKey]}"
-                            Style="{StaticResource ButtonPrimaryStyle}"
-                            MinWidth="110"
-                            IsDefault="True"
-                            Click="EnterKey_Click" />
-                </StackPanel>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <Button Grid.Column="0"
+                            Content="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[QuotaDialogStop]}"
+                            Style="{StaticResource ButtonGhostStyle}"
+                            MinWidth="80"
+                            HorizontalAlignment="Left"
+                            Click="Stop_Click" />
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right">
+                        <Button Content="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[QuotaDialogContinueOcr]}"
+                                Style="{StaticResource ButtonSecondaryStyle}"
+                                MinWidth="130"
+                                Margin="0,0,8,0"
+                                Click="ContinueOcr_Click" />
+                        <Button Content="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[QuotaDialogEnterKey]}"
+                                Style="{StaticResource ButtonPrimaryStyle}"
+                                MinWidth="110"
+                                IsDefault="True"
+                                Click="EnterKey_Click" />
+                    </StackPanel>
+                </Grid>
             </StackPanel>
         </Border>
     </Border>

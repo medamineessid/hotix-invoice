@@ -336,9 +336,18 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Thumb">
-                    <Border Background="{StaticResource BrushBorder}"
-                            CornerRadius="4"
-                            Margin="1" />
+                    <Border x:Name="ThumbBorder"
+                            Background="{StaticResource BrushTextMuted}"
+                            CornerRadius="5"
+                            Margin="2" />
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="ThumbBorder" Property="Background" Value="{StaticResource BrushTextSecondary}" />
+                        </Trigger>
+                        <Trigger Property="IsDragging" Value="True">
+                            <Setter TargetName="ThumbBorder" Property="Background" Value="{StaticResource BrushTextSecondary}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
@@ -347,13 +356,14 @@
     <!-- Implicit style: s'applique à TOUTES les ScrollBar de l'app (DataGrid,
          ScrollViewers, Popup de la ComboBox) sans toucher aux usages existants. -->
     <Style TargetType="ScrollBar">
-        <Setter Property="Width" Value="8" />
-        <Setter Property="MinWidth" Value="8" />
+        <Setter Property="Width" Value="12" />
+        <Setter Property="MinWidth" Value="12" />
         <Setter Property="Background" Value="Transparent" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="ScrollBar">
                     <Grid Background="Transparent">
+                        <Border Background="{StaticResource BrushBorderLight}" />
                         <Track x:Name="PART_Track"
                                IsDirectionReversed="True"
                                Orientation="Vertical">
@@ -371,7 +381,7 @@
                     <ControlTemplate.Triggers>
                         <Trigger Property="Orientation" Value="Horizontal">
                             <Setter Property="Width" Value="Auto" />
-                            <Setter Property="Height" Value="8" />
+                            <Setter Property="Height" Value="12" />
                             <Setter TargetName="PART_Track" Property="IsDirectionReversed" Value="False" />
                             <Setter TargetName="PART_Track" Property="Orientation" Value="Horizontal" />
                             <Setter TargetName="PART_DecreaseButton" Property="Command" Value="{x:Static ScrollBar.PageLeftCommand}" />

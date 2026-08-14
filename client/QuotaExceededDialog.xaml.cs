@@ -10,6 +10,9 @@ public enum QuotaDialogChoice
 
     /// <summary>User wants to keep processing with local OCR.</summary>
     ContinueWithOcr,
+
+    /// <summary>User wants to stop the extraction instead of falling back to OCR.</summary>
+    Stop,
 }
 
 /// <summary>
@@ -54,6 +57,13 @@ public partial class QuotaExceededDialog : Window
     private void ContinueOcr_Click(object sender, RoutedEventArgs e)
     {
         Choice = QuotaDialogChoice.ContinueWithOcr;
+        RememberForSession = RememberCheck.IsChecked == true;
+        DialogResult = true;
+    }
+
+    private void Stop_Click(object sender, RoutedEventArgs e)
+    {
+        Choice = QuotaDialogChoice.Stop;
         RememberForSession = RememberCheck.IsChecked == true;
         DialogResult = true;
     }
