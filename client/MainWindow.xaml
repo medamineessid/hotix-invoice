@@ -1087,16 +1087,28 @@
                                                             <RowDefinition Height="Auto" />
                                                             <RowDefinition Height="*" />
                                                         </Grid.RowDefinitions>
-                                                        <!-- Close button -->
-                                                        <Button Grid.Row="0"
-                                                                Content="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[CloseBtn], Mode=OneWay}"
-                                                                HorizontalAlignment="Right"
-                                                                Style="{StaticResource ButtonGhostStyle}"
-                                                                MinWidth="72" Height="28"
-                                                                Padding="10,0"
-                                                                FontSize="12"
-                                                                ToolTip="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[CloseBtn], Mode=OneWay}"
-                                                                Command="{Binding DataContext.ClearSelectedRowCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}" />
+                                                        <!-- Row-details actions: view image + collapse -->
+                                                        <StackPanel Grid.Row="0" Orientation="Horizontal" HorizontalAlignment="Right">
+                                                            <Button Style="{StaticResource ButtonSecondaryStyle}"
+                                                                    MinWidth="116" Height="30" Padding="12,0" FontSize="12"
+                                                                    Margin="0,0,8,0"
+                                                                    ToolTip="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[PreviewBtnViewImage], Mode=OneWay}"
+                                                                    Command="{Binding DataContext.ShowPreviewImageCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}">
+                                                                <StackPanel Orientation="Horizontal">
+                                                                    <TextBlock Text="👁" FontSize="12" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                                                    <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[PreviewBtnViewImage], Mode=OneWay}" VerticalAlignment="Center" />
+                                                                </StackPanel>
+                                                            </Button>
+                                                            <Button Style="{StaticResource ButtonSecondaryStyle}"
+                                                                    MinWidth="96" Height="30" Padding="12,0" FontSize="12"
+                                                                    ToolTip="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[CloseBtn], Mode=OneWay}"
+                                                                    Command="{Binding DataContext.ClearSelectedRowCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}">
+                                                                <StackPanel Orientation="Horizontal">
+                                                                    <TextBlock Text="▲" FontSize="10" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                                                    <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[CloseBtn], Mode=OneWay}" VerticalAlignment="Center" />
+                                                                </StackPanel>
+                                                            </Button>
+                                                        </StackPanel>
                                                         <StackPanel Grid.Row="1">
                                                         <!-- Invoice Summary -->
                                                         <Grid Margin="0,0,0,16">
@@ -1497,16 +1509,28 @@
                                                             <RowDefinition Height="Auto" />
                                                             <RowDefinition Height="*" />
                                                         </Grid.RowDefinitions>
-                                                        <!-- Close button -->
-                                                        <Button Grid.Row="0"
-                                                                Content="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[CloseBtn], Mode=OneWay}"
-                                                                HorizontalAlignment="Right"
-                                                                Style="{StaticResource ButtonGhostStyle}"
-                                                                MinWidth="72" Height="28"
-                                                                Padding="10,0"
-                                                                FontSize="12"
-                                                                ToolTip="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[CloseBtn], Mode=OneWay}"
-                                                                Command="{Binding DataContext.ClearSelectedRowCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}" />
+                                                        <!-- Row-details actions: view image + collapse -->
+                                                        <StackPanel Grid.Row="0" Orientation="Horizontal" HorizontalAlignment="Right">
+                                                            <Button Style="{StaticResource ButtonSecondaryStyle}"
+                                                                    MinWidth="116" Height="30" Padding="12,0" FontSize="12"
+                                                                    Margin="0,0,8,0"
+                                                                    ToolTip="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[PreviewBtnViewImage], Mode=OneWay}"
+                                                                    Command="{Binding DataContext.ShowPreviewImageCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}">
+                                                                <StackPanel Orientation="Horizontal">
+                                                                    <TextBlock Text="👁" FontSize="12" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                                                    <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[PreviewBtnViewImage], Mode=OneWay}" VerticalAlignment="Center" />
+                                                                </StackPanel>
+                                                            </Button>
+                                                            <Button Style="{StaticResource ButtonSecondaryStyle}"
+                                                                    MinWidth="96" Height="30" Padding="12,0" FontSize="12"
+                                                                    ToolTip="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[CloseBtn], Mode=OneWay}"
+                                                                    Command="{Binding DataContext.ClearSelectedRowCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}">
+                                                                <StackPanel Orientation="Horizontal">
+                                                                    <TextBlock Text="▲" FontSize="10" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                                                    <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[CloseBtn], Mode=OneWay}" VerticalAlignment="Center" />
+                                                                </StackPanel>
+                                                            </Button>
+                                                        </StackPanel>
                                                         <StackPanel Grid.Row="1">
                                                         <!-- Invoice Summary -->
                                                         <Grid Margin="0,0,0,16">

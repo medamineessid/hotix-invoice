@@ -603,6 +603,7 @@ public partial class App : Application
     }
 
     private int _consecutiveDispatcherFailures;
+    private DateTime _lastDispatcherFailure;
 
     private void HandleGlobalException(Exception ex, bool isFatal = false)
     {
@@ -637,11 +638,23 @@ public partial class App : Application
             CleanupServer();
             Current.Shutdown();
         }
-        else if (++_consecutiveDispatcherFailures >= 5)
+        else
         {
-            _consecutiveDispatcherFailures = 0;
-            CleanupServer();
-            Current.Shutdown();
+            // Only escalate to shutdown when dispatcher failures are genuinely
+            // CONSECUTIVE (a burst), not spread out over a long session.  A
+            // single rare failure (e.g. a one-off layout hiccup) must never
+            // accumulate with an unrelated failure minutes/hours later and kill
+            // the app while the user is away.
+            var now = DateTime.UtcNow;
+            if (_lastDispatcherFailure == default || (now - _lastDispatcherFailure) > TimeSpan.FromSeconds(30))
+                _consecutiveDispatcherFailures = 0;
+            _lastDispatcherFailure = now;
+            if (++_consecutiveDispatcherFailures >= 5)
+            {
+                _consecutiveDispatcherFailures = 0;
+                CleanupServer();
+                Current.Shutdown();
+            }
         }
     }
 }

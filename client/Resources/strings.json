@@ -93,6 +93,7 @@
   "PreviewFileName": "{0}",
   "PreviewFileNameDefault": "Preview",
   "PreviewBtnRawText": "Raw Text",
+  "PreviewBtnViewImage": "View invoice",
   "PreviewImageMissing": "Image not found",
   "PreviewLoadError": "Failed to load preview. The file may be corrupted or in an unsupported format.",
   "PreviewServerStarting": "Server is starting…",

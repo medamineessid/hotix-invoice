@@ -72,6 +72,9 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     // Image cache: filePath → frozen BitmapImage (cleared when too large)
     private readonly Dictionary<string, BitmapImage> _previewImageCache = new();
     private const int MaxPreviewCacheEntries = 50;
+    // Target width (px) the preview image is fit to on first load so a large
+    // scan is immediately visible instead of showing a blank corner.
+    private const double PreviewFitTargetWidth = 720.0;
     private double _previewNaturalWidth;
     private double _previewNaturalHeight;
     private string _directionFilter = "all";
@@ -244,6 +247,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         PreviewZoomOutCommand = new RelayCommand(_ => PreviewZoomLevel /= 1.25);
         PreviewFitWidthCommand = new RelayCommand(_ => FitPreviewToWidth());
         PreviewFitPageCommand = new RelayCommand(_ => FitPreviewToPage());
+        ShowPreviewImageCommand = new RelayCommand(_ => ShowPreviewImage());
 
         LoadSettings();
         LoadProviderKeysFromAppSettings();
@@ -313,6 +317,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     public ICommand PreviewZoomOutCommand    { get; }
     public ICommand PreviewFitWidthCommand   { get; }
     public ICommand PreviewFitPageCommand    { get; }
+    public ICommand ShowPreviewImageCommand  { get; }
 
     public string SelectedFolder
     {
@@ -931,6 +936,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             _previewNaturalHeight = cached.Height;
             OnPropertyChanged(nameof(PreviewNaturalWidth));
             OnPropertyChanged(nameof(PreviewNaturalHeight));
+            FitPreviewToAvailableWidth(cached.Width);
             return;
         }
 
@@ -1058,6 +1064,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             _lastPreviewFilePath = filePath;
             OnPropertyChanged(nameof(PreviewNaturalWidth));
             OnPropertyChanged(nameof(PreviewNaturalHeight));
+            FitPreviewToAvailableWidth(bitmap.Width);
         }
         catch (OperationCanceledException)
         {
@@ -1100,6 +1107,28 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     private void FitPreviewToPage()
     {
         PreviewZoomLevel = 1.0;
+    }
+
+    /// <summary>Switches the preview panel to the image view and re-fits the
+    /// loaded invoice image so it is fully visible. Used by the "View invoice"
+    /// button in the row details.</summary>
+    private void ShowPreviewImage()
+    {
+        PreviewShowRawText = false;
+        if (_previewImageSource != null && _previewNaturalWidth > 1)
+            FitPreviewToAvailableWidth(_previewNaturalWidth);
+    }
+
+    /// <summary>Sets the preview zoom so a freshly loaded image fits within a
+    /// comfortable reading width instead of rendering at natural pixel size (a
+    /// large scan would otherwise show only a blank corner). Clamped by the
+    /// existing zoom bounds (0.25x-3.0x).</summary>
+    private void FitPreviewToAvailableWidth(double naturalWidth)
+    {
+        if (naturalWidth <= 1)
+            return;
+        // PreviewZoomLevel's setter clamps to the 0.25x-3.0x range.
+        PreviewZoomLevel = PreviewFitTargetWidth / naturalWidth;
     }
 
     public bool HasErrors => Results.Any(r => r.HasError);
@@ -2504,6 +2533,19 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     {
         return Application.Current.Dispatcher.InvokeAsync(() =>
         {
+            // Defense-in-depth: one input file must produce at most one result
+            // row.  If the same file is ever submitted twice (duplicate in the
+            // selection, a race, or a retry), deduplicate by canonical path so
+            // the user never sees an "extra extraction".
+            string key = NormalizeFilePathForComparison(row.FilePath);
+            if (Results.Any(r => string.Equals(
+                    NormalizeFilePathForComparison(r.FilePath), key,
+                    StringComparison.OrdinalIgnoreCase)))
+            {
+                LogPipeline($"Skipped duplicate result for {row.FileName}");
+                return;
+            }
+
             Results.Add(row);
             if (row.IsIncomplete) IncompleteResults.Add(row);
 

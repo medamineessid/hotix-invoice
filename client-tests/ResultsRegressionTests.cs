@@ -39,10 +39,15 @@ public sealed class ResultsRegressionTests
         string projectRoot = FindProjectRoot();
         string xaml = File.ReadAllText(Path.Combine(projectRoot, "client", "MainWindow.xaml"));
 
-        const string closeBinding = "Content=\"{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[CloseBtn], Mode=OneWay}\"";
+        // Both result grids expose a clear "▲ Close" collapse affordance bound
+        // to ClearSelectedRowCommand, and a "View invoice" affordance bound to
+        // ShowPreviewImageCommand.
         const string clearCommand = "Command=\"{Binding DataContext.ClearSelectedRowCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}\"";
-        Assert.Equal(2, CountOccurrences(xaml, closeBinding));
+        const string viewImageCommand = "Command=\"{Binding DataContext.ShowPreviewImageCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}\"";
+        const string collapseChevron = "Text=\"▲\"";
         Assert.Equal(2, CountOccurrences(xaml, clearCommand));
+        Assert.Equal(2, CountOccurrences(xaml, viewImageCommand));
+        Assert.Equal(2, CountOccurrences(xaml, collapseChevron));
     }
 
     [Fact]
