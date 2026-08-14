@@ -288,6 +288,12 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     public ObservableCollection<InvoiceRowViewModel> Results           { get; }
     public ObservableCollection<InvoiceRowViewModel> IncompleteResults { get; }
 
+    // Canonical paths already added as result rows. This is the authoritative
+    // de-duplication guard: a HashSet.Add is atomic, so two rows racing for the
+    // same file can never both be inserted (the check-then-add on Results alone
+    // would still be safe on the UI thread, but this removes any doubt).
+    private readonly HashSet<string> _addedResultPaths = new(StringComparer.OrdinalIgnoreCase);
+
     public ICommand BrowseFolderCommand     { get; }
     public ICommand BrowseFilesCommand      { get; }
     public ICommand RemoveFileCommand       { get; }
@@ -2070,6 +2076,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         {
             Results.Clear();
             IncompleteResults.Clear();
+            _addedResultPaths.Clear();
         });
         NotifySummaryChanged();
 
@@ -2582,9 +2589,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             // selection, a race, or a retry), deduplicate by canonical path so
             // the user never sees an "extra extraction".
             string key = NormalizeFilePathForComparison(row.FilePath);
-            if (Results.Any(r => string.Equals(
-                    NormalizeFilePathForComparison(r.FilePath), key,
-                    StringComparison.OrdinalIgnoreCase)))
+            if (!_addedResultPaths.Add(key))
             {
                 LogPipeline($"Skipped duplicate result for {row.FileName}");
                 return;
@@ -3117,6 +3122,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         {
             Results.Clear();
             IncompleteResults.Clear();
+            _addedResultPaths.Clear();
         });
         NotifySummaryChanged();
 
@@ -3837,6 +3843,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
 
         Results.Clear();
         IncompleteResults.Clear();
+        _addedResultPaths.Clear();
         SelectedRow          = null;
         ProcessedFiles       = 0;
         TotalFiles           = 0;

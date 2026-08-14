@@ -29,21 +29,21 @@
                            TextTrimming="CharacterEllipsis" />
 
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                    <Button x:Name="ZoomOutButton" Content="−" Width="32" Height="28"
+                    <Button x:Name="ZoomOutButton" Content="−" Width="34" Height="30"
                             Click="ZoomOut_Click" Background="#FF333333" Foreground="White"
-                            BorderThickness="0" Cursor="Hand" FontSize="16" Margin="0,0,4,0" />
+                            BorderThickness="0" Cursor="Hand" FontSize="18" Margin="0,0,4,0" />
                     <TextBlock x:Name="ZoomText" Text="100%" Foreground="#FFCCCCCC"
-                               FontSize="12" VerticalAlignment="Center" MinWidth="44"
+                               FontSize="12" VerticalAlignment="Center" MinWidth="48"
                                TextAlignment="Center" />
-                    <Button x:Name="ZoomInButton" Content="+" Width="32" Height="28"
+                    <Button x:Name="ZoomInButton" Content="+" Width="34" Height="30"
                             Click="ZoomIn_Click" Background="#FF333333" Foreground="White"
-                            BorderThickness="0" Cursor="Hand" FontSize="16" Margin="4,0,8,0" />
-                    <Button x:Name="FitButton" Content="🔍" Width="32" Height="28"
+                            BorderThickness="0" Cursor="Hand" FontSize="18" Margin="4,0,8,0" />
+                    <Button x:Name="FitButton" Content="Fit" MinWidth="52" Height="30" Padding="10,0"
                             Click="Fit_Click" Background="#FF333333" Foreground="White"
-                            BorderThickness="0" Cursor="Hand" FontSize="14" Margin="0,0,8,0" />
-                    <Button x:Name="CloseButton" Content="✕" Width="32" Height="28"
+                            BorderThickness="0" Cursor="Hand" FontSize="12" Margin="0,0,8,0" />
+                    <Button x:Name="CloseButton" Content="×" Width="34" Height="30"
                             Click="Close_Click" Background="#FF333333" Foreground="White"
-                            BorderThickness="0" Cursor="Hand" FontSize="14" />
+                            BorderThickness="0" Cursor="Hand" FontSize="16" />
                 </StackPanel>
             </Grid>
         </Border>

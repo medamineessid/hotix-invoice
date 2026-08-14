@@ -22,6 +22,14 @@ public partial class ImageViewerWindow : Window
         Title = title;
         TitleText.Text = title;
         StatusText.Text = string.Empty;
+
+        // Clear labels/tooltips so the controls are self-explanatory even when
+        // an emoji glyph would render as a blank box on the user's system.
+        ZoomOutButton.ToolTip = TranslationSource.Get("ViewerZoomOut");
+        ZoomInButton.ToolTip = TranslationSource.Get("ViewerZoomIn");
+        FitButton.Content = TranslationSource.Get("ViewerFit");
+        FitButton.ToolTip = TranslationSource.Get("ViewerFit");
+        CloseButton.ToolTip = TranslationSource.Get("ViewerClose");
     }
 
     private void Window_Loaded(object sender, RoutedEventArgs e)
