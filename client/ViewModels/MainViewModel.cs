@@ -2564,11 +2564,22 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         && DetectedFiles.Any(f => f.IsSelected);
 
     /// <summary>
-    /// Adds a diagnostic trace line to Debug output and updates the status message.
+    /// Adds a diagnostic trace line to Debug output and appends it to a
+    /// persistent log file so extraction flow can be audited after the fact.
     /// </summary>
     private void LogPipeline(string step)
     {
         Debug.WriteLine("[Hotix] " + step);
+        try
+        {
+            File.AppendAllText(
+                @"C:\hotix-invoice\pipeline.log",
+                $"{DateTime.Now:HH:mm:ss.fff} {step}{Environment.NewLine}");
+        }
+        catch
+        {
+            // Logging must never break extraction.
+        }
     }
 
     private Task SetExtractionStatusAsync(string status)
@@ -2591,11 +2602,12 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             string key = NormalizeFilePathForComparison(row.FilePath);
             if (!_addedResultPaths.Add(key))
             {
-                LogPipeline($"Skipped duplicate result for {row.FileName}");
+                LogPipeline($"DUP-SKIP: already have result for {row.FilePath}");
                 return;
             }
 
             Results.Add(row);
+            LogPipeline($"ADD-RESULT: {row.FilePath} (results={Results.Count}, items={row.ItemsCount})");
             if (row.IsIncomplete) IncompleteResults.Add(row);
 
             ProcessedFiles += 1;
@@ -3134,6 +3146,8 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             .ToArray();
         TotalFiles = files.Length;
         LogPipeline($"Input file count: {files.Length}");
+        foreach (string f in files)
+            LogPipeline($"  INPUT: {f}");
 
         if (files.Length == 0)
         {
