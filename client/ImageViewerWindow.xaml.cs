@@ -23,11 +23,9 @@ public partial class ImageViewerWindow : Window
         TitleText.Text = title;
         StatusText.Text = string.Empty;
 
-        // Clear labels/tooltips so the controls are self-explanatory even when
-        // an emoji glyph would render as a blank box on the user's system.
+        // Tooltips keep the icon-only controls self-explanatory.
         ZoomOutButton.ToolTip = TranslationSource.Get("ViewerZoomOut");
         ZoomInButton.ToolTip = TranslationSource.Get("ViewerZoomIn");
-        FitButton.Content = TranslationSource.Get("ViewerFit");
         FitButton.ToolTip = TranslationSource.Get("ViewerFit");
         CloseButton.ToolTip = TranslationSource.Get("ViewerClose");
     }

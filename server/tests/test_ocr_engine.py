@@ -203,6 +203,35 @@ class TestNormalizeResult:
         assert engine._normalize_result(None, 0) == []
         assert engine._normalize_result([], 0) == []
 
+    def test_normalize_dedupes_overlapping_identical_lines(self):
+        """Two detections of the same text with overlapping boxes collapse to one."""
+        engine = PaddleOcrEngine()
+        texts = ["Salle du restaurant", "Salle du restaurant", "Coin bar"]
+        scores = [0.9, 0.95, 0.9]
+        polys = [
+            [[10, 100], [200, 100], [200, 130], [10, 130]],   # duplicate #1
+            [[12, 101], [198, 101], [198, 131], [12, 131]],   # duplicate #2 (overlaps)
+            [[10, 300], [100, 300], [100, 330], [10, 330]],   # distinct row
+        ]
+        result = _make_mock_3x_result(texts, scores, polys)
+
+        lines = engine._normalize_result(result, page_index=0)
+        assert [line.text for line in lines] == ["Salle du restaurant", "Coin bar"]
+
+    def test_normalize_keeps_repeated_text_in_distinct_rows(self):
+        """Same text at different vertical positions must NOT be deduped away."""
+        engine = PaddleOcrEngine()
+        texts = ["0,00 €", "0,00 €"]
+        scores = [0.9, 0.9]
+        polys = [
+            [[400, 100], [470, 100], [470, 130], [400, 130]],
+            [[400, 300], [470, 300], [470, 330], [400, 330]],
+        ]
+        result = _make_mock_3x_result(texts, scores, polys)
+
+        lines = engine._normalize_result(result, page_index=0)
+        assert [line.text for line in lines] == ["0,00 €", "0,00 €"]
+
 
 class TestRecognizeWithMock:
     """Verify recognize() flows correctly with a mocked PaddleOCR call."""

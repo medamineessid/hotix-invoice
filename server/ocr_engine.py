@@ -34,6 +34,22 @@ MIN_CONFIDENCE: float = 0.3
 DET_UNCLIP_RATIO: float = 2.0
 DET_BOX_THRESH: float = 0.2
 
+# Two OCR detections are considered duplicates of the same visual line when
+# their boxes overlap by at least this fraction of the smaller box in BOTH the
+# horizontal and vertical axes.
+_DUPLICATE_OVERLAP_RATIO: float = 0.5
+
+
+def _boxes_overlap(a: BoundingBox, b: BoundingBox, ratio: float = _DUPLICATE_OVERLAP_RATIO) -> bool:
+    """True when two bounding boxes overlap substantially in both axes."""
+    min_h = min(a.height, b.height)
+    min_w = min(a.width, b.width)
+    if min_h <= 0 or min_w <= 0:
+        return False
+    v_overlap = a.vertical_overlap(b)
+    h_overlap = a.horizontal_overlap(b)
+    return (v_overlap / min_h >= ratio) and (h_overlap / min_w >= ratio)
+
 
 @dataclass(frozen=True)
 class OCRResult:
@@ -122,7 +138,38 @@ class PaddleOcrEngine:
         lines = [line for detection in self._iter_detections(result) if (line := self._parse_detection(detection, page_index)) is not None]
 
         ordered_lines = sorted(lines, key=lambda item: (item.box.y1, item.box.x1, -item.confidence))
-        return [replace(line, line_index=index) for index, line in enumerate(ordered_lines)]
+        deduped = self._dedupe_overlapping_lines(ordered_lines)
+        return [replace(line, line_index=index) for index, line in enumerate(deduped)]
+
+    @staticmethod
+    def _dedupe_overlapping_lines(lines: list[OCRLine]) -> list[OCRLine]:
+        """Remove duplicate OCR detections of the same text region.
+
+        PaddleOCR occasionally emits two (or more) nearly-identical boxes for a
+        single line of text (overlapping detections). Those double detections
+        then propagate into the item table as duplicated line items — e.g. the
+        same designation appearing twice. Two lines are treated as the same
+        detection when their normalized text matches AND their bounding boxes
+        overlap substantially in both axes. Distinct rows or columns that merely
+        share text (repeated "0,00 \u20ac" amounts, repeated unit labels) are kept
+        because their boxes do not overlap.
+        """
+        kept: list[OCRLine] = []
+        for line in lines:
+            text_key = collapse_text(line.text).strip().lower()
+            if not text_key:
+                kept.append(line)
+                continue
+            duplicate = False
+            for prev in kept:
+                if collapse_text(prev.text).strip().lower() != text_key:
+                    continue
+                if _boxes_overlap(line.box, prev.box):
+                    duplicate = True
+                    break
+            if not duplicate:
+                kept.append(line)
+        return kept
 
     def _iter_detections(self, result: Any):
         """Yield raw PaddleOCR detection entries in a normalized shape.
