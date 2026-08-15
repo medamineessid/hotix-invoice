@@ -916,8 +916,7 @@
                                               Style="{StaticResource ResultGridStyle}"
                                               SelectedItem="{Binding SelectedRow}"
                                               RowDetailsVisibilityMode="VisibleWhenSelected"
-                                              VirtualizingPanel.VirtualizationMode="Recycling"
-                                              EnableRowVirtualization="True"
+                                              EnableRowVirtualization="False"
                                               LoadingRow="ResultsGrid_LoadingRow"
                                               MouseDoubleClick="ResultsGrid_MouseDoubleClick">
                                         <DataGrid.Resources>
