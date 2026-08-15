@@ -551,31 +551,39 @@ public sealed class InvoiceRowViewModel : INotifyPropertyChanged
         return deduped;
     }
 
-    public static InvoiceRowViewModel FromSuccess(string filePath, InvoiceResult result) => new()
+    public static InvoiceRowViewModel FromSuccess(string filePath, InvoiceResult result)
     {
-        FilePath      = filePath,
-        FileName      = Path.GetFileName(filePath),
-        NumeroFacture = result.NumeroFacture,
-        Date          = result.Date,
-        Fournisseur   = result.Fournisseur,
-        Client        = result.Client,
-        MontantHt     = result.MontantHt,
-        MontantTva    = result.MontantTva,
-        MontantTaxe   = result.MontantTaxe,
-        MontantTtc    = result.MontantTtc,
-        Confidence    = result.Confidence,
-        RawText       = result.RawText,
-        EngineUsed    = result.EngineUsed,
-        HasError      = false,
-        GeminiFallbackReason = result.GeminiFallbackReason,
-        ComputedFields = result.ComputedFields != null
-            ? new HashSet<string>(result.ComputedFields)
-            : new HashSet<string>(),
-        AmountMismatch = result.AmountMismatch,
-        ItemsCount = result.Items?.Count ?? 0,
-        Items = DedupeItems(result.Items),
-        TaxSummary = result.TaxSummary ?? new List<TaxSummaryRow>(),
-    };
+        // Dedupe once and reuse the result for both Items and ItemsCount so
+        // the exported count (ExcelWriter "Nb Articles" column, items header)
+        // never disagrees with the actual deduped list — a regression of the
+        // 98d9de7 dedupe commit which counted pre-dedupe while listing post-dedupe.
+        var items = DedupeItems(result.Items);
+        return new()
+        {
+            FilePath      = filePath,
+            FileName      = Path.GetFileName(filePath),
+            NumeroFacture = result.NumeroFacture,
+            Date          = result.Date,
+            Fournisseur   = result.Fournisseur,
+            Client        = result.Client,
+            MontantHt     = result.MontantHt,
+            MontantTva    = result.MontantTva,
+            MontantTaxe   = result.MontantTaxe,
+            MontantTtc    = result.MontantTtc,
+            Confidence    = result.Confidence,
+            RawText       = result.RawText,
+            EngineUsed    = result.EngineUsed,
+            HasError      = false,
+            GeminiFallbackReason = result.GeminiFallbackReason,
+            ComputedFields = result.ComputedFields != null
+                ? new HashSet<string>(result.ComputedFields)
+                : new HashSet<string>(),
+            AmountMismatch = result.AmountMismatch,
+            ItemsCount = items.Count,
+            Items = items,
+            TaxSummary = result.TaxSummary ?? new List<TaxSummaryRow>(),
+        };
+    }
 
     public static InvoiceRowViewModel FromError(string filePath, string message) => new()
     {
