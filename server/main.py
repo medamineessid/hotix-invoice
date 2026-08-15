@@ -668,9 +668,14 @@ async def _run_gemini_extraction(
     try:
         image_data = await _prepare_pages_for_gemini(pages)
         result = await extract_with_gemini(image_data, "image/png")
-        # Separate items from the flat fields
+        # Separate items and tax_summary from the flat fields. Leaving
+        # tax_summary inside `fields` used to collide with the explicit
+        # tax_summary= kwarg below (TypeError: got multiple values for
+        # keyword argument 'tax_summary') — engine=gemini always 503'd and
+        # engine=auto silently fell back to OCR on every request.
         gemini_items = result.pop("items", [])
-        fields = result  # remaining keys are the 8 flat fields
+        gemini_tax_summary_raw = result.pop("tax_summary", [])
+        fields = result  # remaining keys really are just the 8 flat fields
 
         # gemini_extractor normalizes montant_* to float by design (the model
         # is instructed to return numbers, not strings — see gemini_extractor.py
@@ -715,7 +720,7 @@ async def _run_gemini_extraction(
                 base_ht=r.get("base_ht"),
                 tax_amount=r.get("tax_amount"),
             )
-            for r in result.get("tax_summary", []) if isinstance(r, dict)
+            for r in gemini_tax_summary_raw if isinstance(r, dict)
         ]
         return (
             InvoiceExtractionResponse(
