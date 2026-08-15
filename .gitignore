@@ -21,6 +21,8 @@ client/obj/
 client/publish/
 client/HotixDiagnostics/bin/
 client/HotixDiagnostics/obj/
+client-tests/bin/
+client-tests/obj/
 *_wpftmp.csproj
 
 # Installer output
@@ -36,9 +38,13 @@ Thumbs.db
 Desktop.ini
 
 # Logs & debug artifacts
+*.log
 crash.log
 server_stdout.log
 nul
+
+# Python test cache
+.pytest_cache/
 
 # Test & diagnostic files
 test_invoice.png
