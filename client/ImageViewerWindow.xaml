@@ -31,6 +31,7 @@
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                     <!-- Zoom out (magnifier with minus) -->
                     <Button x:Name="ZoomOutButton" Width="36" Height="30"
+                            Style="{StaticResource ButtonIconStyle}"
                             Click="ZoomOut_Click" Background="#FF333333" Foreground="White"
                             BorderThickness="0" Cursor="Hand" Margin="0,0,4,0">
                         <Viewbox Width="16" Height="16">
@@ -43,6 +44,7 @@
                                TextAlignment="Center" />
                     <!-- Zoom in (magnifier with plus) -->
                     <Button x:Name="ZoomInButton" Width="36" Height="30"
+                            Style="{StaticResource ButtonIconStyle}"
                             Click="ZoomIn_Click" Background="#FF333333" Foreground="White"
                             BorderThickness="0" Cursor="Hand" Margin="4,0,8,0">
                         <Viewbox Width="16" Height="16">
@@ -52,6 +54,7 @@
                     </Button>
                     <!-- Fit to window (four corners) -->
                     <Button x:Name="FitButton" Width="36" Height="30"
+                            Style="{StaticResource ButtonIconStyle}"
                             Click="Fit_Click" Background="#FF333333" Foreground="White"
                             BorderThickness="0" Cursor="Hand" Margin="0,0,8,0">
                         <Viewbox Width="16" Height="16">
@@ -61,6 +64,7 @@
                     </Button>
                     <!-- Close (X) -->
                     <Button x:Name="CloseButton" Width="36" Height="30"
+                            Style="{StaticResource ButtonIconStyle}"
                             Click="Close_Click" Background="#FF333333" Foreground="White"
                             BorderThickness="0" Cursor="Hand">
                         <Viewbox Width="16" Height="16">
