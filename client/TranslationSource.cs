@@ -12,6 +12,7 @@ namespace Hotix.InvoiceClient;
 public sealed class TranslationSource : INotifyPropertyChanged
 {
     private static readonly TranslationSource _instance = new();
+    private readonly object _sync = new();
     private Dictionary<string, string> _strings = new();
     private string _currentCulture = "fr";
 
@@ -28,12 +29,20 @@ public sealed class TranslationSource : INotifyPropertyChanged
     /// <summary>Current culture code ("en" or "fr").</summary>
     public string CurrentCulture
     {
-        get => _currentCulture;
+        get { lock (_sync) return _currentCulture; }
         set
         {
-            if (_currentCulture == value) return;
-            _currentCulture = value;
-            LoadCulture(value);
+            bool changed;
+            lock (_sync)
+            {
+                changed = _currentCulture != value;
+                if (changed)
+                {
+                    _currentCulture = value;
+                    LoadCulture(value);
+                }
+            }
+            if (!changed) return;
             // Notify all bindings that use the indexer
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs("Item[]"));
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(CurrentCulture)));
@@ -46,7 +55,8 @@ public sealed class TranslationSource : INotifyPropertyChanged
         get
         {
             if (key == null) return "";
-            return _strings.TryGetValue(key, out string? value) ? value : $"{{_{key}_}}";
+            lock (_sync)
+                return _strings.TryGetValue(key, out string? value) ? value : $"{{_{key}_}}";
         }
     }
 
