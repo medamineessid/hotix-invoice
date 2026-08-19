@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -7,34 +8,138 @@ using System.Text.Json;
 namespace Hotix.InvoiceClient;
 
 /// <summary>
-/// Shared server directory resolver used by both App.xaml.cs (to launch the server)
-/// and MainViewModel.cs (to read/write appsettings.json).
-/// 
-/// Validates that server/main.py actually exists — not just that a folder named "server"
-/// exists on disk. This prevents the two path-resolution methods from diverging when
-/// multiple candidate "server" folders exist (e.g., in the build output vs. the project root).
+/// Shared path resolver used by App.xaml.cs (to launch the server), MainViewModel.cs
+/// (appsettings.json / pipeline.log) and MainWindow.xaml.cs.
+///
+/// All resolution is RELATIVE to the running executable's folder and walks UP the
+/// directory tree, so the application works from any install/source location and is
+/// never tied to a developer's absolute path (e.g. C:\hotix-invoice).
+///
+/// Layouts covered:
+///   - Dev/source:  &lt;root&gt;\client\publish\Hotix.InvoiceClient.exe  → venv/server at &lt;root&gt;
+///   - Installed:   {app}\client\Hotix.InvoiceClient.exe              → venv/server at {app}
 /// </summary>
 public static class ServerPathResolver
 {
-    private static readonly string[] MainPyCandidates = new[]
+    /// <summary>
+    /// Returns the list of paths probed while walking up from startDir: startDir itself,
+    /// then each parent, up to maxLevels levels. Used both for resolution and for
+    /// user-facing diagnostics ("which locations were checked").
+    /// </summary>
+    public static string[] UpwardCandidates(string startDir, string relativePath, int maxLevels = 6)
     {
-        Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "server", "main.py"),
-        Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "server", "main.py"),
-        @"C:\hotix-invoice\server\main.py",
-    };
+        var candidates = new List<string>();
+        string current = Path.GetFullPath(startDir);
+        for (int i = 0; i <= maxLevels; i++)
+        {
+            candidates.Add(Path.Combine(current, relativePath));
+            var parent = Directory.GetParent(current);
+            if (parent == null)
+                break;
+            current = parent.FullName;
+        }
+        return candidates.ToArray();
+    }
+
+    /// <summary>
+    /// Returns the first existing file found while walking up from startDir
+    /// (checking startDir itself, then each parent, up to maxLevels levels), or null.
+    /// </summary>
+    public static string? FindUpwards(string startDir, string relativePath, int maxLevels = 6)
+        => UpwardCandidates(startDir, relativePath, maxLevels).FirstOrDefault(File.Exists);
+
+    /// <summary>Full path to the venv Python executable (venv\Scripts\python.exe), or null.</summary>
+    public static string? ResolveVenvPython()
+        => FindUpwards(AppDomain.CurrentDomain.BaseDirectory, Path.Combine("venv", "Scripts", "python.exe"));
+
+    /// <summary>Full path to server/main.py, or null.</summary>
+    public static string? ResolveMainPy()
+        => FindUpwards(AppDomain.CurrentDomain.BaseDirectory, Path.Combine("server", "main.py"));
+
+    /// <summary>
+    /// Full path to the Poppler binaries folder (poppler\bin or poppler\Library\bin),
+    /// or null. Callers should honor the POPPLER_PATH env var before calling this.
+    /// </summary>
+    public static string? ResolvePopplerDirectory()
+    {
+        string appDir = AppDomain.CurrentDomain.BaseDirectory;
+        foreach (string relative in new[]
+        {
+            Path.Combine("poppler", "bin"),
+            Path.Combine("poppler", "Library", "bin"),
+        })
+        {
+            string? found = FindUpwards(appDir, relative);
+            if (found != null)
+                return found;
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// Walks up from startDir and returns the first directory that contains the given
+    /// relative path (file or directory), or null. Unlike FindUpwards this returns the
+    /// probed base directory, not the found item itself.
+    /// </summary>
+    public static string? FindBaseDirUpwards(string startDir, string relativePath, int maxLevels = 6)
+    {
+        string current = Path.GetFullPath(startDir);
+        for (int i = 0; i <= maxLevels; i++)
+        {
+            string candidate = Path.Combine(current, relativePath);
+            if (File.Exists(candidate) || Directory.Exists(candidate))
+                return current;
+
+            var parent = Directory.GetParent(current);
+            if (parent == null)
+                break;
+            current = parent.FullName;
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// Returns the application root: the nearest ancestor of the executable containing
+    /// the venv, server/main.py, or requirements.txt. The venv is checked first so the
+    /// root stays the project/install root even when a server\ copy exists inside the
+    /// publish output. Used for log files (crash.log / pipeline.log).
+    /// </summary>
+    public static string? ResolveProjectRoot()
+    {
+        string appDir = AppDomain.CurrentDomain.BaseDirectory;
+        foreach (string marker in new[]
+        {
+            Path.Combine("venv", "Scripts", "python.exe"),
+            Path.Combine("server", "main.py"),
+            "requirements.txt",
+        })
+        {
+            string? root = FindBaseDirUpwards(appDir, marker);
+            if (root != null)
+                return root;
+        }
+        return null;
+    }
+
+    /// <summary>Returns a writable path under %LOCALAPPDATA%\Hotix\logs. Never throws.</summary>
+    public static string ResolveWritableFile(string fileName)
+    {
+        string logsDir = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "Hotix", "logs");
+        Directory.CreateDirectory(logsDir);
+        return Path.Combine(logsDir, fileName);
+    }
 
     /// <summary>
     /// Returns the directory containing server/main.py, or null if not found.
     /// </summary>
     public static string? ResolveServerDirectory()
     {
-        string? mainPy = MainPyCandidates.FirstOrDefault(File.Exists);
+        string? mainPy = ResolveMainPy();
         if (string.IsNullOrEmpty(mainPy))
             return null;
-
-        // mainPy is known non-null here because of the guard above
-        string dir = Path.GetDirectoryName(mainPy)!;
-        return dir;
+        return Path.GetDirectoryName(mainPy);
     }
 
     /// <summary>
@@ -93,21 +198,18 @@ public static class ServerPathResolver
     /// </summary>
     private static string? GetOldAppSettingsPath()
     {
-        // Try old project-root-relative paths
-        string[] oldCandidates = new[]
+        // Probe relative to the executable (walking up), never a hard-coded absolute path.
+        string appDir = AppDomain.CurrentDomain.BaseDirectory;
+        foreach (string relative in new[]
         {
-            Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "appsettings.json"),
-            Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "server", "appsettings.json"),
-            @"C:\hotix-invoice\server\appsettings.json",
-        };
-
-        foreach (string candidate in oldCandidates)
+            "appsettings.json",
+            Path.Combine("server", "appsettings.json"),
+        })
         {
-            string fullPath = Path.GetFullPath(candidate);
-            if (File.Exists(fullPath))
-                return fullPath;
+            string? found = FindUpwards(appDir, relative);
+            if (found != null)
+                return found;
         }
-
         return null;
     }
 }

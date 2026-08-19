@@ -82,7 +82,8 @@ public partial class App : Application
             // Log crash with basic System.IO only (no TranslationSource dependency)
             try
             {
-                File.WriteAllText(@"C:\hotix-invoice\crash.log",
+                string crashPath = ServerPathResolver.ResolveWritableFile("crash.log");
+                File.WriteAllText(crashPath,
                     $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {ex.GetType().FullName}: {ex.Message}\n{ex.StackTrace}");
             }
             catch { }
@@ -92,32 +93,69 @@ public partial class App : Application
 
     private async Task StartupCoreAsync()
     {
-        // 1. Path Discovery — find Python and server/main.py for later lazy start
-        string appDir = AppDomain.CurrentDomain.BaseDirectory;
-        _pythonPath = FindFile(new[]
+        // [SEL-DIAG] TEMPORARY: capture WPF data-binding warnings/errors to
+        // pipeline.log so a silently-broken SelectedItem write-back is visible.
+        // Remove this block (and PipelineTraceListener) after diagnosis.
+        try
         {
-            Path.Combine(appDir, "venv", "Scripts", "python.exe"),
-            @"C:\hotix-invoice\venv\Scripts\python.exe"
-        });
+            PresentationTraceSources.Refresh();
+            PresentationTraceSources.DataBindingSource.Listeners.Add(new PipelineTraceListener());
+            PresentationTraceSources.DataBindingSource.Switch.Level = SourceLevels.Warning | SourceLevels.Error;
+        }
+        catch { /* diagnostics must never break startup */ }
+
+        // 1. Path Discovery — find Python and server/main.py for later lazy start.
+        //    Resolved relative to the executable (walking up the tree), never a
+        //    hard-coded absolute path, so the app works from any location.
+        string appDir = AppDomain.CurrentDomain.BaseDirectory;
+        _pythonPath = ServerPathResolver.ResolveVenvPython();
+
+        LogServerLine($"Startup path discovery: executable directory={appDir}");
+        LogServerLine($"Resolved project root={ServerPathResolver.ResolveProjectRoot() ?? "<not found>"}");
+        LogServerLine($"Resolved Python={_pythonPath ?? "<not found>"}; exists={_pythonPath != null && File.Exists(_pythonPath)}");
 
         if (string.IsNullOrEmpty(_pythonPath))
         {
-            MessageBox.Show(TranslationSource.Get("ErrorPythonNotFound"), TranslationSource.Get("ErrorFatalTitle"), MessageBoxButton.OK, MessageBoxImage.Error);
+            // Robust diagnostics: list every location probed and whether it exists.
+            string[] pythonCandidates = ServerPathResolver.UpwardCandidates(
+                appDir, Path.Combine("venv", "Scripts", "python.exe"));
+            string pythonDetail = string.Join(Environment.NewLine, pythonCandidates.Select(c =>
+                (File.Exists(c) ? "[present]  " : "[missing]  ") + c));
+
+            MessageBox.Show(
+                TranslationSource.Get("ErrorPythonNotFound") + Environment.NewLine + Environment.NewLine +
+                TranslationSource.Get("ErrorLocationsChecked") + Environment.NewLine + pythonDetail,
+                TranslationSource.Get("ErrorFatalTitle"), MessageBoxButton.OK, MessageBoxImage.Error);
             Current.Shutdown();
             return;
         }
 
         string? serverDir = ServerPathResolver.ResolveServerDirectory();
 
+        LogServerLine($"Resolved server directory={serverDir ?? "<not found>"}; exists={serverDir != null && Directory.Exists(serverDir)}");
+        string? resolvedMainPy = ServerPathResolver.ResolveMainPy();
+        LogServerLine($"Resolved main.py={resolvedMainPy ?? "<not found>"}; exists={resolvedMainPy != null && File.Exists(resolvedMainPy)}");
+        string? resolvedPoppler = ResolvePopplerPath();
+        LogServerLine($"Resolved Poppler={resolvedPoppler ?? "<not found>"}; exists={resolvedPoppler != null && Directory.Exists(resolvedPoppler)}");
+
         if (serverDir == null)
         {
-            MessageBox.Show(TranslationSource.Get("ErrorServerNotFound"), TranslationSource.Get("ErrorFatalTitle"), MessageBoxButton.OK, MessageBoxImage.Error);
+            string[] serverCandidates = ServerPathResolver.UpwardCandidates(
+                appDir, Path.Combine("server", "main.py"));
+            string serverDetail = string.Join(Environment.NewLine, serverCandidates.Select(c =>
+                (File.Exists(c) ? "[present]  " : "[missing]  ") + c));
+
+            MessageBox.Show(
+                TranslationSource.Get("ErrorServerNotFound") + Environment.NewLine + Environment.NewLine +
+                TranslationSource.Get("ErrorLocationsChecked") + Environment.NewLine + serverDetail,
+                TranslationSource.Get("ErrorFatalTitle"), MessageBoxButton.OK, MessageBoxImage.Error);
             Current.Shutdown();
             return;
         }
 
         // Working directory is one level above the server folder (project root)
         _workingDir = Path.GetDirectoryName(serverDir)!;
+        LogServerLine($"Server working directory={_workingDir}; exists={Directory.Exists(_workingDir)}");
 
         // Cleanup on exit — safe to register even if server never starts
         AppDomain.CurrentDomain.ProcessExit += (s, args) => CleanupServer();
@@ -237,11 +275,17 @@ public partial class App : Application
         }
 
         if (string.IsNullOrEmpty(_pythonPath) || string.IsNullOrEmpty(_workingDir))
+        {
+            LogServerLine("STARTUP BLOCKED: Python executable or server working directory was not resolved.");
             return false;
+        }
 
         try
         {
             progress?.Report(TranslationSource.Get("ServerStartingOcr"));
+
+            LogServerLine($"Starting Python command: \"{_pythonPath}\" -m uvicorn server.main:app --host 127.0.0.1 --port 8000");
+            LogServerLine($"Python working directory: {_workingDir}");
 
             // ── Pre-check: verify system environment ──
             LogServerLine("Running system pre-check: " + _pythonPath + " -m server.verify_system");
@@ -264,23 +308,23 @@ public partial class App : Application
 
                 using (var checkProcess = Process.Start(psi))
                 {
-                    if (checkProcess != null)
+                    if (checkProcess == null)
+                        throw new InvalidOperationException("Python pre-check could not be started.");
+
+                    string checkStdout = await checkProcess.StandardOutput.ReadToEndAsync();
+                    string checkStderr = await checkProcess.StandardError.ReadToEndAsync();
+                    checkProcess.WaitForExit(15_000);
+
+                    if (checkProcess.ExitCode != 0)
                     {
-                        string checkStdout = await checkProcess.StandardOutput.ReadToEndAsync();
-                        string checkStderr = await checkProcess.StandardError.ReadToEndAsync();
-                        checkProcess.WaitForExit(15_000);
-
-                        if (checkProcess.ExitCode != 0)
-                        {
-                            string checkOutput = (checkStdout + checkStderr).Trim();
-                            LogServerLine("Pre-check FAILED (exit " + checkProcess.ExitCode + "): " + checkOutput);
-                            throw new InvalidOperationException(
-                                TranslationSource.Fmt("ServerStartingFailed", ServerLogPath) +
-                                "\n\nSystem pre-check failed:\n" + checkOutput);
-                        }
-
-                        LogServerLine("Pre-check passed");
+                        string checkOutput = (checkStdout + checkStderr).Trim();
+                        LogServerLine("Pre-check FAILED (exit " + checkProcess.ExitCode + "): " + checkOutput);
+                        throw new InvalidOperationException(
+                            TranslationSource.Fmt("ServerStartingFailed", ServerLogPath) +
+                            "\n\nSystem pre-check failed:\n" + checkOutput);
                     }
+
+                    LogServerLine("Pre-check passed: Python executable started successfully.");
                 }
             }
             catch (InvalidOperationException)
@@ -323,7 +367,17 @@ public partial class App : Application
             ServerProcess.OutputDataReceived += (s, e) => { if (e.Data != null) LogServerLine(e.Data); };
             ServerProcess.ErrorDataReceived += (s, e) => { if (e.Data != null) LogServerLine(e.Data); };
 
-            ServerProcess.Start();
+            try
+            {
+                if (!ServerProcess.Start())
+                    throw new InvalidOperationException("Process.Start returned false.");
+            }
+            catch (Exception ex)
+            {
+                LogServerLine($"PROCESS START FAILED: {ex.GetType().Name}: {ex.Message}");
+                throw;
+            }
+            LogServerLine($"Process.Start succeeded; process ID={ServerProcess.Id}");
             ServerProcess.BeginOutputReadLine();
             ServerProcess.BeginErrorReadLine();
 
@@ -341,6 +395,16 @@ public partial class App : Application
             var stopwatch = Stopwatch.StartNew();
             while (stopwatch.Elapsed < ServerStartTimeout)
             {
+                if (ServerProcess.HasExited)
+                {
+                    LogServerLine($"SERVER PROCESS EXITED before readiness check; exit code={ServerProcess.ExitCode}");
+                    string exitLogTail = GetLogTail(20) ?? "<no captured server output>";
+                    throw new InvalidOperationException(
+                        TranslationSource.Fmt("ServerStartingFailed", ServerLogPath) +
+                        $"\n\nPython exited before the OCR server became ready (exit code {ServerProcess.ExitCode})." +
+                        $"\n\nLast log lines:\n{exitLogTail}");
+                }
+
                 double elapsed = stopwatch.Elapsed.TotalSeconds;
                 if (elapsed > 55)
                     progress?.Report(TranslationSource.Get("ServerStartingModels"));
@@ -416,27 +480,18 @@ public partial class App : Application
 
     /// <summary>
     /// Resolves the Poppler binary directory for PDF support by checking
-    /// POPPLER_PATH env var first, then the same candidate locations as
-    /// ServerPathResolver.
+    /// POPPLER_PATH env var first, then walking up from the executable
+    /// (poppler\bin or poppler\Library\bin). Never uses a hard-coded path.
     /// </summary>
     private static string? ResolvePopplerPath()
     {
-        string appDir = AppDomain.CurrentDomain.BaseDirectory;
         // Check POPPLER_PATH env var first (user/system-level override)
         string? envPath = Environment.GetEnvironmentVariable("POPPLER_PATH");
         if (!string.IsNullOrEmpty(envPath) && Directory.Exists(envPath))
             return envPath;
 
-        string[] candidates = new[]
-        {
-            Path.Combine(appDir, "poppler", "bin"),
-            Path.Combine(appDir, "..", "poppler", "bin"),
-            @"C:\hotix-invoice\poppler\bin",
-        };
-        return candidates.FirstOrDefault(Directory.Exists);
+        return ServerPathResolver.ResolvePopplerDirectory();
     }
-
-    private static string FindFile(string[] paths) => paths.FirstOrDefault(File.Exists) ?? string.Empty;
 
     private static bool IsPortListening(int port)
     {
@@ -611,7 +666,8 @@ public partial class App : Application
         //    themselves fail (copies the StartupAsync pattern).
         try
         {
-            File.WriteAllText(@"C:\hotix-invoice\crash.log",
+            string crashPath = ServerPathResolver.ResolveWritableFile("crash.log");
+            File.WriteAllText(crashPath,
                 $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {ex.GetType().FullName}: {ex.Message}\n{ex.StackTrace}");
         }
         catch { /* best-effort */ }
@@ -655,6 +711,30 @@ public partial class App : Application
                 CleanupServer();
                 Current.Shutdown();
             }
+        }
+    }
+
+    // [SEL-DIAG] TEMPORARY: appends WPF binding-trace lines to pipeline.log.
+    // Remove together with the wiring block in StartupCoreAsync after diagnosis.
+    private sealed class PipelineTraceListener : TraceListener
+    {
+        private readonly StringBuilder _buffer = new();
+        public override void Write(string? message) => _buffer.Append(message);
+        public override void WriteLine(string? message)
+        {
+            _buffer.Append(message);
+            Flush(_buffer.ToString());
+            _buffer.Clear();
+        }
+        private static void Flush(string line)
+        {
+            try
+            {
+                File.AppendAllText(
+                    ServerPathResolver.ResolveWritableFile("pipeline.log"),
+                    $"{DateTime.Now:HH:mm:ss.fff} [BIND] {line}{Environment.NewLine}");
+            }
+            catch { /* diagnostics must never break the app */ }
         }
     }
 }

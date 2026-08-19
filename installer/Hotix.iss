@@ -79,10 +79,8 @@ Root: HKLM; Subkey: "SYSTEM\CurrentControlSet\Control\Session Manager\Environmen
 Root: HKLM; Subkey: "SYSTEM\CurrentControlSet\Control\Session Manager\Environment"; ValueType: string; ValueName: "POPPLER_PATH"; ValueData: "{app}\poppler\Library\bin"; Check: DirExists(ExpandConstant('{app}\poppler\Library\bin'))
 
 [UninstallDelete]
-; Clean up venv and logs on uninstall
+; Clean up the application venv on uninstall. Runtime logs live in LocalAppData.
 Type: dirifempty; Name: "{app}\venv"
-Type: files; Name: "{app}\install.log"
-Type: files; Name: "{app}\*.log"
 Type: filesandordirs; Name: "{app}\poppler"
 
 [Code]
@@ -645,7 +643,8 @@ procedure CurStepChanged(CurStep: TSetupStep);
 begin
   if CurStep = ssPostInstall then
   begin
-    LogFile := ExpandConstant('{app}\install.log');
+    ForceDirectories(ExpandConstant('{localappdata}\Hotix\logs'));
+    LogFile := ExpandConstant('{localappdata}\Hotix\logs\install.log');
     InstallSuccess := True;
     
     WriteLog('========== HOTIX INSTALL START ==========');

@@ -134,17 +134,33 @@ public partial class MainWindow : Window
 
         try
         {
-            // Diagnostics lives at {app}\diagnostics\HotixDiagnostics.exe
-            // Venv lives at {app}\venv\Scripts\python.exe
+            // Diagnostics can live at {app}\diagnostics\HotixDiagnostics.exe (installed)
+            // or anywhere under the source tree (dev). Walk up from the executable to
+            // find venv\Scripts\python.exe instead of assuming a fixed relative layout.
             var diagDir = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
-            var appDir = Path.GetFullPath(Path.Combine(diagDir ?? "", ".."));
-            var venvPython = Path.Combine(appDir, "venv", "Scripts", "python.exe");
+            var checkedPaths = new List<string>();
+            string? venvPython = null;
+            string current = Path.GetFullPath(diagDir ?? string.Empty);
+            for (int i = 0; i <= 6; i++)
+            {
+                string candidate = Path.Combine(current, "venv", "Scripts", "python.exe");
+                checkedPaths.Add(candidate);
+                if (File.Exists(candidate))
+                {
+                    venvPython = candidate;
+                    break;
+                }
+                var parent = Directory.GetParent(current);
+                if (parent == null)
+                    break;
+                current = parent.FullName;
+            }
 
-            if (!File.Exists(venvPython))
+            if (venvPython == null)
             {
                 result.Status = CheckStatus.Failed;
                 result.Message = "Environnement virtuel introuvable";
-                result.Details = $"Chemin vérifié : {venvPython}";
+                result.Details = "Chemin(s) vérifié(s) :\n" + string.Join("\n", checkedPaths);
                 return result;
             }
 

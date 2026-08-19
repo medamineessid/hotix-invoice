@@ -1,5 +1,7 @@
 @echo off
-cd /d C:\hotix-invoice
+rem Resolve the project root as the parent of this script's folder, so the
+rem launcher works regardless of where the project was moved to.
+cd /d "%~dp0.."
 if not exist venv (
     echo Environnement virtuel introuvable. Veuillez lancer setup.ps1 d'abord.
     pause
