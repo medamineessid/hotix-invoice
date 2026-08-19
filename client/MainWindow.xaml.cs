@@ -21,6 +21,10 @@ namespace Hotix.InvoiceClient;
 public partial class MainWindow : Window
 {
     private MainViewModel ViewModel => (MainViewModel)DataContext;
+    private bool _isPreviewPanning;
+    private Point _previewPanStartPoint;
+    private double _previewPanStartHorizontalOffset;
+    private double _previewPanStartVerticalOffset;
 
     // ── Onboarding state ──────────────────────────────────────────────
     private static readonly string SettingsPath = Path.Combine(
@@ -525,6 +529,114 @@ public partial class MainWindow : Window
     private void OnMainContentGrid_SizeChanged(object? sender, SizeChangedEventArgs e)
     {
         UpdateResultsMinHeight();
+    }
+
+    private void PreviewScrollViewer_SizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        if (sender is not ScrollViewer scroller)
+            return;
+
+        // Keep fit-to-width tied to the measured viewport, not a fixed value.
+        double viewportWidth = scroller.ViewportWidth > 1 ? scroller.ViewportWidth : scroller.ActualWidth;
+        ViewModel.SetPreviewViewportWidth(viewportWidth);
+    }
+
+    private void PreviewScrollViewer_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
+    {
+        if (sender is not ScrollViewer scroller)
+            return;
+
+        if ((Keyboard.Modifiers & ModifierKeys.Control) != 0)
+        {
+            // Ctrl+wheel zooms around the cursor; plain wheel keeps normal vertical scroll.
+            e.Handled = true;
+            var cursor = e.GetPosition(scroller);
+            double oldZoom = ViewModel.PreviewZoomLevel;
+            double zoomFactor = e.Delta > 0 ? 1.12 : (1.0 / 1.12);
+
+            ViewModel.PreviewZoomLevel = oldZoom * zoomFactor;
+            double newZoom = ViewModel.PreviewZoomLevel;
+            if (Math.Abs(newZoom - oldZoom) < 0.0001)
+                return;
+
+            double relativeScale = newZoom / oldZoom;
+            double targetX = (scroller.HorizontalOffset + cursor.X) * relativeScale - cursor.X;
+            double targetY = (scroller.VerticalOffset + cursor.Y) * relativeScale - cursor.Y;
+
+            scroller.ScrollToHorizontalOffset(targetX);
+            scroller.ScrollToVerticalOffset(targetY);
+            return;
+        }
+
+        if ((Keyboard.Modifiers & ModifierKeys.Shift) != 0)
+        {
+            e.Handled = true;
+            const double horizontalStep = 48.0;
+            double offset = scroller.HorizontalOffset - Math.Sign(e.Delta) * horizontalStep;
+            scroller.ScrollToHorizontalOffset(offset);
+        }
+    }
+
+    private void PreviewScrollViewer_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is not ScrollViewer scroller)
+            return;
+
+        // Keep native scrollbar interaction intact; pan starts only on content drag.
+        if (e.OriginalSource is DependencyObject source)
+        {
+            var parent = source;
+            while (parent != null)
+            {
+                if (parent is ScrollBar)
+                    return;
+                parent = VisualTreeHelper.GetParent(parent);
+            }
+        }
+
+        _isPreviewPanning = true;
+        _previewPanStartPoint = e.GetPosition(scroller);
+        _previewPanStartHorizontalOffset = scroller.HorizontalOffset;
+        _previewPanStartVerticalOffset = scroller.VerticalOffset;
+
+        scroller.CaptureMouse();
+        scroller.Cursor = Cursors.SizeAll;
+        e.Handled = true;
+    }
+
+    private void PreviewScrollViewer_PreviewMouseMove(object sender, MouseEventArgs e)
+    {
+        if (!_isPreviewPanning || sender is not ScrollViewer scroller || e.LeftButton != MouseButtonState.Pressed)
+            return;
+
+        var currentPoint = e.GetPosition(scroller);
+        var delta = currentPoint - _previewPanStartPoint;
+
+        scroller.ScrollToHorizontalOffset(_previewPanStartHorizontalOffset - delta.X);
+        scroller.ScrollToVerticalOffset(_previewPanStartVerticalOffset - delta.Y);
+        e.Handled = true;
+    }
+
+    private void PreviewScrollViewer_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is not ScrollViewer scroller)
+            return;
+
+        EndPreviewPan(scroller);
+    }
+
+    private void PreviewScrollViewer_LostMouseCapture(object sender, MouseEventArgs e)
+    {
+        if (sender is ScrollViewer scroller)
+            EndPreviewPan(scroller);
+    }
+
+    private void EndPreviewPan(ScrollViewer scroller)
+    {
+        _isPreviewPanning = false;
+        if (scroller.IsMouseCaptured)
+            scroller.ReleaseMouseCapture();
+        scroller.Cursor = Cursors.Hand;
     }
 
     // ── Staggered Row Animation ──────────────────────────────────────

@@ -142,7 +142,6 @@
                     </DockPanel>
 
                     <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[SidebarVersion]}" Style="{StaticResource SidebarFooterStyle}" />
-                    <TextBlock Text="HOTIX" Style="{StaticResource SidebarFooterStyle}" Margin="0,2,0,0" />
 
                     <!-- Language selector -->
                     <StackPanel Margin="0,16,0,0">
@@ -661,16 +660,30 @@
                     <!-- ══ STEP 3: RESULTS AREA ══ -->
                     <Grid x:Name="ResultsSection" Grid.Row="5">
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" MinWidth="520" />
                             <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="300" MinWidth="250" MaxWidth="520">
+                            <ColumnDefinition>
                                 <ColumnDefinition.Style>
                                     <Style TargetType="ColumnDefinition">
-                                        <Setter Property="Width" Value="380" />
+                                        <!-- A row is selected: full preview width -->
+                                        <Setter Property="Width" Value="460" />
+                                        <Setter Property="MinWidth" Value="300" />
                                         <Style.Triggers>
+                                            <!-- Results exist but nothing selected: narrow strip for the hint -->
                                             <DataTrigger Binding="{Binding HasSelectedRow}" Value="False">
-                                                <Setter Property="Width" Value="0" />
+                                                <Setter Property="Width" Value="300" />
+                                                <Setter Property="MinWidth" Value="240" />
                                             </DataTrigger>
+                                            <!-- No rows at all: fully collapsed so results use the full width -->
+                                            <MultiDataTrigger>
+                                                <MultiDataTrigger.Conditions>
+                                                    <Condition Binding="{Binding HasSelectedRow}" Value="False" />
+                                                    <Condition Binding="{Binding Results.Count}" Value="0" />
+                                                    <Condition Binding="{Binding IncompleteResults.Count}" Value="0" />
+                                                </MultiDataTrigger.Conditions>
+                                                <Setter Property="Width" Value="0" />
+                                                <Setter Property="MinWidth" Value="0" />
+                                            </MultiDataTrigger>
                                         </Style.Triggers>
                                     </Style>
                                 </ColumnDefinition.Style>
@@ -1767,9 +1780,54 @@
                                       Visibility="{Binding HasSelectedRow, Converter={StaticResource BooleanToVisibilityConverter}}"
                                       AutomationProperties.Name="Resize preview panel" />
 
-                        <!-- Preview Panel: Image + Editable Fields + Raw Text toggle -->
+                        <!-- Empty state: results exist but no row is selected yet (discoverability hint).
+                             Shares Column 2 with the preview panel below; the two are mutually exclusive. -->
+                        <Border Grid.Column="2" Padding="24">
+                            <Border.Style>
+                                <Style TargetType="Border" BasedOn="{StaticResource CardStyle}">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                    <Style.Triggers>
+                                        <!-- Hidden when a row is selected (the preview panel shows instead) -->
+                                        <DataTrigger Binding="{Binding HasSelectedRow}" Value="True">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                        </DataTrigger>
+                                        <!-- Hidden when there are no results at all -->
+                                        <MultiDataTrigger>
+                                            <MultiDataTrigger.Conditions>
+                                                <Condition Binding="{Binding Results.Count}" Value="0" />
+                                                <Condition Binding="{Binding IncompleteResults.Count}" Value="0" />
+                                            </MultiDataTrigger.Conditions>
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                        </MultiDataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Border.Style>
+                            <StackPanel HorizontalAlignment="Center"
+                                        VerticalAlignment="Center"
+                                        MaxWidth="240">
+                                <Viewbox Width="40" Height="40"
+                                         HorizontalAlignment="Center"
+                                         Margin="0,0,0,14"
+                                         Opacity="0.55">
+                                    <Path Data="M 10.5,4 A 6.5,6.5 0 1 0 10.5,17 A 6.5,6.5 0 1 0 10.5,4 M 15.3,15.3 L 20,20"
+                                          Stroke="{StaticResource BrushTextMuted}"
+                                          StrokeThickness="1.8"
+                                          StrokeStartLineCap="Round"
+                                          StrokeEndLineCap="Round" />
+                                </Viewbox>
+                                <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[PreviewEmptyHint]}"
+                                           Style="{StaticResource TextBody}"
+                                           Foreground="{StaticResource BrushTextMuted}"
+                                           TextWrapping="Wrap"
+                                           TextAlignment="Center"
+                                           HorizontalAlignment="Center" />
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Preview Panel: document-only preview -->
                         <Border Grid.Column="2" Style="{StaticResource CardStyle}"
                                 Padding="0"
+                            MaxHeight="{Binding RelativeSource={RelativeSource AncestorType=Window}, Path=ActualHeight}"
                                 Visibility="{Binding HasSelectedRow, Converter={StaticResource BooleanToVisibilityConverter}}">
                             <Grid>
                                 <Grid.RowDefinitions>
@@ -1777,7 +1835,7 @@
                                     <RowDefinition Height="*" />
                                 </Grid.RowDefinitions>
 
-                                <!-- Header: file name + view toggle + close -->
+                                <!-- Header: sticky toolbar (filename + zoom + fit + expand + close) -->
                                 <Border Grid.Row="0"
                                         BorderThickness="0,0,0,1"
                                         BorderBrush="{StaticResource BrushBorder}"
@@ -1787,6 +1845,11 @@
                                             <ColumnDefinition Width="*" />
                                             <ColumnDefinition Width="Auto" />
                                             <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="Auto" />
                                         </Grid.ColumnDefinitions>
                                         <TextBlock Grid.Column="0"
                                                    Text="{Binding PreviewFileName}"
@@ -1794,22 +1857,77 @@
                                                    TextTrimming="CharacterEllipsis"
                                                    VerticalAlignment="Center" />
 
-                                        <!-- Toggle between image+fields and raw text -->
-                                        <ToggleButton Grid.Column="1"
-                                                      x:Name="TogglePreviewMode"
-                                                      Style="{StaticResource ButtonSecondaryStyle}"
-                                                      Padding="8,4"
-                                                      MinHeight="28"
-                                                      Margin="0,0,8,0"
-                                                      FontSize="11"
-                                                      FontWeight="{StaticResource FontWeightMedium}"
-                                                      IsChecked="{Binding PreviewShowRawText}"
-                                                      ToolTip="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[PreviewBtnRawText]}">
-                                            <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[PreviewBtnRawText]}"
-                                                       VerticalAlignment="Center" />
-                                        </ToggleButton>
+                                        <Button Grid.Column="1"
+                                                Style="{StaticResource ButtonSecondaryStyle}"
+                                                Padding="8,4"
+                                                MinHeight="28"
+                                                Margin="0,0,6,0"
+                                                FontSize="11"
+                                                FontWeight="{StaticResource FontWeightMedium}"
+                                                Command="{Binding PreviewZoomOutCommand}"
+                                                ToolTip="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ViewerZoomOut]}">
+                                            <TextBlock Text="−" VerticalAlignment="Center" />
+                                        </Button>
 
-                                        <Button Grid.Column="2"
+                                        <TextBlock Grid.Column="2"
+                                                   Text="{Binding PreviewZoomPercent}"
+                                                   Style="{StaticResource TextTiny}"
+                                                   Foreground="{StaticResource BrushTextMuted}"
+                                                   VerticalAlignment="Center"
+                                                   Margin="2,0,8,0" />
+
+                                        <Button Grid.Column="3"
+                                                Style="{StaticResource ButtonSecondaryStyle}"
+                                                Padding="8,4"
+                                                MinHeight="28"
+                                                Margin="0,0,6,0"
+                                                FontSize="11"
+                                                FontWeight="{StaticResource FontWeightMedium}"
+                                                Command="{Binding PreviewZoomInCommand}"
+                                                ToolTip="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ViewerZoomIn]}">
+                                            <TextBlock Text="+" VerticalAlignment="Center" />
+                                        </Button>
+
+                                        <Button Grid.Column="4"
+                                                Style="{StaticResource ButtonSecondaryStyle}"
+                                                Padding="8,4"
+                                                MinHeight="28"
+                                                Margin="0,0,8,0"
+                                                FontSize="11"
+                                                FontWeight="{StaticResource FontWeightMedium}"
+                                                Command="{Binding PreviewFitWidthCommand}"
+                                                ToolTip="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ViewerFit]}">
+                                            <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ViewerFit]}"
+                                                       VerticalAlignment="Center" />
+                                        </Button>
+
+                                        <!-- Expand: open this same document in the full-page viewer -->
+                                        <Button Grid.Column="5"
+                                                Style="{StaticResource ButtonSecondaryStyle}"
+                                                Padding="8,4"
+                                                MinHeight="28"
+                                                Margin="0,0,8,0"
+                                                FontSize="11"
+                                                FontWeight="{StaticResource FontWeightMedium}"
+                                                Command="{Binding ShowPreviewImageCommand}"
+                                                CommandParameter="{Binding SelectedRow}"
+                                                ToolTip="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[PreviewBtnExpand]}">
+                                            <StackPanel Orientation="Horizontal">
+                                                <!-- Expand glyph (four corners out), matches viewer icon language -->
+                                                <Viewbox Width="12" Height="12" Margin="0,0,6,0">
+                                                    <Path Data="M 9,3 L 3,3 L 3,9 M 15,3 L 21,3 L 21,9 M 9,21 L 3,21 L 3,15 M 15,21 L 21,21 L 21,15"
+                                                          Stroke="{StaticResource BrushTextPrimary}"
+                                                          StrokeThickness="2"
+                                                          StrokeStartLineCap="Round"
+                                                          StrokeEndLineCap="Round"
+                                                          StrokeLineJoin="Round" />
+                                                </Viewbox>
+                                                <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[PreviewBtnExpand]}"
+                                                           VerticalAlignment="Center" />
+                                            </StackPanel>
+                                        </Button>
+
+                                            <Button Grid.Column="6"
                                                 Style="{StaticResource ButtonIconStyle}"
                                                 Content="✕"
                                                 Width="24" Height="24"
@@ -1817,410 +1935,95 @@
                                     </Grid>
                                 </Border>
 
-                                <!-- Content: Image + Fields (default view) -->
-                                <Grid Grid.Row="1" x:Name="PreviewImageFieldsPanel">
-                                    <Grid.Style>
-                                        <Style TargetType="Grid">
-                                            <Setter Property="Visibility" Value="Visible" />
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding PreviewShowRawText}" Value="True">
-                                                    <Setter Property="Visibility" Value="Collapsed" />
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </Grid.Style>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" MinWidth="80" />
-                                        <ColumnDefinition Width="Auto" />
-                                        <ColumnDefinition Width="200" MinWidth="120" />
-                                    </Grid.ColumnDefinitions>
+                                <!-- Content: original document preview only -->
+                                <Grid Grid.Row="1" x:Name="PreviewDocumentPanel">
+                                    <Grid>
+                                        <ScrollViewer x:Name="PreviewScrollViewer"
+                                                      VerticalScrollBarVisibility="Auto"
+                                                      HorizontalScrollBarVisibility="Auto"
+                                                      Background="{StaticResource BrushAltBackground}"
+                                                      HorizontalContentAlignment="Center"
+                                                      VerticalContentAlignment="Top"
+                                                      SizeChanged="PreviewScrollViewer_SizeChanged"
+                                                      PreviewMouseWheel="PreviewScrollViewer_PreviewMouseWheel"
+                                                      PreviewMouseLeftButtonDown="PreviewScrollViewer_PreviewMouseLeftButtonDown"
+                                                      PreviewMouseMove="PreviewScrollViewer_PreviewMouseMove"
+                                                      PreviewMouseLeftButtonUp="PreviewScrollViewer_PreviewMouseLeftButtonUp"
+                                                      LostMouseCapture="PreviewScrollViewer_LostMouseCapture"
+                                                      Cursor="Hand"
+                                                      PanningMode="Both"
+                                                      CanContentScroll="False">
+                                            <Image Source="{Binding PreviewImageSource}"
+                                                   x:Name="PreviewImage"
+                                                   Stretch="None"
+                                                   RenderTransformOrigin="0.5,0.5"
+                                                   HorizontalAlignment="Center"
+                                                   VerticalAlignment="Top">
+                                                <Image.RenderTransform>
+                                                    <ScaleTransform ScaleX="{Binding PreviewZoomLevel}"
+                                                                    ScaleY="{Binding PreviewZoomLevel}" />
+                                                </Image.RenderTransform>
+                                            </Image>
+                                        </ScrollViewer>
 
-                                    <!-- Left: Scrollable image with zoom -->
-                                    <Grid Grid.Column="0">
-                                        <Grid.RowDefinitions>
-                                            <RowDefinition Height="*" />
-                                            <RowDefinition Height="Auto" />
-                                        </Grid.RowDefinitions>
-                                        <Grid Grid.Row="0">
-                                            <ScrollViewer VerticalScrollBarVisibility="Auto"
-                                                          HorizontalScrollBarVisibility="Auto"
-                                                          Background="{StaticResource BrushAltBackground}">
-                                                <Image Source="{Binding PreviewImageSource}"
-                                                       Stretch="None"
-                                                       RenderTransformOrigin="0.5,0.5">
-                                                    <Image.RenderTransform>
-                                                        <ScaleTransform ScaleX="{Binding PreviewZoomLevel}"
-                                                                        ScaleY="{Binding PreviewZoomLevel}" />
-                                                    </Image.RenderTransform>
-                                                </Image>
-                                            </ScrollViewer>
-                                            <!-- Overlay: shown when no preview image is available yet
-                                                 (e.g. server still starting for a PDF preview) -->
-                                            <TextBlock HorizontalAlignment="Center"
-                                                       VerticalAlignment="Center"
-                                                       TextWrapping="Wrap"
-                                                       TextAlignment="Center"
-                                                       MaxWidth="240"
-                                                       Margin="16">
-                                                <TextBlock.Style>
-                                                    <Style TargetType="TextBlock" BasedOn="{StaticResource TextBody}">
-                                                        <Setter Property="Text" Value="{Binding PreviewStatusMessage}" />
-                                                        <Setter Property="Foreground" Value="{StaticResource BrushTextMuted}" />
-                                                        <Setter Property="Visibility" Value="Visible" />
-                                                        <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding PreviewStatusMessage}" Value="">
-                                                                <Setter Property="Visibility" Value="Collapsed" />
-                                                            </DataTrigger>
-                                                            <DataTrigger Binding="{Binding PreviewStatusMessage}" Value="{x:Null}">
-                                                                <Setter Property="Visibility" Value="Collapsed" />
-                                                            </DataTrigger>
-                                                        </Style.Triggers>
-                                                    </Style>
-                                                </TextBlock.Style>
-                                            </TextBlock>
-                                        </Grid>
-                                        <!-- Zoom controls -->
-                                        <StackPanel Grid.Row="1"
-                                                    Orientation="Horizontal"
-                                                    HorizontalAlignment="Center"
-                                                    Margin="0,8,0,8">
-                                            <TextBlock Text="🔍" FontSize="12"
-                                                       VerticalAlignment="Center"
-                                                       Margin="0,0,4,0" />
-                                            <Slider Minimum="0.25" Maximum="3.0"
-                                                    Value="{Binding PreviewZoomLevel}"
-                                                    Width="80"
-                                                    VerticalAlignment="Center" />
-                                            <TextBlock Text="{Binding PreviewZoomPercent}"
-                                                       FontSize="11"
-                                                       Foreground="{StaticResource BrushTextMuted}"
-                                                       VerticalAlignment="Center"
-                                                       Margin="8,0,0,0" />
-                                        </StackPanel>
-                                    </Grid>
-
-                                    <!-- Splitter between image and fields -->
-                                    <GridSplitter Grid.Column="1"
-                                                  Width="4"
-                                                  HorizontalAlignment="Center"
-                                                  VerticalAlignment="Stretch"
-                                                  Background="{StaticResource BrushBorderLight}"
-                                                  Cursor="SizeWE" />
-
-                                    <!-- Right: Editable fields -->
-                                    <ScrollViewer Grid.Column="2"
-                                                  VerticalScrollBarVisibility="Auto"
-                                                  BorderThickness="0"
-                                                  Padding="12,12,12,12">
-                                        <StackPanel>
-                                            <!-- Item count (persistent, always visible) -->
-                                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
-                                                <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ItemsLabel]}"
-                                                           Style="{StaticResource TextTiny}"
-                                                           Foreground="{StaticResource BrushTextSecondary}" />
-                                                <TextBlock Text="{Binding SelectedRow.ItemsCountDisplay}"
-                                                           Style="{StaticResource TextTiny}"
-                                                           Foreground="{StaticResource BrushAccent}"
-                                                           FontWeight="{StaticResource FontWeightMedium}"
-                                                           Margin="4,0,0,0" />
-                                            </StackPanel>
-
-                                            <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ColumnInvoiceNo]}"
-                                                       Style="{StaticResource TextTiny}"
-                                                       Foreground="{StaticResource BrushTextSecondary}"
-                                                       Margin="0,0,0,2" />
-                                            <TextBox Text="{Binding SelectedRow.NumeroFacture, UpdateSourceTrigger=PropertyChanged}"
-                                                     Style="{StaticResource TextBoxStyle}"
-                                                     Margin="0,0,0,10" />
-
-                                            <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ColumnDate]}"
-                                                       Style="{StaticResource TextTiny}"
-                                                       Foreground="{StaticResource BrushTextSecondary}"
-                                                       Margin="0,0,0,2" />
-                                            <TextBox Text="{Binding SelectedRow.Date, UpdateSourceTrigger=PropertyChanged}"
-                                                     Style="{StaticResource TextBoxStyle}"
-                                                     Margin="0,0,0,10" />
-
-                                            <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ColumnSupplier]}"
-                                                       Style="{StaticResource TextTiny}"
-                                                       Foreground="{StaticResource BrushTextSecondary}"
-                                                       Margin="0,0,0,2" />
-                                            <TextBox Text="{Binding SelectedRow.Fournisseur, UpdateSourceTrigger=PropertyChanged}"
-                                                     Style="{StaticResource TextBoxStyle}"
-                                                     Margin="0,0,0,10" />
-
-                                            <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ColumnClient]}"
-                                                       Style="{StaticResource TextTiny}"
-                                                       Foreground="{StaticResource BrushTextSecondary}"
-                                                       Margin="0,0,0,2" />
-                                            <TextBox Text="{Binding SelectedRow.Client, UpdateSourceTrigger=PropertyChanged}"
-                                                     Style="{StaticResource TextBoxStyle}"
-                                                     Margin="0,0,0,10" />
-
-                                            <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ColumnAmountExcl]}"
-                                                       Style="{StaticResource TextTiny}"
-                                                       Foreground="{StaticResource BrushTextSecondary}"
-                                                       Margin="0,0,0,2" />
-                                            <TextBox Text="{Binding SelectedRow.MontantHt, UpdateSourceTrigger=PropertyChanged}"
-                                                     Style="{StaticResource TextBoxStyle}"
-                                                     Margin="0,0,0,10" />            <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ColumnVat]}"
-           Style="{StaticResource TextTiny}"
-           Foreground="{StaticResource BrushTextSecondary}"
-           Margin="0,0,0,2" />
-<StackPanel Orientation="Horizontal" Margin="0,0,0,10">
-    <TextBox Text="{Binding SelectedRow.MontantTva, UpdateSourceTrigger=PropertyChanged}"
-             Style="{StaticResource TextBoxStyle}"
-             VerticalAlignment="Center" />
-    <Border CornerRadius="{StaticResource RadiusPill}"
-            Padding="4,2"
-            Margin="6,0,0,0"
-            Background="{StaticResource BrushWarning}"
-            VerticalAlignment="Center"
-            ToolTip="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[VatMismatchTooltip]}">
-        <Border.Style>
-            <Style TargetType="Border">
-                <Setter Property="Visibility" Value="Collapsed" />
-                <Style.Triggers>
-                    <DataTrigger Binding="{Binding SelectedRow.VatMismatch}" Value="True">
-                        <Setter Property="Visibility" Value="Visible" />
-                    </DataTrigger>
-                </Style.Triggers>
-            </Style>
-        </Border.Style>
-        <TextBlock Text="⚠" FontSize="10" Foreground="{StaticResource BrushTextInverse}" />
-    </Border>
-</StackPanel>
-
-                                            <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ColumnTax]}"
-                                                       Style="{StaticResource TextTiny}"
-                                                       Foreground="{StaticResource BrushTextSecondary}"
-                                                       Margin="0,0,0,2" />
-                                            <TextBox Text="{Binding SelectedRow.MontantTaxe, UpdateSourceTrigger=PropertyChanged}"
-                                                     Style="{StaticResource TextBoxStyle}"
-                                                     Margin="0,0,0,10" />
-
-                                            <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ColumnTotalIncl]}"
-                                                       Style="{StaticResource TextTiny}"
-                                                       Foreground="{StaticResource BrushTextSecondary}"
-                                                       Margin="0,0,0,2" />
-                                            <TextBox Text="{Binding SelectedRow.MontantTtc, UpdateSourceTrigger=PropertyChanged}"
-                                                     Style="{StaticResource TextBoxStyle}"
-                                                     Margin="0,0,0,10" />
-
-                                            <!-- ── Collapsible Articles Section ── -->
-                                            <Border CornerRadius="{StaticResource RadiusSmall}"
-                                                    BorderThickness="1"
-                                                    BorderBrush="{StaticResource BrushBorder}"
-                                                    Padding="10,10"
-                                                    Margin="0,4,0,0">
-                                                <Grid>
-                                                    <Grid.RowDefinitions>
-                                                        <RowDefinition Height="Auto" />
-                                                        <RowDefinition Height="Auto" />
-                                                    </Grid.RowDefinitions>
-
-                                                    <!-- Header: label + item count + expand/collapse toggle.
-                                                         Real Button (not Border + InputBindings): InputBindings live
-                                                         outside the visual/logical tree, so RelativeSource lookups
-                                                         inside them fail and the click silently did nothing. -->
-                                                    <Button Grid.Row="0"
-                                                            Style="{StaticResource TransparentButtonStyle}"
-                                                            Padding="0,4"
-                                                            Command="{Binding ToggleItemsExpandedCommand}"
-                                                            CommandParameter="{Binding SelectedRow}">
-                                                        <Grid>
-                                                            <Grid.ColumnDefinitions>
-                                                                <ColumnDefinition Width="*" />
-                                                                <ColumnDefinition Width="Auto" />
-                                                            </Grid.ColumnDefinitions>
-                                                            <StackPanel Orientation="Horizontal" Grid.Column="0">
-                                                            <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ArticlesLabel]}"
-                                                                       Style="{StaticResource TextCaption}"
-                                                                       FontWeight="{StaticResource FontWeightMedium}"
-                                                                       VerticalAlignment="Center" />
-                                                            <TextBlock Style="{StaticResource TextCaption}"
-                                                                       FontWeight="{StaticResource FontWeightMedium}"
-                                                                       VerticalAlignment="Center">
-                                                                <Run Text=" (" /><Run Text="{Binding SelectedRow.ItemsCountDisplay}" /><Run Text=")" />
-                                                            </TextBlock>
-                                                        </StackPanel>
-                                                            <TextBlock Grid.Column="1"
-                                                                       FontSize="12"
-                                                                       Foreground="{StaticResource BrushTextMuted}">
-                                                                <TextBlock.Style>
-                                                                    <Style TargetType="TextBlock">
-                                                                        <Setter Property="Text" Value="▶" />
-                                                                        <Style.Triggers>
-                                                                            <DataTrigger Binding="{Binding SelectedRow.AreItemsExpanded}" Value="True">
-                                                                                <Setter Property="Text" Value="▼" />
-                                                                            </DataTrigger>
-                                                                        </Style.Triggers>
-                                                                    </Style>
-                                                                </TextBlock.Style>
-                                                            </TextBlock>
-                                                        </Grid>
-                                                    </Button>
-
-                                                    <!-- Expandable content area -->
-                                                    <Grid Grid.Row="1"
-                                                          Visibility="{Binding SelectedRow.AreItemsExpanded, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                                        <!-- When HasItems is False, show empty placeholder -->
-                                                        <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[ArticlesEmpty]}"
-                                                                   TextWrapping="Wrap"
-                                                                   Margin="0,8,0,4">
-                                                            <TextBlock.Style>
-                                                                <Style TargetType="TextBlock" BasedOn="{StaticResource TextMetadata}">
-                                                                    <Setter Property="Visibility" Value="Visible" />
-                                                                    <Style.Triggers>
-                                                                        <DataTrigger Binding="{Binding SelectedRow.HasItems}" Value="True">
-                                                                            <Setter Property="Visibility" Value="Collapsed" />
-                                                                        </DataTrigger>
-                                                                    </Style.Triggers>
-                                                                </Style>
-                                                            </TextBlock.Style>
-                                                        </TextBlock>
-
-                                                        <!-- When HasItems is True, show item list -->
-                                                        <ItemsControl ItemsSource="{Binding SelectedRow.Items}">
-                                                            <ItemsControl.Style>
-                                                                <Style TargetType="ItemsControl">
-                                                                    <Setter Property="Visibility" Value="Collapsed" />
-                                                                    <Style.Triggers>
-                                                                        <DataTrigger Binding="{Binding SelectedRow.HasItems}" Value="True">
-                                                                            <Setter Property="Visibility" Value="Visible" />
-                                                                        </DataTrigger>
-                                                                    </Style.Triggers>
-                                                                </Style>
-                                                            </ItemsControl.Style>
-                                                            <ItemsControl.ItemTemplate>
-                                                                <DataTemplate>
-                                                                    <Border CornerRadius="{StaticResource RadiusSmall}"
-                                                                            BorderThickness="0,0,0,1"
-                                                                            BorderBrush="{StaticResource BrushBorderLight}"
-                                                                            Padding="8,6"
-                                                                            Margin="0,2,0,0">
-                                                                        <Grid>
-                                                                            <Grid.ColumnDefinitions>
-                                                                                <ColumnDefinition Width="*" />
-                                                                                <ColumnDefinition Width="Auto" />
-                                                                                <ColumnDefinition Width="Auto" />
-                                                                            </Grid.ColumnDefinitions>
-                                                                            <TextBlock Grid.Column="0"
-                                                                                       Text="{Binding DisplayLine, Mode=OneWay}"
-                                                                                       Style="{StaticResource TextTiny}"
-                                                                                       TextTrimming="CharacterEllipsis"
-                                                                                       VerticalAlignment="Center" />
-                                                                            <TextBlock Grid.Column="1"
-                                                                                       Text="{Binding PriceDisplay, Mode=OneWay}"
-                                                                                       Style="{StaticResource TextTiny}"
-                                                                                       Foreground="{StaticResource BrushTextMuted}"
-                                                                                       Margin="0,0,12,0"
-                                                                                       VerticalAlignment="Center" />
-                                                                            <Border Grid.Column="2"
-                                                                                    CornerRadius="{StaticResource RadiusPill}"
-                                                                                    Padding="6,2"
-                                                                                    Background="{StaticResource BrushInfoLight}">
-                                                                                <TextBlock Text="{Binding TvaDisplay, Mode=OneWay}"
-                                                                                           Style="{StaticResource TextTiny}"
-                                                                                           Foreground="{StaticResource BrushInfo}" />
-                                                                            </Border>
-                                                                        </Grid>
-                                                                    </Border>
-                                                                </DataTemplate>
-                                                            </ItemsControl.ItemTemplate>
-                                                        </ItemsControl>
-
-                                                        <!-- Tax Summary (per-rate TVA breakdown) -->
-                                                        <Border Margin="0,12,0,0">
-                                                            <Border.Style>
-                                                                <Style TargetType="Border">
-                                                                    <Setter Property="Visibility" Value="Collapsed" />
-                                                                    <Style.Triggers>
-                                                                        <DataTrigger Binding="{Binding SelectedRow.HasTaxSummary}" Value="True">
-                                                                            <Setter Property="Visibility" Value="Visible" />
-                                                                        </DataTrigger>
-                                                                    </Style.Triggers>
-                                                                </Style>
-                                                            </Border.Style>
-                                                            <StackPanel>
-                                                                <TextBlock Text="{Binding SelectedRow.TaxSummaryTitle}"
-                                                                           Style="{StaticResource TextMetadata}"
-                                                                           FontWeight="{StaticResource FontWeightMedium}"
-                                                                           Foreground="{StaticResource BrushTextMuted}"
-                                                                           Margin="0,0,0,6" />
-                                                                <ItemsControl ItemsSource="{Binding SelectedRow.TaxSummary}">
-                                                                    <ItemsControl.ItemTemplate>
-                                                                        <DataTemplate>
-                                                                            <Border CornerRadius="{StaticResource RadiusSmall}"
-                                                                                    BorderThickness="0,0,0,1"
-                                                                                    BorderBrush="{StaticResource BrushBorderLight}"
-                                                                                    Padding="8,4"
-                                                                                    Margin="0,1,0,0">
-                                                                                <Grid>
-                                                                                    <Grid.ColumnDefinitions>
-                                                                                        <ColumnDefinition Width="Auto" />
-                                                                                        <ColumnDefinition Width="*" />
-                                                                                        <ColumnDefinition Width="Auto" />
-                                                                                    </Grid.ColumnDefinitions>
-                                                                                    <Border Grid.Column="0"
-                                                                                            CornerRadius="{StaticResource RadiusPill}"
-                                                                                            Padding="6,2"
-                                                                                            Background="{StaticResource BrushInfoLight}"
-                                                                                            Margin="0,0,10,0">
-                                                                                        <TextBlock Text="{Binding RateDisplay, Mode=OneWay}"
-                                                                                                   Style="{StaticResource TextTiny}"
-                                                                                                   Foreground="{StaticResource BrushInfo}" />
-                                                                                    </Border>
-                                                                                    <TextBlock Grid.Column="1"
-                                                                                               Style="{StaticResource TextTiny}"
-                                                                                               Foreground="{StaticResource BrushTextMuted}"
-                                                                                               VerticalAlignment="Center">
-                                                                                        <Run Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[TaxBaseLabel], Mode=OneWay}" /><Run Text="{Binding BaseHtDisplay, Mode=OneWay}" />
-                                                                                    </TextBlock>
-                                                                                    <TextBlock Grid.Column="2"
-                                                                                               Text="{Binding TaxAmountDisplay, Mode=OneWay}"
-                                                                                               Style="{StaticResource TextTiny}"
-                                                                                               Foreground="{StaticResource BrushTextMuted}"
-                                                                                               Margin="12,0,0,0"
-                                                                                               VerticalAlignment="Center" />
-                                                                                </Grid>
-                                                                            </Border>
-                                                                        </DataTemplate>
-                                                                    </ItemsControl.ItemTemplate>
-                                                                </ItemsControl>
-                                                            </StackPanel>
-                                                        </Border>
-                                                    </Grid>
-                                                </Grid>
-                                            </Border>
-                                        </StackPanel>
-                                    </ScrollViewer>
-                                </Grid>
-
-                                <!-- Content: Raw OCR text (shown when toggled) -->
-                                <Grid Grid.Row="1" x:Name="PreviewRawTextOnlyPanel">
-                                    <Grid.Style>
-                                        <Style TargetType="Grid">
-                                            <Setter Property="Visibility" Value="Collapsed" />
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding PreviewShowRawText}" Value="True">
+                                        <TextBlock HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center"
+                                                   TextWrapping="Wrap"
+                                                   TextAlignment="Center"
+                                                   MaxWidth="240"
+                                                   Margin="16">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock" BasedOn="{StaticResource TextBody}">
+                                                    <Setter Property="Text" Value="{Binding PreviewStatusMessage}" />
+                                                    <Setter Property="Foreground" Value="{StaticResource BrushTextMuted}" />
                                                     <Setter Property="Visibility" Value="Visible" />
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </Grid.Style>
-                                    <ScrollViewer VerticalScrollBarVisibility="Auto"
-                                                  HorizontalScrollBarVisibility="Auto"
-                                                  Padding="16,12">
-                                        <TextBox Text="{Binding PreviewRawText, Mode=OneWay}"
-                                                 IsReadOnly="True"
-                                                 TextWrapping="Wrap"
-                                                 Style="{StaticResource TextBoxReadOnlyStyle}"
-                                                 Background="{StaticResource BrushAltBackground}"
-                                                 BorderThickness="0"
-                                                 FontFamily="{StaticResource FontMono}"
-                                                 FontSize="{StaticResource FontSizeCaption}" />
-                                    </ScrollViewer>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding PreviewStatusMessage}" Value="">
+                                                            <Setter Property="Visibility" Value="Collapsed" />
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding PreviewStatusMessage}" Value="{x:Null}">
+                                                            <Setter Property="Visibility" Value="Collapsed" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+
+                                        <Grid Background="{StaticResource BrushAltBackground}"
+                                              Visibility="{Binding IsPreviewLoading, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                            <StackPanel HorizontalAlignment="Center"
+                                                        VerticalAlignment="Center">
+                                                <controls:ProgressRing Width="40" Height="40"
+                                                                       Percentage="72"
+                                                                       StrokeThickness="4"
+                                                                       ProgressColor="{StaticResource BrushAccent}"
+                                                                       TrackColor="{StaticResource BrushBorderLight}"
+                                                                       HorizontalAlignment="Center"
+                                                                       RenderTransformOrigin="0.5,0.5">
+                                                    <controls:ProgressRing.RenderTransform>
+                                                        <RotateTransform Angle="0" />
+                                                    </controls:ProgressRing.RenderTransform>
+                                                    <controls:ProgressRing.Triggers>
+                                                        <EventTrigger RoutedEvent="Loaded">
+                                                            <BeginStoryboard>
+                                                                <Storyboard>
+                                                                    <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(RotateTransform.Angle)"
+                                                                                     From="0" To="360"
+                                                                                     Duration="0:0:1.1"
+                                                                                     RepeatBehavior="Forever" />
+                                                                </Storyboard>
+                                                            </BeginStoryboard>
+                                                        </EventTrigger>
+                                                    </controls:ProgressRing.Triggers>
+                                                </controls:ProgressRing>
+                                                <TextBlock Text="{Binding Source={x:Static ui:TranslationSource.Instance}, Path=[PreviewLoading]}"
+                                                           Style="{StaticResource TextBody}"
+                                                           Foreground="{StaticResource BrushTextMuted}"
+                                                           HorizontalAlignment="Center"
+                                                           Margin="0,12,0,0" />
+                                            </StackPanel>
+                                        </Grid>
+                                    </Grid>
                                 </Grid>
                             </Grid>
                         </Border>

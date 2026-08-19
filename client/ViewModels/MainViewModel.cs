@@ -72,9 +72,10 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     // Image cache: filePath → frozen BitmapImage (cleared when too large)
     private readonly Dictionary<string, BitmapImage> _previewImageCache = new();
     private const int MaxPreviewCacheEntries = 50;
-    // Target width (px) the preview image is fit to on first load so a large
-    // scan is immediately visible instead of showing a blank corner.
-    private const double PreviewFitTargetWidth = 720.0;
+    // Default target width used until the actual preview viewport is measured.
+    private const double PreviewDefaultFitWidth = 720.0;
+    private const double PreviewFitHorizontalPadding = 24.0;
+    private double _previewViewportWidth = PreviewDefaultFitWidth;
     private double _previewNaturalWidth;
     private double _previewNaturalHeight;
     private string _directionFilter = "all";
@@ -708,17 +709,23 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         get => _selectedRow;
         set
         {
+            // [SEL-DIAG] TEMPORARY instrumentation — remove after diagnosis.
+            LogPipeline($"[SEL] setter IN  value={value?.FileName ?? "<null>"} current={_selectedRow?.FileName ?? "<null>"} clearing={_clearingSelection} Results={Results.Count} Incomplete={IncompleteResults.Count}");
             // Guard against spurious null from inactive DataGrid bindings
             // (e.g. switching tabs empties the other grid, which pushes null
             // through TwoWay SelectedItem). Only explicit clears via
             // ClearSelectedRowCommand (which sets _clearingSelection) or
             // genuinely switching to a new non-null row are allowed.
             if (value == null && _selectedRow != null && !_clearingSelection)
+            {
+                LogPipeline("[SEL] setter GUARD-BLOCKED null write (kept current)"); // [SEL-DIAG]
                 return;
+            }
             _clearingSelection = false;
 
             if (SetField(ref _selectedRow, value))
             {
+                LogPipeline($"[SEL] setter CHANGED -> {_selectedRow?.FileName ?? "<null>"} HasSelectedRow={HasSelectedRow}"); // [SEL-DIAG]
                 OnPropertyChanged(nameof(HasSelectedRow));
                 OnPropertyChanged(nameof(PreviewRawText));
                 OnPropertyChanged(nameof(PreviewFileName));
@@ -728,6 +735,10 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                     PreviewZoomLevel = 1.0;
                 // Load the source image asynchronously (cache-aware)
                 _ = LoadPreviewImageAsync();
+            }
+            else
+            {
+                LogPipeline($"[SEL] setter SetField NO-OP (value == current) HasSelectedRow={HasSelectedRow}"); // [SEL-DIAG]
             }
         }
     }
@@ -879,6 +890,15 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
 
     /// <summary>Formatted zoom percentage for display.</summary>
     public string PreviewZoomPercent => $"{(int)(_previewZoomLevel * 100)}%";
+
+    /// <summary>Updates the measured preview viewport width so fit-to-width can
+    /// use the current panel size instead of a hard-coded value.</summary>
+    public void SetPreviewViewportWidth(double width)
+    {
+        if (double.IsNaN(width) || double.IsInfinity(width) || width <= 1)
+            return;
+        _previewViewportWidth = width;
+    }
 
     /// <summary>True while the preview image is being loaded.</summary>
     public bool IsPreviewLoading
@@ -1105,14 +1125,20 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
 
     private void FitPreviewToWidth()
     {
-        // This is a hint — the actual fit is calculated in XAML via the ScrollViewer.
-        // We set zoom to 1.0 and let the user adjust.
-        PreviewZoomLevel = 1.0;
+        if (_previewNaturalWidth <= 1)
+        {
+            PreviewZoomLevel = 1.0;
+            return;
+        }
+
+        double targetWidth = Math.Max(120.0, _previewViewportWidth - PreviewFitHorizontalPadding);
+        PreviewZoomLevel = targetWidth / _previewNaturalWidth;
     }
 
     private void FitPreviewToPage()
     {
-        PreviewZoomLevel = 1.0;
+        // For invoice verification, page-fit maps to width-fit for readability.
+        FitPreviewToWidth();
     }
 
     /// <summary>Opens the invoice image in a full-window viewer so it can be
@@ -1178,7 +1204,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         if (naturalWidth <= 1)
             return;
         // PreviewZoomLevel's setter clamps to the 0.25x-3.0x range.
-        PreviewZoomLevel = PreviewFitTargetWidth / naturalWidth;
+        FitPreviewToWidth();
     }
 
     public bool HasErrors => Results.Any(r => r.HasError);
@@ -1216,8 +1242,8 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         return $"{TranslationSource.Get("EngineBadgeAuto")} → {TranslationSource.Get("EngineBadgeOcr")}";
     }
 
-    /// <summary>Window title including the build commit hash for build-identification.</summary>
-    public string WindowTitle => $"{TranslationSource.Get("MainWindowTitle")} — v{BuildInfo.AppVersion} ({BuildInfo.CommitHash})";
+    /// <summary>Window title shown by the host window.</summary>
+    public string WindowTitle => TranslationSource.Get("MainWindowTitle");
 
     public async Task InitializeAsync()
     {
@@ -2572,8 +2598,10 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         Debug.WriteLine("[Hotix] " + step);
         try
         {
+            // Resolved relative to the app root (never a hard-coded absolute path),
+            // with a fallback to %LOCALAPPDATA%\Hotix\logs when the root is read-only.
             File.AppendAllText(
-                @"C:\hotix-invoice\pipeline.log",
+                ServerPathResolver.ResolveWritableFile("pipeline.log"),
                 $"{DateTime.Now:HH:mm:ss.fff} {step}{Environment.NewLine}");
         }
         catch
