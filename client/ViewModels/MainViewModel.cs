@@ -2482,6 +2482,12 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
 
         string json = JsonSerializer.Serialize(settings, new JsonSerializerOptions { WriteIndented = true });
         await File.WriteAllTextAsync(tempPath, json);
+        // File.Replace throws FileNotFoundException if the destination does not yet
+        // exist (verified on .NET 8/9). On a brand-new install the destination may
+        // not exist yet (e.g. first key save before onboarding completed). Create a
+        // seed file so the atomic replace can proceed.
+        if (!File.Exists(appSettingsPath))
+            File.WriteAllText(appSettingsPath, "{}");
         File.Replace(tempPath, appSettingsPath, null); // atomic replace (no backup)
     }
 
