@@ -63,9 +63,16 @@ public sealed class ExcelWriter
         TranslationSource.Get("ExportHeaderItemsCount"),
         TranslationSource.Get("ExportHeaderTvaPerItem"),
         TranslationSource.Get("ExportHeaderItemUnit"),
-        TranslationSource.Get("ExportHeaderTaxRate"),
-        TranslationSource.Get("ExportHeaderTaxBaseHt"),
-        TranslationSource.Get("ExportHeaderTaxAmount"),
+        TranslationSource.Get("ExportHeaderTaxBase021"),
+        TranslationSource.Get("ExportHeaderTaxAmount021"),
+        TranslationSource.Get("ExportHeaderTaxBase055"),
+        TranslationSource.Get("ExportHeaderTaxAmount055"),
+        TranslationSource.Get("ExportHeaderTaxBase10"),
+        TranslationSource.Get("ExportHeaderTaxAmount10"),
+        TranslationSource.Get("ExportHeaderTaxBase20"),
+        TranslationSource.Get("ExportHeaderTaxAmount20"),
+        TranslationSource.Get("ExportHeaderTaxBaseOther"),
+        TranslationSource.Get("ExportHeaderTaxAmountOther"),
         TranslationSource.Get("ExportHeaderConfidence"),
         TranslationSource.Get("ExportHeaderFile"),
         TranslationSource.Get("ExportHeaderEngine"),
@@ -318,33 +325,26 @@ public sealed class ExcelWriter
                 ? row.Items[0].Unit : "—";
             SetCell(ws, rowIndex, 12, firstUnit, rowBg, false);
 
-            // Tax summary per-rate breakdown (all rows, joined per-column)
-            string taxRate = row.TaxSummary.Count > 0
-                ? string.Join(", ", row.TaxSummary.Select(r => r.RateDisplay))
-                : "—";
-            string taxBaseHt = row.TaxSummary.Count > 0
-                ? string.Join(", ", row.TaxSummary.Select(r => r.BaseHtDisplay))
-                : "—";
-            string taxAmount = row.TaxSummary.Count > 0
-                ? string.Join(", ", row.TaxSummary.Select(r => r.TaxAmountDisplay))
-                : "—";
-            SetCell(ws, rowIndex, 13, taxRate, rowBg, false);
-            SetCell(ws, rowIndex, 14, taxBaseHt, rowBg, false);
-            SetCell(ws, rowIndex, 15, taxAmount, rowBg, false);
+            // Fixed-column VAT breakdown: one Base HT / Montant TVA pair per
+            // standard French VAT rate, so each cell holds exactly one value
+            // instead of a comma-joined list. Any rate outside the standard
+            // set falls into the two "autres taux" catch-all columns so no
+            // data is silently dropped.
+            WriteTaxRateColumns(ws, rowIndex, row.TaxSummary, rowBg);
 
             // Confidence as integer %
-            var confCell = ws.Cell(rowIndex, 16);
+            var confCell = ws.Cell(rowIndex, 23);
             confCell.Value = row.HasError ? "—" : $"{(int)Math.Round(row.Confidence * 100)}%";
             confCell.Style.Fill.BackgroundColor = rowBg;
             confCell.Style.Font.FontColor = TextColor;
 
-            SetCell(ws, rowIndex, 17, row.FileName, rowBg, false);
+            SetCell(ws, rowIndex, 24, row.FileName, rowBg, false);
 
             // Engine used
             string engineLabel = row.EngineUsed == "gemini" ? TranslationSource.Get("ExportEngineGemini")
                 : row.EngineUsed == "grok" ? TranslationSource.Get("ExportEngineGrok")
                 : TranslationSource.Get("ExportEngineOcr");
-            SetCell(ws, rowIndex, 18, engineLabel, rowBg, false);
+            SetCell(ws, rowIndex, 25, engineLabel, rowBg, false);
 
             rowIndex++;
         }
@@ -443,6 +443,66 @@ public sealed class ExcelWriter
             : (value ?? string.Empty);
         cell.Style.Fill.BackgroundColor = highlight ? MissingCellBg : rowBg;
         cell.Style.Font.FontColor = highlight ? MissingCellText : TextColor;
+    }
+
+    // Standard French VAT rates, as fractions (0.20 = 20%), in the exact
+    // column order used by WriteTaxRateColumns. Keep this in one place so
+    // the fixed-column layout and the matching logic can never drift apart.
+    private static readonly double[] StandardVatRates = { 0.021, 0.055, 0.10, 0.20 };
+
+    // Floating point tolerance for matching a TaxSummaryRow.Rate against one
+    // of the standard rates above (handles values like 0.19999999).
+    private const double VatRateMatchTolerance = 0.001;
+
+    /// <summary>Writes 10 columns starting at column 13 on the given row:
+    /// a Base HT / Montant TVA pair for each of the 4 standard French VAT
+    /// rates (columns 13-20), followed by a catch-all "autres taux" pair
+    /// (columns 21-22) for any rate that does not match one of the 4
+    /// standard rates within tolerance. If TaxSummary contains more than one
+    /// entry for the same standard rate on the same invoice, their amounts
+    /// are summed into the same column pair rather than one overwriting the
+    /// other.</summary>
+    private static void WriteTaxRateColumns(IXLWorksheet ws, int rowIndex, List<TaxSummaryRow> taxSummary, XLColor rowBg)
+    {
+        const int startCol = 13;
+        var matched = new HashSet<TaxSummaryRow>();
+
+        for (int i = 0; i < StandardVatRates.Length; i++)
+        {
+            double target = StandardVatRates[i];
+            var entries = taxSummary
+                .Where(r => r.Rate.HasValue && Math.Abs(r.Rate.Value - target) < VatRateMatchTolerance)
+                .ToList();
+
+            foreach (var e in entries) matched.Add(e);
+
+            double? baseHtSum = entries.Count > 0 ? entries.Sum(e => e.BaseHt ?? 0) : (double?)null;
+            double? taxAmountSum = entries.Count > 0 ? entries.Sum(e => e.TaxAmount ?? 0) : (double?)null;
+
+            int baseCol = startCol + i * 2;
+            int amountCol = startCol + i * 2 + 1;
+
+            SetAmountCell(ws, rowIndex, baseCol, baseHtSum?.ToString(CultureInfo.InvariantCulture), rowBg, false);
+            SetAmountCell(ws, rowIndex, amountCol, taxAmountSum?.ToString(CultureInfo.InvariantCulture), rowBg, false);
+        }
+
+        // Catch-all for any rate outside the 4 standard ones (e.g. an
+        // unusual or foreign rate). Joined as text so nothing is lost, even
+        // though this specific pair of cells is no longer single-value in
+        // that edge case.
+        var leftover = taxSummary.Where(r => !matched.Contains(r)).ToList();
+        int otherBaseCol = startCol + StandardVatRates.Length * 2;
+        int otherAmountCol = otherBaseCol + 1;
+
+        string otherBase = leftover.Count > 0
+            ? string.Join(", ", leftover.Select(r => $"{r.RateDisplay}: {r.BaseHtDisplay}"))
+            : "—";
+        string otherAmount = leftover.Count > 0
+            ? string.Join(", ", leftover.Select(r => $"{r.RateDisplay}: {r.TaxAmountDisplay}"))
+            : "—";
+
+        SetCell(ws, rowIndex, otherBaseCol, otherBase, rowBg, false);
+        SetCell(ws, rowIndex, otherAmountCol, otherAmount, rowBg, false);
     }
 
     /// <summary>Writes an amount column as a real number with a currency format.

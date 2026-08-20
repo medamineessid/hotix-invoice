@@ -185,9 +185,11 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         IncompleteResults = new ObservableCollection<InvoiceRowViewModel>();
 
         DetectedFiles.CollectionChanged += (_, _) => NotifyFileCountChanged();
-        Results.CollectionChanged += (_, _) => RefreshFilteredViews();
-        IncompleteResults.CollectionChanged += (_, _) => RefreshFilteredViews();
-        
+        // NOTE: Do NOT subscribe to CollectionChanged for RefreshFilteredViews here.
+        // ListCollectionView auto-tracks ObservableCollection changes. Subscribing
+        // before LCV construction (and calling Refresh() inside the notification) causes
+        // a race that produces phantom duplicate rows. RefreshFilteredViews is already
+        // called from the direction/confidence filter setters (the legitimate refresh points).
         _resultsView = new ListCollectionView(Results) { Filter = FilterByDirection };
         _incompleteView = new ListCollectionView(IncompleteResults) { Filter = FilterByDirection };
 
@@ -3215,36 +3217,16 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         // ProcessInvoiceAsync calls EnsureServerReadyAsync() on demand when
         // OCR is actually required.  OCR fallback paths also lazily ensure
         // the server via EnsureServerReadyAsync().
-        Task? serverTask = null;
         bool serverMayBeNeeded = needsServerNow;
-        if (serverMayBeNeeded)
-        {
-            LogPipeline("PRE-FLIGHT: Starting server in background for potential fallback");
-            serverTask = Task.Run(async () =>
-            {
-                try
-                {
-                    await EnsureServerReadyAsync();
-                }
-                catch (Exception ex)
-                {
-                    LogPipeline($"Background server startup failed: {ex.GetType().Name}: {ex.Message}");
-                }
-            });
-        }
-        else
-        {
-            LogPipeline("PRE-FLIGHT: Cloud API available — server not needed, skipping startup");
-        }
 
         if (needsServerNow)
         {
-            LogPipeline("PRE-FLIGHT: Server needed for extraction — waiting for it");
+            LogPipeline("PRE-FLIGHT: Server needed for extraction — starting server on UI thread");
             try
             {
-                // Wait for the background server to be ready
-                if (serverTask != null)
-                    await serverTask;
+                // Await directly on the UI thread (the method is already async;
+                // its internal awaits release the UI thread for responsiveness).
+                await EnsureServerReadyAsync();
 
                 // ── Pre-flight health check ──
                 using var healthResponse = await _apiHttpClient.GetAsync(
