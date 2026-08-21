@@ -739,7 +739,7 @@ begin
       end else
       begin
         WriteLog('ERROR: Could not launch app at {app}\client\{#MyAppExeName}');
-        MsgBox('Erreur: Impossible de lancer l''application. V�rifiez l''installation.', mbError, MB_OK);
+        MsgBox('Erreur: Impossible de lancer l''application. Vérifiez l''installation.', mbError, MB_OK);
       end;
     end;
   end;
