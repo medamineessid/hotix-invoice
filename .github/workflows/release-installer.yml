@@ -1,0 +1,73 @@
+name: Build and Release Installer
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch: {}
+
+jobs:
+  build-installer:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Publish WPF client
+        run: dotnet publish client/Hotix.InvoiceClient.csproj -c Release -r win-x64 --self-contained false -o client/publish
+
+      - name: Publish HotixDiagnostics
+        run: dotnet publish client/HotixDiagnostics/HotixDiagnostics.csproj -c Release -r win-x64 --self-contained false -o client/HotixDiagnostics/bin/Release/net8.0-windows/publish
+
+      - name: Fetch installer vendor binaries (Python, Poppler)
+        run: powershell -ExecutionPolicy Bypass -File installer\fetch-vendor.ps1
+        shell: pwsh
+
+      - name: Install Inno Setup
+        run: choco install innosetup --no-progress -y
+        shell: pwsh
+
+      - name: Compile installer
+        run: '& "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer\Hotix.iss'
+        shell: pwsh
+
+      - name: Scan build output for accidental secrets
+        shell: pwsh
+        run: |
+          $pattern = 'AIza[0-9A-Za-z_\-]{35}'
+          $hits = Get-ChildItem -Recurse installer\Output, client\publish -File |
+            Select-String -Pattern $pattern
+          if ($hits) {
+            Write-Error "Possible API key found in build output:`n$hits"
+            exit 1
+          }
+
+      - name: Locate installer output
+        id: find_installer
+        shell: pwsh
+        run: |
+          $file = Get-ChildItem installer\Output -Filter *.exe | Select-Object -First 1
+          if (-not $file) {
+            Write-Error "No installer .exe found in installer\Output"
+            exit 1
+          }
+          echo "path=$($file.FullName)" >> $env:GITHUB_OUTPUT
+          echo "name=$($file.Name)" >> $env:GITHUB_OUTPUT
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: hotix-installer
+          path: ${{ steps.find_installer.outputs.path }}
+
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ steps.find_installer.outputs.path }}
+          generate_release_notes: true
