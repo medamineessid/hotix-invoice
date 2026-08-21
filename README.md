@@ -1,4 +1,4 @@
-# 🔥 HOTIX — Extraction de factures
+#  HOTIX — Extraction de factures
 
 > Application Windows locale d'extraction de factures PDF et images par OCR, avec moteurs cloud optionnels, interface WPF et export Excel.
 
@@ -15,12 +15,13 @@
 | Version client / installateur | **1.0.1** |
 | Version API | **1.0.0** |
 | Branche | `master` synchronisée avec `origin/master` |
-| Dernier commit documenté | `040ae0b` — `fix: align CI dependencies and local extraction rate limit` |
-| Tests Python locaux | **406 passed**, 0 failed, 0 skipped, 0 errors — Python 3.12 |
-| Tests C# locaux | **76 passed**, 0 failed — .NET 8 |
-| GitHub Actions | **Build Check #67 réussi** pour [`040ae0b`](https://github.com/medamineessid/hotix-invoice/actions/runs/31406743267) |
+| Dernier commit documenté | `653654c` — `ci: add build-and-release workflow for installer` |
+| Tests C# locaux | **103 passed**, 1 skipped, 0 failed — .NET 8 (`client-tests/`) |
+| Tests Python locaux | voir `pytest server/tests/ -q` — non re-chronométré à cette révision |
+| GitHub Actions (build) | `build-check.yml` — dotnet build/test + pytest sur chaque push/PR vers `master` |
+| GitHub Actions (release) | `release-installer.yml` — build + publication GitHub Release sur tag `v*`, pas encore déclenché |
 
-Les résultats ci-dessus correspondent à la dernière validation effectuée le **10 août 2026** sur le commit `040ae0b`. Le build C# réussit ; il peut encore afficher des avertissements de nullable/asynchronisme qui ne bloquent pas la compilation. Une prochaine modification du dépôt doit rafraîchir cette ligne de référence.
+Les résultats ci-dessus correspondent à la dernière validation effectuée le **21 août 2026** sur le commit `653654c`. Une prochaine modification du dépôt doit rafraîchir cette ligne de référence.
 
 ---
 
@@ -288,7 +289,10 @@ py -3.12 -m pip install -r requirements.txt
 py -3.12 -m pytest server/tests/ -q
 ```
 
-La suite couvre notamment l'ingestion, l'OCR normalisé, l'extraction heuristique, les montants, les contrats de schéma LLM, les retries JSON, les traductions et le rate limit.
+18 fichiers dans `server/tests/`. La suite couvre notamment l'ingestion, l'OCR normalisé,
+l'extraction heuristique (`test_field_extractor.py`, `test_field_extractor_v5.py`), les
+montants et la réconciliation (`test_utils.py`, `test_utils_v5.py`), les contrats de
+schéma LLM, le rate limiting, les tokens d'aperçu et l'authentification admin.
 
 ### Build et tests C#
 
@@ -297,24 +301,43 @@ dotnet build client/Hotix.InvoiceClient.csproj
 dotnet test client-tests/Hotix.InvoiceClient.Tests.csproj
 ```
 
+16 fichiers dans `client-tests/` (103 cas exécutables). Couvre l'export Excel, la
+traduction des messages d'erreur, l'auto-détection de direction, le retry JSON, les
+gardes de type `GetStringField`, la persistance d'`appsettings.json`, le contrat de
+récapitulatif TVA et la concurrence de `TranslationSource`.
+
 ### Vérification des traductions
 
 ```powershell
 python scripts/check_translations.py
 ```
 
+### Autres harnais (hors CI, à lancer manuellement)
+
+| Outil | Rôle |
+|---|---|
+| `server/eval_extraction.py` | Harnais d'évaluation OCR : correspondance exacte/tolérance par champ + précision/rappel par article avec alignement. Nécessite un jeu de vérité-terrain dans `evaluation/ground_truth/` (actuellement un seul exemple, pas encore de baseline réelle). |
+| `scripts/check-xaml-resources.sh` | Vérifie que chaque `{StaticResource}`/`{DynamicResource}` référencé dans le XAML du client résout vers une clé définie. Filtre de première passe, pas une preuve de correction (ne vérifie ni l'ordre de fusion ni les ressources ajoutées en code-behind). |
+| `client/TESTING_GUIDE.md` | Scénarios de repro manuelle pour ce qui ne peut pas être testé unitairement : fichier Excel verrouillé, perte réseau en cours d'extraction, arrêt du serveur local, etc. |
+
 ### CI GitHub Actions
 
-Le workflow `.github/workflows/build-check.yml` s'exécute sur `push` et `pull_request` vers `master` :
+Deux workflows dans `.github/workflows/` :
 
+**`build-check.yml`** — sur `push` et `pull_request` vers `master` :
 1. configure .NET 8 et Python 3.12 ;
 2. vérifie l'intégrité des traductions ;
 3. build le client ;
-4. exécute les tests xUnit ;
+4. exécute les tests xUnit (`client-tests/`) ;
 5. installe **l'intégralité de `requirements.txt`**, y compris PaddleOCR/PaddlePaddle ;
 6. exécute `pytest server/tests/`.
 
-La dernière exécution réussie est [Build Check #67](https://github.com/medamineessid/hotix-invoice/actions/runs/31406743267).
+**`release-installer.yml`** — sur tag `v*` ou déclenchement manuel :
+1. publie le client WPF et l'outil de diagnostics (.NET 8, win-x64) ;
+2. récupère les binaires vendorisés (Python, Poppler) via `installer/fetch-vendor.ps1` ;
+3. installe Inno Setup et compile l'installateur ;
+4. scanne la sortie de build à la recherche de clés API accidentellement embarquées (bloquant) ;
+5. publie l'`.exe` compilé comme artefact de build, et comme asset de GitHub Release si déclenché par un tag.
 
 ---
 
@@ -324,6 +347,11 @@ Les derniers commits expliquent l'état actuel du projet :
 
 | Commit | Date | Changement |
 |---|---|---|
+| [`653654c`](https://github.com/medamineessid/hotix-invoice/commit/653654cbcf84501e1af2339deb43967ad7b49f7e) | 2026-08-21 | Workflow CI `release-installer.yml` (build + publication GitHub Release) |
+| [`9875a1f`](https://github.com/medamineessid/hotix-invoice/commit/9875a1f) | 2026-08-21 | Tests de régression pour la persistance d'`appsettings.json` |
+| [`9104cff`](https://github.com/medamineessid/hotix-invoice/commit/9104cff) | 2026-08-21 | Retrait du suivi git de l'installateur compilé (`installer/Output/`) |
+| [`5fa683d`](https://github.com/medamineessid/hotix-invoice/commit/5fa683d) | 2026-08-21 | Correction d'un caractère corrompu (mojibake) dans `Hotix.iss` |
+| [`a4a3974`](https://github.com/medamineessid/hotix-invoice/commit/a4a3974169b8373a855d3d82ea12c426023ff225) | 2026-08-20 | Correction du crash `File.Replace` quand `appsettings.json` n'existe pas encore |
 | [`040ae0b`](https://github.com/medamineessid/hotix-invoice/commit/040ae0be5f6fc654023904aae96909ac246b57ca) | 2026-08-10 | CI alignée sur `requirements.txt` et rate limit local `/extract` porté à 100/configurable |
 | [`98c2574`](https://github.com/medamineessid/hotix-invoice/commit/98c2574e699759cfca75e4d740db61a89e3002b4) | 2026-08-09 | CI dotnet + pytest et tests de régression LLM, direction et traduction |
 | [`2348f79`](https://github.com/medamineessid/hotix-invoice/commit/2348f79c329979212c20abf633b36a23d1c80a56) | 2026-08-09 | Messages d'erreur utilisateur centralisés et traduits |
